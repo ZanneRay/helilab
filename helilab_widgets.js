@@ -160,6 +160,30 @@ const HLW = (function () {
     return `rgb(${Math.round(60 + 150 * t)},${Math.round(200 - 20 * t)},${Math.round(120 - 60 * t)})`;
   }
 
+  /* Airload confidence 0..1 for a blade element from its tangential speed U_T
+     and the advance ratio μ. A rotor element only carries meaningful load where
+     the dynamic pressure q ∝ U_T² is real. Right at the reverse-flow boundary
+     U_T → 0, so α can be geometrically huge yet aerodynamically irrelevant. */
+  function airloadConf(UT, mu) {
+    const qShare = Math.min(1, Math.pow(Math.max(0, UT) / (0.55 * (1 + mu)), 2));
+    const Q_MIN = 0.25;                       // real dynamic-pressure floor
+    return { qShare, Q_MIN, conf: Math.min(1, qShare / Q_MIN) };
+  }
+
+  /* Fade an "rgb(r,g,b)" fill toward the disc-neutral tone by an airload
+     confidence (1 = full colour, 0 = washed-out grey). Used so low-q inboard
+     cells never read as a saturated red "stall" in ANY plot mode. */
+  function fadeToNeutral(rgbStr, conf) {
+    const m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(rgbStr);
+    if (!m) return rgbStr;
+    const bg = [70, 82, 96];                  // neutral slate the disc sits on
+    const k = Math.max(0, Math.min(1, conf));
+    const r = Math.round(bg[0] + (+m[1] - bg[0]) * k);
+    const g = Math.round(bg[1] + (+m[2] - bg[1]) * k);
+    const b = Math.round(bg[2] + (+m[3] - bg[2]) * k);
+    return `rgb(${r},${g},${b})`;
+  }
+
   /* apply forward-flight trim cyclic to a state (level disc) */
   function trimmed(st) {
     const t = computeTrimCyclic(st);
@@ -837,14 +861,24 @@ const HLW = (function () {
           // every "genuinely stalled" decision (hatch, lift-mode magenta, count,
           // iso-lines) on the SAME qShare the colour fade uses, with a real
           // airload floor Q_MIN so the inboard fwd/retreating blob never hatches.
-          const qShare = Math.min(1, Math.pow(Math.max(0, d.UT) / (0.55 * (1 + mu)), 2));
-          const Q_MIN = 0.25;                 // ≈ U_T ≳ 0.4·(1+μ): real dynamic pressure
+          const AL = airloadConf(d.UT, mu);
+          const qShare = AL.qShare, Q_MIN = AL.Q_MIN, conf = AL.conf;
           const trulyStalled = !d.reverseFlow && aoaDeg >= stallEff && qShare >= Q_MIN;
           // fill colour by plot mode
           if (d.reverseFlow) {
             ctx.fillStyle = 'rgba(180,60,200,0.5)';
           } else if (plotMode === 'aoa') {
-            ctx.fillStyle = aoaColor(aoaDeg, stallEff);
+            // Raw geometric α, BUT faded toward neutral by the ACTUAL airload
+            // share (not the clamped conf). Inboard on the retreating side α is
+            // geometrically huge while U_T→0, so q≈0: those cells carry no real
+            // load and must NOT read as a saturated red "stall". We fade the
+            // colour toward slate AND drop the opacity by √qShare so the whole
+            // low-q inboard region visibly recedes — the plot stays honest (α is
+            // high there) without ever faking a stall. Full colour only returns
+            // outboard where real dynamic pressure exists.
+            const fade = Math.pow(qShare, 0.7);          // smooth 0..1 airload ramp
+            ctx.globalAlpha = 0.30 + 0.70 * Math.sqrt(qShare);
+            ctx.fillStyle = fadeToNeutral(aoaColor(aoaDeg, stallEff), fade);
           } else if (plotMode === 'pctcrit') {
             // fraction of the local critical α, colour-mapped so 100 % = stall.
             // The inboard blade sees a huge α but almost no dynamic pressure
@@ -856,8 +890,7 @@ const HLW = (function () {
             // red left is the OUTBOARD retreating blade where high α AND real
             // airload genuinely coincide.
             const pctRaw = aoaDeg / stallEff;                 // 1.0 = critical (uncapped)
-            const airloadConf = Math.min(1, qShare / Q_MIN);  // 0 at U_T→0, 1 above the floor
-            const pct = pctRaw * airloadConf;                 // honest %-crit for display
+            const pct = pctRaw * conf;                        // honest %-crit for display
             ctx.globalAlpha = 0.20 + 0.80 * qShare;
             ctx.fillStyle = aoaColor(pct * st.stallAoA, st.stallAoA);
           } else { // lift
@@ -1498,9 +1531,14 @@ const HLW = (function () {
     function buildState() {
       st.theta0 = sb.coll; st.V = sb.Vkt * 0.5144; st.Vc = sb.Vc;
       st.W_kg = sb.weight; st.alt = sb.alt; st.ige = sb.ige; st.zR = sb.zR;
-      // natural response (no pilot cyclic): keeps every panel lively and
-      // consistent — flapping itself does most of the lift-balancing here.
+      // Apply the SAME forward-flight cyclic trim a real pilot flies (and that
+      // the Envelope lesson uses). Without it the disc shows a huge, unrealistic
+      // retreating-side stall wedge at speed — a real trimmed helicopter tilts
+      // the disc to unload the retreating blade, so the AoA plot must reflect
+      // that. Trim first, then let flapping do the rest.
       st.theta1c = 0; st.theta1s = 0;
+      const trim = computeTrimCyclic(st);
+      st.theta1s = trim.t1s_deg; st.theta1c = trim.t1c_deg;
       return st;
     }
 
@@ -1534,12 +1572,23 @@ const HLW = (function () {
             const rm = (r0 + r1) / 2, pm = (p0 + p1) / 2;
             const d = localAoA(stt, c, rm, pm);
             const stallEff = Math.max(5, st.stallAoA - 18 * Math.max(0, OmRsb * Math.max(0, d.UT) / sosSb - 0.30));
-            const stallCell = !d.reverseFlow && d.aoa * R2D >= stallEff;
-            ctx.fillStyle = d.reverseFlow ? 'rgba(180,60,200,0.5)' : aoaColor(d.aoa * R2D, stallEff);
+            // same airload gate as the Envelope disc: a cell only truly stalls
+            // where high α AND real dynamic pressure (q ∝ U_T²) coincide. Inboard
+            // on the retreating side U_T→0, so α blows up with no airload — fade
+            // that to neutral and never hatch it as a stall.
+            const AL = airloadConf(d.UT, mu);
+            const stallCell = !d.reverseFlow && d.aoa * R2D >= stallEff && AL.qShare >= AL.Q_MIN;
+            if (d.reverseFlow) {
+              ctx.fillStyle = 'rgba(180,60,200,0.5)';
+            } else {
+              ctx.globalAlpha = 0.30 + 0.70 * Math.sqrt(AL.qShare);
+              ctx.fillStyle = fadeToNeutral(aoaColor(d.aoa * R2D, stallEff), Math.pow(AL.qShare, 0.7));
+            }
             ctx.beginPath();
             ctx.arc(cx, cy, R * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
             ctx.arc(cx, cy, R * r0, HLD.polarToCanvas(p1), HLD.polarToCanvas(p0), false);
             ctx.closePath(); ctx.fill();
+            ctx.globalAlpha = 1;
             if (stallCell || d.reverseFlow) {   // CVD texture
               const ang = HLD.polarToCanvas(pm);
               HLD.tick(ctx, cx + R * rm * Math.cos(ang), cy + R * rm * Math.sin(ang),
