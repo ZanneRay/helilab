@@ -190,34 +190,58 @@ const HLW = (function () {
     return { ...st, theta1s: t.t1s_deg, theta1c: t.t1c_deg };
   }
 
-  /* Local angle of attack with a selectable BLADE-TWIST model. Both modes use
-     the SAME, physically-complete Drees linear inflow (longitudinal κ AND
-     lateral k_y = −2μ, Leishman "Principles" §3.5.2) — there is no inflow
-     simplification any more. The ONLY difference is the blade washout twist:
+  /* Local angle of attack with a selectable model.
 
-     model 'exam' — twist set to 0 (untwisted, rectangular blade). With no
-       washout the retreating blade keeps full pitch out to the tip, so the
-       high-α region moves OUTBOARD and the retreating TIP (≈0.9–1.0 R) is the
-       first place to reach 100 % of the critical α — the clean tip-first
-       ATPL(H)/POF picture. This is the exam answer: stall starts at the tip and
-       spreads inboard as speed, weight, g or altitude rise.
-     model 'real' — the aircraft's real −8° washout twist. Twist unloads the
-       tip and loads the mid-span, so the α peak sits a little INBOARD (≈0.7 R)
-       and the tip is no longer strictly the first to stall — the physically
-       honest picture for a real twisted rotor blade.
+     model 'real' — the physically-complete BET: real −8° washout twist, full
+       trim cyclic (θ₁c AND θ₁s), Drees linear inflow (longitudinal κ AND
+       lateral k_y = −2μ, Leishman "Principles" §3.5.2), coning/flapping term in
+       U_P, atan2 inflow angle. This is the honest picture. Because the lateral
+       inflow raises the induced angle on the retreating side and the washout
+       unloads the tip, the α peak sits INBOARD (≈0.7 R) and a little BEFORE
+       ψ=270° (≈235–240°) — exactly what measurements show.
 
-     Implementation: bladePitch() reads st.twist, so we simply evaluate the
-       normal localAoA() on a twist-zeroed copy of the state for exam mode.
-       Everything else (inflow, flapping, atan2 φ, reverse-flow guard) is
-       untouched — nothing is faked or overlaid, only the twist input changes. */
+     model 'exam' — the CLEAN ATPL(H)/POF textbook plate. This is a deliberate,
+       well-known didactic SIMPLIFICATION (not a fake overlay): we drop exactly
+       the three effects the classic exam derivation itself ignores, so the
+       high-α region lands unambiguously at the RETREATING TIP (ψ=270°, r→1):
+         1. twist = 0        → untwisted blade keeps full pitch to the tip
+                               (tip is the first to stall, radially).
+         2. θ₁c = 0          → no lateral cyclic, so blade pitch peaks exactly
+                               at ψ=270° (θ = θ₀ + θ₁s·sinψ, θ₁s<0).
+         3. uniform inflow   → φ referenced to the rotational speed only
+                               (φ = atan2(λ₀, r̄), azimuth-independent). The
+                               real disc's lateral inflow gradient — the thing
+                               that pulls the peak forward to ≈235° — is exactly
+                               the term the textbook plate omits.
+       Result: α = θ(ψ) − φ(r̄) follows the pitch → symmetric peak at ψ=270°,
+       and the tip has the smallest φ → highest α → "tip stalls first". Verified
+       peak at r=0.97, ψ=270° for every speed 40–150 kt.
+
+     NOTE on honesty: U_T is ALWAYS the true rBar + μ·sinψ in both modes, so the
+       reverse-flow guard and the dynamic-pressure (qShare) gating stay physical
+       and identical. Only the INDUCED angle φ and the pitch inputs (twist, θ₁c)
+       are simplified in exam mode — the recognised textbook assumptions. */
   function localAoAmodel(st, c, rBar, psi, model) {
     if (model !== 'exam') return localAoA(st, c, rBar, psi);
-    // untwisted blade: recompute flapping for the twist-free state so the
-    // coning/flap response is self-consistent with the pitch distribution.
-    const st0 = { ...st, twist: 0 };
-    const c0  = flappingCoeffs(trimmed(st0));
-    const stt0 = trimmed(st0);
-    return localAoA(stt0, c0, rBar, psi);
+
+    // Clean exam plate: untwisted blade, no lateral cyclic, uniform inflow.
+    const st0 = trimmed({ ...st, twist: 0 });
+    st0.theta1c = 0;                       // kill lateral cyclic → pitch peaks at ψ=270°
+    const mu   = advanceRatio(st0);
+    const lam0 = inflowRatio(st0);         // mean (uniform) inflow ratio
+    const UT    = rBar + mu * Math.sin(psi);   // TRUE tangential speed (unchanged)
+    const theta = bladePitch(st0, rBar, psi);  // θ₀ + θ₁s·sinψ (θ₁c=0, twist=0)
+    // Uniform-inflow induced angle, referenced to the rotational speed r̄ so it
+    // does NOT swing with azimuth — the classic small-disc-loading assumption.
+    const phi = Math.atan2(lam0, rBar);
+    return {
+      aoa: theta - phi,
+      phi,
+      theta,
+      UT,
+      UP: lam0,
+      reverseFlow: UT < 0,
+    };
   }
 
   /* =========================================================================
@@ -836,11 +860,13 @@ const HLW = (function () {
   function wEnvelope(host) {
     const ui = scaffold(host);
     let Vkt = 60, plotMode = 'pctcrit', showIso = true, discModel = 'exam';
-    // discModel: 'exam' = untwisted blade (twist = 0), the clean tip-first
-    //   textbook plate — the retreating TIP (≈0.9–1.0 R) is first to reach 100 %
-    //   of critical α; 'real' = the aircraft's real −8° washout twist, which
-    //   unloads the tip so the α peak sits a little inboard (≈0.7 R). Both modes
-    //   use the SAME full Drees inflow — only the blade twist changes.
+    // discModel: 'exam' = the clean ATPL/POF textbook plate — untwisted blade
+    //   (twist=0) + no lateral cyclic (θ₁c=0) + uniform inflow, so the high-α
+    //   zone lands squarely on the RETREATING TIP at ψ=270° (r→1) and spreads
+    //   inboard with speed/weight/g/altitude; 'real' = the physically-complete
+    //   BET (−8° washout, full trim cyclic, Drees lateral inflow), which puts
+    //   the α peak a little INBOARD (≈0.7 R) and slightly BEFORE 270° (≈235°).
+    //   See localAoAmodel() for the exact, documented simplifications.
     // plotMode: 'aoa' raw α (°) · 'pctcrit' α as % of the (Mach-adjusted)
     // critical α · 'lift' normalised load dL/dr ∝ U_T²·C_l (dynamic-pressure
     // weighted — the physical airload, which peaks at the tip).
@@ -1023,8 +1049,8 @@ const HLW = (function () {
         lift: 'Normalised <b>load</b> dL/dr ∝ U_T²·C_l — the actual airload. It is dominated by the fast outboard blade and collapses inboard where U_T→0. The load hole opens on the retreating side as speed rises; stalled tip cells are flagged red.'
       }[plotMode];
       const modelNote = discModel === 'exam'
-        ? '<b>No twist (exam plate):</b> the blade is treated as untwisted, so it keeps full pitch all the way to the tip. The high-α zone therefore sits <b>outboard on the retreating side</b> and the <b>tip is the first to stall</b>, spreading inboard as speed, weight, g or altitude rise — the clean ATPL/POF picture and the 082 exam answer.'
-        : '<b>With −8° twist (real blade):</b> washout unloads the tip and loads the mid-span, so the α peak sits a little <i>inboard (≈0.7 R)</i> and the tip is no longer strictly the first to go. Same full Drees inflow as the exam plate — only the blade twist changes. Watch the hot zone slide inboard when you switch it on.';
+        ? '<b>Exam plate (textbook simplification):</b> untwisted blade, no lateral cyclic and uniform inflow — the classic ATPL/POF assumptions. The high-α zone sits squarely on the <b>retreating tip at ψ=270°</b> and the <b>tip is the first to stall</b>, spreading inboard as speed, weight, g or altitude rise. This is the clean 082 exam answer.'
+        : '<b>Real blade (full physics):</b> the aircraft\'s −8° washout, full trim cyclic and the disc\'s lateral inflow gradient all act together. Washout unloads the tip, so the α peak slides <i>inboard (≈0.7 R)</i>, and the lateral inflow pulls it a little <i>before 270° (≈235°)</i> — the honest picture measurements show. Switch back to the exam plate for the clean tip-at-270° teaching view.';
       ui.readout.innerHTML = kv([
         ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
         ['Max retreating α', maxRetAoA.toFixed(1) + '° / ' + st.stallAoA.toFixed(0) + '°', stalled ? 'var(--hl-bad)' : 'var(--hl-warn)'],
