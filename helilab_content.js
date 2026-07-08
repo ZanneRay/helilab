@@ -514,8 +514,9 @@ const HL_LESSONS = [
       <p>The pilot manages RRPM by moving the boundary between driving and driven
       regions with the collective. At the bottom, a <b>flare</b> trades the
       rotor's stored energy and the descent's kinetic energy for a burst of thrust
-      to cushion the landing. Slide along the span and watch the force tilt switch
-      from driving to driven.</p>`,
+      to cushion the landing. The map shows all three regions over the whole disc;
+      add forward speed and watch the driving zone migrate toward the retreating
+      side (ψ 270°) as the advancing side speeds up and goes driven.</p>`,
     takeaways: [
       'In autorotation, up-flow through the disc drives the rotor — no engine.',
       'Span splits into stall (root), driving (mid), driven (tip) regions.',

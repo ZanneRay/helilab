@@ -778,22 +778,50 @@ const HLW = (function () {
     requestAnimationFrame(drawBet);
   }
 
-  /* 9 — Retreating stall & envelope: AoA contour over disc */
+  /* 9 — Retreating stall & envelope: AoA / %-critical-α / lift contour over disc */
   function wEnvelope(host) {
     const ui = scaffold(host);
-    let Vkt = 60, qWeight = false;   // qWeight: dim cells by dynamic pressure U_T²
+    let Vkt = 60, plotMode = 'pctcrit', showIso = true;
+    // plotMode: 'aoa' raw α (°) · 'pctcrit' α as % of the (Mach-adjusted)
+    // critical α · 'lift' normalised load dL/dr ∝ U_T²·C_l (dynamic-pressure
+    // weighted — the physical airload, which peaks at the tip).
+    const sos0 = sosAtAltFt(0);
+    // Mach-adjusted critical α at a cell (NACA-0012 trend: c_lmax falls above
+    // M≈0.3), floored at 5°. Shared by the fill, the %-crit scale and iso-lines.
+    const stallEffAt = (st, UT) => {
+      const Mloc = HL.omR(st) * Math.max(0, UT) / sosAtAltFt(st.alt);
+      return Math.max(5, st.stallAoA - 18 * Math.max(0, Mloc - 0.30));
+    };
     const draw = () => {
       const st = HL.defaultState(); st.V = Vkt * 0.5144;
       const stt = trimmed(st);
       const c = flappingCoeffs(stt);
       const mu = advanceRatio(stt);
+      const sos = sosAtAltFt(st.alt);
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
       HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
-      const cx = W * 0.42, cy = H * 0.52, R = Math.min(W * 0.32, H * 0.42);
-      // paint AoA as filled annular sectors (r 0.2..1, ψ)
-      const nr = 10, np = 48;
-      let maxRetAoA = -99, tipMach = 0;
-      const sos = sosAtAltFt(st.alt);
+      // leave a fixed left/right gutter for the RET/ADV labels so they never
+      // clip on narrow (mobile) viewports; the disc shrinks to fit instead.
+      const GUT = 52;                                   // px reserved each side for labels
+      const cx = W * 0.44, cy = H * 0.52;
+      const R = Math.max(40, Math.min(cx - GUT, W - cx - GUT, H * 0.42));
+      const nr = 12, np = 60;
+      let maxRetAoA = -99, tipMach = 0, maxLift = 1e-6;
+      // pass 1 for the lift scale: find the peak normalised load so the colour
+      // ramp fills the whole range regardless of speed.
+      if (plotMode === 'lift') {
+        for (let ir = 0; ir < nr; ir++) {
+          const rm = 0.2 + 0.8 * (ir + 0.5) / nr;
+          for (let ip = 0; ip < np; ip++) {
+            const pm = ((ip + 0.5) / np) * 2 * Math.PI;
+            const d = localAoA(stt, c, rm, pm);
+            if (d.reverseFlow) continue;
+            const se = stallEffAt(st, d.UT) * D2R;
+            const Cl = Math.abs(d.aoa) < se ? st.clAlpha * d.aoa : 0;
+            maxLift = Math.max(maxLift, Math.max(0, d.UT) * Math.max(0, d.UT) * Cl);
+          }
+        }
+      }
       for (let ir = 0; ir < nr; ir++) {
         const r0 = 0.2 + 0.8 * ir / nr, r1 = 0.2 + 0.8 * (ir + 1) / nr;
         for (let ip = 0; ip < np; ip++) {
@@ -801,155 +829,230 @@ const HLW = (function () {
           const pm = (p0 + p1) / 2, rm = (r0 + r1) / 2;
           const d = localAoA(stt, c, rm, pm);
           const aoaDeg = d.aoa * R2D;
-          // Mach-dependent stall threshold: c_lmax (and stall α) falls with local
-          // Mach above ~0.3 (NACA-0012 trend), floored at 5°. This paints the
-          // advancing-tip compressibility limit onto the same map as retreating stall.
-          const Mloc = HL.omR(st) * Math.max(0, d.UT) / sos;
-          const stallEff = Math.max(5, st.stallAoA - 18 * Math.max(0, Mloc - 0.30));
-          // q-weighting: dim each cell by its share of dynamic pressure
-          // (U_T², normalised by the advancing tip). The inboard high-α blob
-          // fades to nothing — no airload there — while the tip keeps α AND energy.
-          ctx.globalAlpha = qWeight
-            ? 0.05 + 0.95 * Math.pow(Math.max(0, d.UT) / (1 + mu), 2)
-            : 1;
-          if (d.reverseFlow) { ctx.fillStyle = 'rgba(180,60,200,0.5)'; }
-          else { ctx.fillStyle = aoaColor(aoaDeg, stallEff); }
-          if (!d.reverseFlow && pm > Math.PI / 2 - 0.3 && pm < Math.PI / 2 + 0.3 && rm > 0.9) {
-            tipMach = Math.max(tipMach, HL.omR(st) * (rm + mu * Math.sin(pm)) / sos);
+          const stallEff = stallEffAt(st, d.UT);
+          // fill colour by plot mode
+          if (d.reverseFlow) {
+            ctx.fillStyle = 'rgba(180,60,200,0.5)';
+          } else if (plotMode === 'aoa') {
+            ctx.fillStyle = aoaColor(aoaDeg, stallEff);
+          } else if (plotMode === 'pctcrit') {
+            // fraction of the local critical α, colour-mapped so 100 % = stall.
+            // The inboard blade sees a huge α but almost no dynamic pressure
+            // (U_T→0), so it cannot really stall — we FADE those low-q cells
+            // toward the background by their U_T² share. What is left red is the
+            // OUTBOARD retreating blade, where high α AND real airload coincide.
+            const pct = aoaDeg / stallEff;      // 1.0 = critical
+            const qShare = Math.min(1, Math.pow(Math.max(0, d.UT) / (0.55 * (1 + mu)), 2));
+            ctx.globalAlpha = 0.12 + 0.88 * qShare;
+            ctx.fillStyle = aoaColor(pct * st.stallAoA, st.stallAoA);
+          } else { // lift
+            const Cl = Math.abs(d.aoa) < stallEff * D2R ? st.clAlpha * d.aoa : 0;
+            const dL = Math.max(0, d.UT) * Math.max(0, d.UT) * Cl;
+            // in lift mode a genuinely stalled cell (high α + real q) is painted a
+            // distinct desaturated magenta so it never reads as "high load" red.
+            const stCell = aoaDeg >= stallEff && d.UT >= 0.2;
+            ctx.fillStyle = stCell ? 'rgb(150,40,110)' : ramp(Math.max(0, dL) / maxLift);
           }
-          // retreating-stall metric: only the outboard retreating blade with real
-          // tangential speed — cells near the reverse-flow boundary (UT→0) give
-          // huge, meaningless AoA and must be excluded (cf. flapping.js note).
+          if (!d.reverseFlow && pm > Math.PI / 2 - 0.3 && pm < Math.PI / 2 + 0.3 && rm > 0.9)
+            tipMach = Math.max(tipMach, HL.omR(st) * (rm + mu * Math.sin(pm)) / sos);
           if (!d.reverseFlow && Math.sin(pm) < -0.3 && rm >= 0.6 && d.UT >= 0.2)
             maxRetAoA = Math.max(maxRetAoA, aoaDeg);
           ctx.beginPath();
           ctx.arc(cx, cy, R * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
           ctx.arc(cx, cy, R * r0, HLD.polarToCanvas(p1), HLD.polarToCanvas(p0), false);
           ctx.closePath(); ctx.fill();
-          // CVD texture: hatch stalled cells (45°) and reverse-flow cells (135°)
-          const stallCell = !d.reverseFlow && aoaDeg >= stallEff;
+          ctx.globalAlpha = 1;
+          // CVD texture: hatch STALLED cells (45°) and reverse-flow cells (135°).
+          // A cell only counts as stalled if it also carries real airload
+          // (U_T ≥ 0.2) — the low-q inboard blob is high-α but not truly stalled.
+          const stallCell = !d.reverseFlow && aoaDeg >= stallEff && d.UT >= 0.2;
           if (stallCell || d.reverseFlow) {
             const ang = HLD.polarToCanvas(pm);
             const ux = cx + R * rm * Math.cos(ang), uy = cy + R * rm * Math.sin(ang);
             const len = R * (r1 - r0) * 0.9;
+            // stalled = bright magenta 45° hatch (matches the STALL_MARK legend);
+            // reverse-flow = purple 135° hatch. Both high-contrast + textured.
             HLD.tick(ctx, ux, uy, len, stallCell ? Math.PI / 4 : -Math.PI / 4,
-              stallCell ? 'rgba(120,10,10,0.8)' : 'rgba(90,20,110,0.8)', 1.2);
+              stallCell ? 'rgba(255,63,160,0.95)' : 'rgba(150,60,220,0.9)', 1.6);
           }
         }
       }
-      ctx.globalAlpha = 1;                       // q-weighting applies to cells only
+      // constant-value iso-lines so the α (or %-crit) zones are visible.
+      if (showIso && plotMode !== 'lift') {
+        const field = (rBar, psiRad) => {
+          const d = localAoA(stt, c, rBar, psiRad);
+          if (d.reverseFlow || d.UT < 0.2) return null;   // skip low-q / reverse
+          const aoaD = d.aoa * R2D;
+          return plotMode === 'pctcrit' ? 100 * aoaD / stallEffAt(st, d.UT) : aoaD;
+        };
+        const levels = plotMode === 'pctcrit'
+          ? [40, 60, 80, 100, 120]
+          : [2, 4, 6, 8, 10, 12, 14];
+        HLD.discIso(ctx, cx, cy, R, field, levels,
+          { rMin: 0.2, color: 'rgba(20,25,35,0.5)', width: 1,
+            fmt: v => plotMode === 'pctcrit' ? v + '%' : v + '°' });
+      }
       ctx.strokeStyle = col.dim; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
       HLD.text(ctx, 'ADV 90°', cx + R + 4, cy, col.dim, '10px IBM Plex Sans', 'left', 'middle');
       HLD.text(ctx, 'RET 270°', cx - R - 4, cy, col.dim, '10px IBM Plex Sans', 'right', 'middle');
       HLD.text(ctx, 'NOSE', cx, cy - R - 6, col.dim, '10px IBM Plex Sans', 'center');
-      // legend
-      HLD.text(ctx, '■ ok', W - 60, 20, col.good, '10px IBM Plex Sans');
-      HLD.text(ctx, '■ near stall', W - 60, 34, col.warn, '10px IBM Plex Sans');
-      HLD.text(ctx, '■ stalled', W - 60, 48, col.bad, '10px IBM Plex Sans');
-      HLD.text(ctx, '■ reverse', W - 60, 62, '#c46ee0', '10px IBM Plex Sans');
+      HLD.text(ctx, 'TAIL', cx, cy + R + 12, col.dim, '10px IBM Plex Sans', 'center');
+      // legend depends on the plot mode. The stall MARK (hatched) is always a
+      // distinct magenta so it can never be confused with a warm fill colour.
+      const STALL_MARK = '#ff3fa0';
+      const lx = W - 74;
+      if (plotMode === 'lift') {
+        HLD.text(ctx, '■ high load', lx, 20, 'rgb(235,70,50)', '10px IBM Plex Sans');
+        HLD.text(ctx, '■ mid load', lx, 34, 'rgb(60,200,90)', '10px IBM Plex Sans');
+        HLD.text(ctx, '■ low / none', lx, 48, 'rgb(40,90,200)', '10px IBM Plex Sans');
+        HLD.text(ctx, '╱ stalled tip', lx, 62, STALL_MARK, '10px IBM Plex Sans');
+        HLD.text(ctx, '■ reverse', lx, 76, '#c46ee0', '10px IBM Plex Sans');
+      } else if (plotMode === 'aoa') {
+        // continuous raw-α scale: low (blue) → high (red)
+        HLD.text(ctx, '■ low α', lx, 20, 'rgb(40,90,200)', '10px IBM Plex Sans');
+        HLD.text(ctx, '■ mid α', lx, 34, col.good, '10px IBM Plex Sans');
+        HLD.text(ctx, '■ high α', lx, 48, col.warn, '10px IBM Plex Sans');
+        HLD.text(ctx, '╱ stalled', lx, 62, STALL_MARK, '10px IBM Plex Sans');
+        HLD.text(ctx, '■ reverse', lx, 76, '#c46ee0', '10px IBM Plex Sans');
+      } else { // pctcrit
+        HLD.text(ctx, '■ ok (<80%)', lx, 20, col.good, '10px IBM Plex Sans');
+        HLD.text(ctx, '■ near stall', lx, 34, col.warn, '10px IBM Plex Sans');
+        HLD.text(ctx, '■ ≥100% crit', lx, 48, col.bad, '10px IBM Plex Sans');
+        HLD.text(ctx, '╱ stalled', lx, 62, STALL_MARK, '10px IBM Plex Sans');
+        HLD.text(ctx, '■ reverse', lx, 76, '#c46ee0', '10px IBM Plex Sans');
+      }
       const stalled = maxRetAoA >= st.stallAoA;
       const machHigh = tipMach > 0.85;
-      // combined envelope status (the "two walls")
       const exceeded = stalled || machHigh;
       const approaching = !exceeded && (maxRetAoA >= st.stallAoA - 2 || tipMach > 0.80);
       const envTxt = exceeded ? (stalled && machHigh ? 'V_NE — both limits' : stalled ? 'V_NE — retreating stall' : 'V_NE — compressibility')
         : approaching ? 'approaching V_NE' : 'within envelope';
       const envCol = exceeded ? 'var(--hl-bad)' : approaching ? 'var(--hl-warn)' : 'var(--hl-good)';
+      const modeNote = {
+        aoa: 'Raw geometric <b>angle of attack</b> (°). Note α peaks <i>inboard</i> on the retreating side — but that is where the tangential speed U_T → 0, so there is almost no dynamic pressure and no real airload. Switch to <b>% of critical α</b> or <b>lift</b> to see where stall is actually felt.',
+        pctcrit: 'α as a <b>percentage of the local critical α</b>. Because the critical α falls with local Mach, the first cells to reach 100 % (red) are on the <b>outboard retreating blade</b> — so stall correctly begins at the <b>tip</b>, ψ≈240–270°. Iso-lines mark the 40/60/80/100/120 % zones.',
+        lift: 'Normalised <b>load</b> dL/dr ∝ U_T²·C_l — the actual airload. It is dominated by the fast outboard blade and collapses inboard where U_T→0. The load hole opens on the retreating side as speed rises; stalled tip cells are flagged red.'
+      }[plotMode];
       ui.readout.innerHTML = kv([
         ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
         ['Max retreating α', maxRetAoA.toFixed(1) + '° / ' + st.stallAoA.toFixed(0) + '°', stalled ? 'var(--hl-bad)' : 'var(--hl-warn)'],
         ['Advancing tip Mach', tipMach.toFixed(2) + ' / 0.85', machHigh ? 'var(--hl-bad)' : 'var(--hl-good)'],
         ['Envelope', envTxt, envCol],
-      ]) + `<p class="hl-note">${qWeight
-        ? 'Cells are dimmed by their <b>dynamic pressure</b> (∝ U_T²). The inboard high-α blob fades to almost nothing — there is no airload there to lose — while the outboard retreating blade keeps both α <i>and</i> energy. That is why retreating stall is <b>felt at the tip</b>, even though raw α peaks inboard.'
-        : exceeded
-        ? '⚠ Outside the envelope: ' + (stalled ? 'retreating tip STALLED (red, hatched) — vibration, nose-up pitch, roll toward the retreating side. ' : '') + (machHigh ? 'advancing tip is compressible — shock/buffet. ' : '')
-        : 'The two walls of V_NE: retreating stall (red, hatched, left side) and advancing-tip Mach (right). The map lowers the stall α with local Mach, so at very high speed the advancing tip also colours toward stall — shock-induced separation.'}</p>`;
+      ]) + `<p class="hl-note">${exceeded
+        ? '⚠ Outside the envelope: ' + (stalled ? 'retreating tip STALLED (red, hatched) — vibration, nose-up pitch, roll toward the retreating side. ' : '') + (machHigh ? 'advancing tip is compressible — shock/buffet. ' : '') + '<br>' + modeNote
+        : modeNote}</p>`;
     };
     slider(ui.controls, { label: 'Forward speed', min: 0, max: 180, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
-    toggle(ui.controls, { label: 'Weight by dynamic pressure (U_T²)', val: false, on: v => { qWeight = v; draw(); } });
+    segmented(ui.controls, { label: 'Plot', val: plotMode, options: [
+      { v: 'aoa', t: 'Angle of attack' }, { v: 'pctcrit', t: '% of critical α' }, { v: 'lift', t: 'Lift (load)' },
+    ], on: v => { plotMode = v; draw(); } });
+    toggle(ui.controls, { label: 'Constant-angle iso-lines', val: true, on: v => { showIso = v; draw(); } });
     ui.onDraw(draw);
   }
 
-  /* 10 — Autorotation: spanwise driving/driven regions */
+  /* 10 — Autorotation: driving / driven / stall zones over the WHOLE disc */
   function wAutorotation(host) {
     const ui = scaffold(host);
-    const st = HL.defaultState();
-    let rMark = 0.55, upflow = 6, coll = 4;   // up-flow through disc [m/s], collective [°]
-    // Spanwise force balance with UPWARD flow through the disc.
-    //   φ = atan(−λ_up / r)  (negative, since flow is up through the disc)
-    //   in-plane force  F_x = L·sinφ + D·cosφ   (Leishman) — with φ<0:
-    //     F_x < 0  → force tilts WITH rotation → DRIVING (accelerates rotor)
-    //     F_x > 0  → force opposes rotation     → DRIVEN  (brakes rotor)
-    const regionAt = (r, upInflow) => {
-      const phi = Math.atan2(-upInflow, Math.max(0.04, r));
+    let Vkt = 0, upflow = 6, coll = 4;   // forward speed [kt], up-flow [m/s], collective [°]
+    // Force balance on a blade element in steady autorotation, evaluated over
+    // the entire disc (r/R, ψ) so the driving band and its forward-speed shift
+    // are visible.
+    //   U_T = r + μ·sinψ      (tangential — gains speed advancing, loses it retreating)
+    //   φ   = atan2(−λ_up, U_T) (φ<0: the up-flow through the disc tilts the flow up)
+    //   α   = θ − φ ,  F_x = C_l·sinφ + C_d·cosφ   (Leishman in-plane force)
+    //     F_x < 0 → force leans WITH rotation → DRIVING (accelerates the rotor)
+    //     F_x > 0 → force opposes rotation     → DRIVEN  (brakes it)
+    // Forward flight adds μ·sinψ to U_T: the advancing side (ψ 90°) speeds up and
+    // goes DRIVEN, the retreating side (ψ 270°) slows down so φ grows and it goes
+    // DRIVING — the driving band migrates toward the retreating side, and a
+    // reverse-flow / stall wedge opens at the retreating root.
+    const regionAt = (st, r, psiRad, upInflow, mu) => {
+      const UT = r + mu * Math.sin(psiRad);
+      if (UT <= 0.02) return { reg: 'reverse', a: 0, phi: 0, fx: 0, UT };
+      const phi = Math.atan2(-upInflow, UT);
       const th = (coll + st.twist * (r - 0.75)) * D2R;
-      const a = th - phi;                       // φ<0 ⇒ a = θ + |φ|
+      const a = th - phi;
       const cl = HL.clOf(st, a), cd = HL.cdOf(st, cl);
       const fx = cl * Math.sin(phi) + cd * Math.cos(phi);
-      const reg = (a > st.stallAoA * D2R || r < 0.18) ? 'stall' : (fx < 0 ? 'driving' : 'driven');
-      return { reg, a, phi, fx };
+      const reg = (a > st.stallAoA * D2R) ? 'stall' : (fx < 0 ? 'driving' : 'driven');
+      return { reg, a, phi, fx, UT };
     };
+    const colReg = { reverse: '#8f4fb0', stall: '#d05a6e', driving: 'rgb(60,175,95)', driven: 'rgb(232,170,60)' };
     const draw = () => {
+      const st = HL.defaultState(); st.V = Vkt * 0.5144;
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
       HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
       const OmR = HL.omR(st);
       const upInflow = upflow / OmR;
-      const barY = H * 0.80, barH = 26, x0 = 40, x1 = W - 40;
-      const sx = r => x0 + r * (x1 - x0);
-      const colReg = { stall: '#b86ed0', driving: col.good, driven: col.warn };
-      const cw = (x1 - x0) / 90 + 1;
-      let netTorque = 0;          // Σ (−Fx)·r  (>0 ⇒ rotor accelerating)
-      for (let i = 0; i < 90; i++) {
-        const r = i / 90;
-        const rg = regionAt(r + 0.005, upInflow);
-        if (rg.reg !== 'stall') netTorque += (-rg.fx) * r;
-        ctx.fillStyle = colReg[rg.reg];
-        ctx.fillRect(sx(r), barY, cw, barH);
-        // CVD texture: driven = diagonal hatch, stall = cross-hatch, driving = solid
-        if (rg.reg === 'driven') HLD.tick(ctx, sx(r) + cw / 2, barY + barH / 2, barH * 0.8, Math.PI / 4, 'rgba(120,80,10,0.7)', 1);
-        else if (rg.reg === 'stall') HLD.tick(ctx, sx(r) + cw / 2, barY + barH / 2, barH * 0.8, Math.PI / 2, 'rgba(80,20,100,0.7)', 1);
+      const mu = advanceRatio(st);
+      const GUT = 52; const cx = W * 0.44, cy = H * 0.52;
+      const R = Math.max(40, Math.min(cx - GUT, W - cx - GUT, H * 0.42));
+      const nr = 14, np = 72;
+      let net = 0, cnt = { driving: 0, driven: 0, stall: 0, reverse: 0 };
+      for (let ir = 0; ir < nr; ir++) {
+        const r0 = 0.15 + 0.85 * ir / nr, r1 = 0.15 + 0.85 * (ir + 1) / nr;
+        for (let ip = 0; ip < np; ip++) {
+          const p0 = (ip / np) * 2 * Math.PI, p1 = ((ip + 1) / np) * 2 * Math.PI;
+          const pm = (p0 + p1) / 2, rm = (r0 + r1) / 2;
+          const rg = regionAt(st, rm, pm, upInflow, mu);
+          cnt[rg.reg]++;
+          if (rg.reg === 'driving' || rg.reg === 'driven') net += (-rg.fx) * rm;
+          ctx.fillStyle = colReg[rg.reg];
+          ctx.beginPath();
+          ctx.arc(cx, cy, R * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
+          ctx.arc(cx, cy, R * r0, HLD.polarToCanvas(p1), HLD.polarToCanvas(p0), false);
+          ctx.closePath(); ctx.fill();
+          // CVD texture: driven = 45° hatch, stall = vertical, reverse = 135°
+          if (rg.reg !== 'driving') {
+            const ang = HLD.polarToCanvas(pm);
+            const ux = cx + R * rm * Math.cos(ang), uy = cy + R * rm * Math.sin(ang);
+            const len = R * (r1 - r0) * 0.9;
+            const tk = rg.reg === 'driven' ? Math.PI / 4 : rg.reg === 'stall' ? Math.PI / 2 : -Math.PI / 4;
+            const tc = rg.reg === 'driven' ? 'rgba(120,80,10,0.6)' : rg.reg === 'stall' ? 'rgba(120,10,30,0.6)' : 'rgba(70,20,100,0.6)';
+            HLD.tick(ctx, ux, uy, len, tk, tc, 1);
+          }
+        }
       }
-      HLD.text(ctx, 'root', x0, barY + barH + 6, col.dim, '10px IBM Plex Sans', 'center', 'top');
-      HLD.text(ctx, 'tip', x1, barY + barH + 6, col.dim, '10px IBM Plex Sans', 'center', 'top');
-      HLD.text(ctx, '■ stall', x0, barY - 10, '#b86ed0', '10px IBM Plex Sans');
-      HLD.text(ctx, '■ driving (speeds rotor up)', x0 + 56, barY - 10, col.good, '10px IBM Plex Sans');
-      HLD.text(ctx, '■ driven (brakes)', x1 - 104, barY - 10, col.warn, '10px IBM Plex Sans');
-      // blade element at marker
-      const m = regionAt(rMark, upInflow);
-      const th = (coll + st.twist * (rMark - 0.75)) * D2R;
-      const ox = W * 0.26, oy = H * 0.40, len = Math.min(W * 0.42, 240);
-      HLD.bladeSection(ctx, ox, oy, len, { theta: th, phi: m.phi, ampl: 3.0, showForces: false, aoa: m.a }, col);
-      // Up-flow arrow: this is the vertical component of the flow reaching the
-      // blade at the reference point. Its LENGTH scales with the up-flow slider
-      // (m/s) so pulling the slider visibly lengthens the arrow, and it is
-      // anchored just below the section origin pointing UP into the disc.
-      const upLen = 14 + (upflow / 12) * (len * 0.42);          // 14px..~115px with slider
-      const uax = ox - len * 0.10;                              // just left of the origin
-      HLD.arrow(ctx, uax, oy + upLen, uax, oy, col.wind, 2.4, 9);
-      HLD.text(ctx, 'up-flow ' + upflow.toFixed(1) + ' m/s', uax + 6, oy + upLen - 6, col.wind, '10px IBM Plex Sans');
-      HLD.dline(ctx, sx(rMark), barY, sx(rMark), barY - 4, col.ink, 1, [1, 0]);
-      HLD.dot(ctx, sx(rMark), barY - 2, 4, col.ink);
-      const rrpm = netTorque > 0.004 ? 'increasing ↑' : netTorque < -0.004 ? 'decaying ↓' : 'steady (balanced)';
-      const rrpmCol = netTorque > 0.004 ? 'var(--hl-good)' : netTorque < -0.004 ? 'var(--hl-bad)' : 'var(--hl-warn)';
+      ctx.strokeStyle = col.dim; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
+      // rotation arrow (CCW from above) + azimuth labels
+      HLD.text(ctx, 'ADV 90°', cx + R + 4, cy, col.dim, '10px IBM Plex Sans', 'left', 'middle');
+      HLD.text(ctx, 'RET 270°', cx - R - 4, cy, col.dim, '10px IBM Plex Sans', 'right', 'middle');
+      HLD.text(ctx, 'NOSE', cx, cy - R - 6, col.dim, '10px IBM Plex Sans', 'center');
+      HLD.text(ctx, 'TAIL', cx, cy + R + 12, col.dim, '10px IBM Plex Sans', 'center');
+      // forward-flight indicator (air comes from the nose) — placed in the top-left
+      // corner, diagonally toward the disc, clear of NOSE and RET 270° labels
+      if (mu > 0.001) {
+        const ax0 = 14, ay0 = 16, ax1 = 40, ay1 = 40;
+        HLD.arrow(ctx, ax0, ay0, ax1, ay1, col.accent, 2, 7);
+        HLD.text(ctx, 'V∞ airflow', ax1 + 6, ay0 + 4, col.accent, '10px IBM Plex Sans', 'left', 'middle');
+      }
+      // legend
+      HLD.text(ctx, '■ driving', W - 74, 20, colReg.driving, '10px IBM Plex Sans');
+      HLD.text(ctx, '■ driven', W - 74, 34, colReg.driven, '10px IBM Plex Sans');
+      HLD.text(ctx, '■ stall', W - 74, 48, colReg.stall, '10px IBM Plex Sans');
+      HLD.text(ctx, '■ reverse', W - 74, 62, colReg.reverse, '10px IBM Plex Sans');
+      const rrpm = net > 0.02 ? 'increasing ↑' : net < -0.02 ? 'decaying ↓' : 'steady (balanced)';
+      const rrpmCol = net > 0.02 ? 'var(--hl-good)' : net < -0.02 ? 'var(--hl-bad)' : 'var(--hl-warn)';
       ui.readout.innerHTML = kv([
-        ['Station r/R', rMark.toFixed(2), 'var(--hl-ink)'],
+        ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
         ['Collective θ₀', coll.toFixed(1) + '°', 'var(--hl-chord)'],
         ['Up-flow through disc', upflow.toFixed(0) + ' m/s', 'var(--hl-wind)'],
-        ['Local α', (m.a * R2D).toFixed(1) + '°', m.reg === 'stall' ? 'var(--hl-bad)' : 'var(--hl-good)'],
-        ['Region here', m.reg.toUpperCase(),
-          m.reg === 'driving' ? 'var(--hl-good)' : m.reg === 'driven' ? 'var(--hl-warn)' : '#c46ee0'],
+        ['Driving cells', cnt.driving + ' / ' + (nr * np), 'var(--hl-good)'],
         ['Rotor RPM trend', rrpm, rrpmCol],
-      ]) + `<p class="hl-note">The up-flow tilts the total force. In the
-        <b>driving</b> region (mid-span) it leans ahead of the axis and accelerates
-        the rotor; the <b>driven</b> tip brakes and the root stalls. When driving wins,
-        <b>RRPM rises</b>; when driven wins, it decays — <b>lower the collective</b> to
-        grow the driving region and hold RRPM. At the bottom, a <b>flare</b> trades the
-        stored RRPM and descent energy for a cushioning burst of thrust.</p>`;
+      ]) + `<p class="hl-note">The whole disc is classified: the <b>driving</b> band
+        (green) speeds the rotor up, the <b>driven</b> tip (amber) brakes it, and the
+        root <b>stalls</b>. In the hover-descent (0 kt) the pattern is axisymmetric —
+        a driving ring inside a driven tip. Add <b>forward speed</b> and watch it go
+        asymmetric: the advancing side (ψ 90°) gains U_T and turns driven, while the
+        <b>retreating side (ψ 270°) loses U_T so φ grows and the driving zone migrates
+        there</b> — with a reverse-flow/stall wedge opening at the retreating root.
+        Balance driving vs driven with the collective to hold RRPM; flare at the
+        bottom to trade RRPM and rate of descent for a cushion of thrust.</p>`;
     };
+    slider(ui.controls, { label: 'Forward speed', min: 0, max: 80, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
     slider(ui.controls, { label: 'Collective θ₀ (RRPM control)', min: 1, max: 9, step: 0.5, val: coll, unit: '°', on: v => { coll = v; draw(); } });
-    slider(ui.controls, { label: 'Blade station r/R', min: 0.1, max: 1.0, step: 0.01, val: rMark, unit: '', fmt: v => v.toFixed(2), on: v => { rMark = v; draw(); } });
     slider(ui.controls, { label: 'Up-flow through disc', min: 3, max: 12, step: 0.5, val: upflow, unit: ' m/s', fmt: v => v.toFixed(1), on: v => { upflow = v; draw(); } });
     ui.onDraw(draw);
   }

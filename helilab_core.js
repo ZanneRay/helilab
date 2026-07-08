@@ -92,27 +92,38 @@ const HL = (function () {
     const zRige = Math.max(0.35, st.zR || 1);
     const Kige = st.ige ? Math.sqrt(Math.max(0.05, 1 - 1 / (16 * zRige * zRige))) : 1;
 
+    // Stable HOVER induced-inflow reference (v_h in λ units), solved ONCE at
+    // λc=0. This is the fixed yardstick for the descent branch boundaries and
+    // the VRS scaling — it must NOT drift with the descent-inflated inflow,
+    // otherwise the windmill boundary lands far too steep (a former bug).
+    let lamiH = Math.sqrt(Math.max(1e-8, ctAxial(st, 0) / 2));
+    for (let i = 0; i < 30; i++) {
+      const ctH = ctAxial(st, lamiH);
+      lamiH = 0.5 * lamiH + 0.5 * Math.sqrt(Math.max(1e-8, ctH / 2));
+    }
+
     // First find CT & induced inflow by iteration (climb-side momentum).
     let lami = Math.sqrt(Math.max(1e-6, ctAxial(st, Math.max(0, lamc)) / 2));
     let CT = 0.006, branch = 'climb', vrs = false;
 
-    // hover induced inflow magnitude (for VRS scaling)
-    let lamiH = lami;
     for (let i = 0; i < 40; i++) {
       const lam = lamc + lami;
       CT = ctAxial(st, lam);
-      lamiH = Math.sqrt(Math.max(1e-8, CT / 2));    // v_h in λ units
       let lami_new;
       if (lamc >= 0) {                               // climb / hover
         branch = 'climb';
         lami_new = Kige * (-lamc + Math.sqrt(Math.max(0, lamc * lamc + 2 * CT))) / 2;
-      } else if (lamc <= -2 * lamiH) {               // windmill brake
+      } else if (lamc <= -1.8 * lamiH) {             // windmill brake / autorotative
+        // Steep descent (V_c/v_h ≲ −1.8): the wake is fully below the disc again
+        // and momentum theory is valid on the windmill-brake branch. This is the
+        // regime that contains steady autorotation (V_c/v_h ≈ −1.8…−2).
         branch = 'windmill';
         lami_new = (-lamc - Math.sqrt(Math.max(0, lamc * lamc - 2 * CT))) / 2;
       } else {                                        // turbulent-wake / VRS region
         branch = 'vrs';
-        // Empirical hold: induced velocity stays ~ v_h..1.3 v_h through VRS.
-        lami_new = lamiH * (1.15 + 0.25 * Math.sin((lamc / (-2 * lamiH)) * Math.PI));
+        // Empirical hold: induced velocity stays ~ v_h..1.3 v_h through VRS
+        // (V_c/v_h ≈ −0.25…−1.8, the band where momentum theory is invalid).
+        lami_new = lamiH * (1.15 + 0.25 * Math.sin((lamc / (-1.8 * lamiH)) * Math.PI));
       }
       const next = 0.5 * lami + 0.5 * lami_new;
       if (Math.abs(next - lami) < 1e-9) { lami = next; break; }
@@ -123,10 +134,12 @@ const HL = (function () {
     const thrust = CT * rho(st) * area(st) * OmR * OmR;
     const vi = lami * OmR;
     const vih = lamiH * OmR;
-    // VRS flag = the realistic vortex-ring band (V_c/v_h ≈ −0.25…−1.6); a gentle
-    // descent (shallower) or a steep windmill/autorotative descent (faster) is clean.
-    const rVH = vih > 1e-6 ? Vc / vih : 0;
-    vrs = (rVH < -0.25 && rVH > -1.6);
+    // VRS flag = the realistic vortex-ring band (V_c/v_h ≈ −0.25…−1.8), keyed off
+    // the SAME converged hover inflow used for the branch boundary so the flag and
+    // the branch label always agree. A gentle descent (shallower) or a steep
+    // windmill/autorotative descent (faster, V_c/v_h ≲ −1.8) is clean.
+    const rVH = lamiH > 1e-6 ? lamc / lamiH : 0;
+    vrs = (branch === 'vrs') && (rVH < -0.25);
 
     // axial power  P = P_i + P_p + P_c   (no parasite in pure vertical flight)
     const Pi = st.kappa * thrust * (vi + Math.max(0, Vc));

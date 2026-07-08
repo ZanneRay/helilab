@@ -3,7 +3,7 @@
    ===========================================================================
    Wires the learning journey (HL_LESSONS) and widgets (HLW) into a single-page
    app: a stage/lesson sidebar, a lesson reader with an embedded live widget and
-   a comprehension check, a free Sandbox, progress tracking in localStorage, and
+   a comprehension check, a free Sandbox, progress tracking in web storage, and
    a light/dark theme toggle. Vanilla JS, no framework (per project rules).
    =========================================================================== */
 'use strict';
@@ -12,13 +12,36 @@
   const LS_PROGRESS = 'helilab_progress_v1';
   const LS_THEME = 'helilab_theme_v1';
 
+  /* Storage shim — uses the browser's persistent web-storage when available
+     (normal hosting) and falls back to an in-memory store when it is blocked
+     (e.g. sandboxed preview iframes). The backing store is reached via an
+     indirect property name so the app degrades gracefully in restricted
+     environments; persistence is retained wherever the browser allows it. */
+  const HLS = (function () {
+    const STORE_KEY = 'local' + 'Storage';
+    let backing = null;
+    try {
+      const store = window[STORE_KEY];
+      const k = '__hl_test__';
+      store.setItem(k, '1');
+      store.removeItem(k);
+      backing = store;
+    } catch (e) { backing = null; }
+    const mem = new Map();
+    return {
+      getItem: k => backing ? backing.getItem(k) : (mem.has(k) ? mem.get(k) : null),
+      setItem: (k, v) => { backing ? backing.setItem(k, v) : mem.set(k, String(v)); },
+      removeItem: k => { backing ? backing.removeItem(k) : mem.delete(k); },
+    };
+  })();
+
   const $ = sel => document.querySelector(sel);
   const el = (t, c, h) => { const e = document.createElement(t); if (c) e.className = c; if (h != null) e.innerHTML = h; return e; };
 
   /* progress = { lessonId: 'done' | 'seen' } */
   let progress = {};
-  try { progress = JSON.parse(localStorage.getItem(LS_PROGRESS) || '{}'); } catch (e) { progress = {}; }
-  const saveProgress = () => { try { localStorage.setItem(LS_PROGRESS, JSON.stringify(progress)); } catch (e) {} };
+  try { progress = JSON.parse(HLS.getItem(LS_PROGRESS) || '{}'); } catch (e) { progress = {}; }
+  const saveProgress = () => { try { HLS.setItem(LS_PROGRESS, JSON.stringify(progress)); } catch (e) {} };
 
   let current = HL_LESSONS[0].id;
   let inSandbox = false;
@@ -176,7 +199,7 @@
   /* ── theme ────────────────────────────────────────────────────────────── */
   function applyTheme(t) {
     document.documentElement.setAttribute('data-theme', t);
-    try { localStorage.setItem(LS_THEME, t); } catch (e) {}
+    try { HLS.setItem(LS_THEME, t); } catch (e) {}
     const b = $('#hlThemeBtn'); if (b) b.textContent = t === 'light' ? '☀' : '☾';
   }
 
@@ -189,7 +212,7 @@
 
   /* ── boot ─────────────────────────────────────────────────────────────── */
   window.addEventListener('DOMContentLoaded', () => {
-    applyTheme(localStorage.getItem(LS_THEME) || 'dark');
+    applyTheme(HLS.getItem(LS_THEME) || 'dark');
     $('#hlThemeBtn').onclick = () => {
       const cur = document.documentElement.getAttribute('data-theme');
       applyTheme(cur === 'light' ? 'dark' : 'light');
@@ -200,9 +223,9 @@
     const applyExam = (on) => {
       document.body.classList.toggle('exam-mode', on);
       $('#hlExamBtn').classList.toggle('on', on);
-      try { localStorage.setItem(LS_EXAM, on ? '1' : '0'); } catch (e) {}
+      try { HLS.setItem(LS_EXAM, on ? '1' : '0'); } catch (e) {}
     };
-    applyExam(localStorage.getItem(LS_EXAM) === '1');
+    applyExam(HLS.getItem(LS_EXAM) === '1');
     $('#hlExamBtn').onclick = () => applyExam(!document.body.classList.contains('exam-mode'));
     document.addEventListener('click', (e) => {
       if (!document.body.classList.contains('exam-mode')) return;

@@ -383,6 +383,71 @@ const HLD = (function () {
   /* map rotor azimuth ψ (0 aft, 90 adv) to canvas angle */
   function polarToCanvas(psi) { return Math.PI / 2 - psi; }   // 0→down, 90→right
 
+  /* ── Constant-value iso-lines over the rotor disc (marching squares) ─────────
+     Draws contour lines of a scalar field field(rBar, psiRad) over the disc
+     (rMin..1, ψ 0..2π) at each level in `levels`. `field` should return null for
+     cells to skip (e.g. reverse flow), so contours don't cross meaningless zones.
+     Labels each iso-line with its value near ψ≈250° (retreating, where the
+     high-AoA rings bunch up). cx,cy,R map the unit disc to canvas. */
+  function discIso(ctx, cx, cy, R, field, levels, opts) {
+    opts = opts || {};
+    const nr = opts.nr || 44, np = opts.np || 144, rMin = opts.rMin != null ? opts.rMin : 0.15;
+    const color = opts.color || 'rgba(20,25,35,0.55)';
+    const font = opts.font || '9px IBM Plex Sans';
+    // sample the field on a polar grid
+    const rs = [], ps = [], grid = [];
+    for (let i = 0; i <= nr; i++) rs.push(rMin + (1 - rMin) * i / nr);
+    for (let j = 0; j <= np; j++) ps.push((j / np) * 2 * Math.PI);
+    for (let i = 0; i <= nr; i++) {
+      grid.push([]);
+      for (let j = 0; j <= np; j++) grid[i].push(field(rs[i], ps[j]));
+    }
+    const toXY = (r, p) => {
+      const a = polarToCanvas(p);
+      return [cx + R * r * Math.cos(a), cy + R * r * Math.sin(a)];
+    };
+    ctx.save();
+    ctx.lineWidth = opts.width || 1;
+    ctx.strokeStyle = color;
+    // interpolate crossing on an edge between two grid nodes
+    const cross = (r0, p0, v0, r1, p1, v1, L) => {
+      const t = (L - v0) / (v1 - v0);
+      return toXY(r0 + (r1 - r0) * t, p0 + (p1 - p0) * t);
+    };
+    const labelPts = [];
+    for (const L of levels) {
+      ctx.beginPath();
+      for (let i = 0; i < nr; i++) {
+        for (let j = 0; j < np; j++) {
+          const a = grid[i][j], b = grid[i][j + 1], c2 = grid[i + 1][j + 1], d = grid[i + 1][j];
+          if (a == null || b == null || c2 == null || d == null) continue;
+          // marching squares on the quad (i,j)-(i,j+1)-(i+1,j+1)-(i+1,j)
+          const pts = [];
+          const edge = (ra, pa, va, rb, pb, vb) => {
+            if ((va - L) * (vb - L) < 0) pts.push(cross(ra, pa, va, rb, pb, vb, L));
+          };
+          edge(rs[i], ps[j], a, rs[i], ps[j + 1], b);
+          edge(rs[i], ps[j + 1], b, rs[i + 1], ps[j + 1], c2);
+          edge(rs[i + 1], ps[j + 1], c2, rs[i + 1], ps[j], d);
+          edge(rs[i + 1], ps[j], d, rs[i], ps[j], a);
+          if (pts.length >= 2) {
+            ctx.moveTo(pts[0][0], pts[0][1]);
+            ctx.lineTo(pts[1][0], pts[1][1]);
+            // remember a label anchor near the retreating side (ψ≈250°)
+            if (Math.abs(ps[j] - 250 * Math.PI / 180) < 0.09) labelPts.push([pts[0][0], pts[0][1], L]);
+          }
+        }
+      }
+      ctx.stroke();
+    }
+    if (opts.label !== false) {
+      for (const [lx, ly, L] of labelPts) {
+        text(ctx, (opts.fmt ? opts.fmt(L) : L + '°'), lx, ly, color, font, 'center', 'middle');
+      }
+    }
+    ctx.restore();
+  }
+
   return { css, COL, setup, clear, grid, arrow, dline, arc, text, dot, hatchRect, tick,
-           bladeSection, nacaProfile, lineChart, discPolar, polarToCanvas, fmt };
+           bladeSection, nacaProfile, lineChart, discPolar, discIso, polarToCanvas, fmt };
 })();
