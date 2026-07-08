@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HeliLab — Learn How a Helicopter Flies</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="HeliLab.css">
+</head>
+<body>
+
+<header class="hl-header">
+  <button class="hl-icon-btn" id="hlMenuBtn" title="Menu" aria-label="Toggle menu">☰</button>
+  <div class="hl-brand">
+    <span class="hl-brand-mark">🚁</span>
+    <span class="hl-brand-name">HeliLab</span>
+    <span class="hl-brand-sub">Helicopter Aerodynamics · BET for ATPL(H)</span>
+  </div>
+  <div class="hl-header-spacer"></div>
+  <div class="hl-progress">
+    <div class="hl-progress-bar"><div class="hl-progress-fill" id="hlProgressFill"></div></div>
+    <span class="hl-progress-txt" id="hlProgressTxt"></span>
+  </div>
+  <button class="hl-icon-btn" id="hlExamBtn" title="Exam mode — readouts blurred until you click them: predict first, then reveal">🎓</button>
+  <button class="hl-icon-btn" id="hlResetBtn" title="Reset progress">⟲</button>
+  <button class="hl-icon-btn" id="hlThemeBtn" title="Toggle theme">☾</button>
+</header>
+
+<div class="hl-layout">
+  <aside class="hl-sidebar" id="hlSidebar">
+    <nav class="hl-nav" id="hlNav"></nav>
+  </aside>
+  <main class="hl-main" id="hlMain"></main>
+</div>
+
+<!-- Three.js (local, no CDN) for the 3-D sandbox view -->
+<script type="importmap">
+{"imports":{"three":"./lib/three/three.module.js","three/addons/":"./lib/three/addons/"}}
+</script>
+<script type="module" src="helilab_3d.js"></script>
+
+<!-- physics engines: validated v1 core, then HeliLab extensions -->
+<script src="flapping.js"></script>
+<script src="helilab_core.js"></script>
+<script src="helilab_draw.js"></script>
+<script src="helilab_content.js"></script>
+<script src="helilab_widgets.js"></script>
+<script src="helilab_app.js"></script>
+</body>
+</html>
