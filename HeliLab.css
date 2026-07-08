@@ -333,3 +333,53 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
   .hl-sandbox-grid { grid-template-columns: 1fr; }
   .hl-progress { display: none; }
 }
+
+/* ── accessibility: keyboard focus ─────────────────────────────────────────
+   Visible focus rings for keyboard users only (:focus-visible), so mouse
+   clicks stay clean. Applies to every interactive control in the app. */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.hl-icon-btn:focus-visible,
+.hl-nav-item:focus-visible,
+.hl-nav-sandbox:focus-visible,
+.hl-seg-btn:focus-visible,
+.hl-check-opt:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+/* range sliders: highlight the thumb on keyboard focus */
+.hl-ctl input[type=range]:focus-visible {
+  outline: none;
+}
+.hl-ctl input[type=range]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 55%, transparent);
+}
+.hl-ctl input[type=range]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 55%, transparent);
+}
+/* the switch is a visually-hidden checkbox: ring the visible track instead */
+.hl-switch input:focus-visible + .hl-switch-slider {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+/* skip stray outline where we draw our own ring */
+.hl-switch input:focus-visible { outline: none; }
+
+/* ── accessibility: reduced motion ─────────────────────────────────────────
+   Respect the OS "reduce motion" setting: near-instant transitions and no
+   smooth-scroll. Widget canvas redraws are static frames, so no JS change
+   is needed — this covers all CSS transitions/animations. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .hl-main { scroll-behavior: auto; }
+}

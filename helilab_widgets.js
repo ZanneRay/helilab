@@ -28,10 +28,18 @@ const HLW = (function () {
     const wrap = el('div', 'hl-w');
     const stage = el('div', 'hl-w-stage');
     const canvas = el('canvas');
+    // a11y: the canvas is a decorative diagram; the live text readout beside it
+    // carries the actual values, so mark the canvas as an image and point
+    // screen readers to the readout via aria-describedby.
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', 'Diagram — see the values listed beside it');
     stage.appendChild(canvas);
     const side = el('div', 'hl-w-side');
     const controls = el('div', 'hl-w-controls');
     const readout = el('div', 'hl-w-readout');
+    // a11y: announce readout updates politely as the user drags controls
+    readout.setAttribute('role', 'status');
+    readout.setAttribute('aria-live', 'polite');
     side.appendChild(controls); side.appendChild(readout);
     wrap.appendChild(stage); wrap.appendChild(side);
     host.appendChild(wrap);
@@ -56,7 +64,13 @@ const HLW = (function () {
     inp.type = 'range'; inp.min = o.min; inp.max = o.max; inp.step = o.step;
     inp.value = o.val;
     const fmt = o.fmt || (v => (+v).toFixed(o.step < 1 ? 1 : 0));
-    const show = () => { val.textContent = fmt(+inp.value) + (o.unit || ''); };
+    // a11y: name the slider and announce its current value to screen readers
+    inp.setAttribute('aria-label', o.label);
+    const show = () => {
+      const txt = fmt(+inp.value) + (o.unit || '');
+      val.textContent = txt;
+      inp.setAttribute('aria-valuetext', txt);   // spoken value (e.g. "80 kt")
+    };
     inp.addEventListener('input', () => { show(); o.on(+inp.value); });
     row.appendChild(head); row.appendChild(inp); parent.appendChild(row);
     show();
@@ -69,6 +83,7 @@ const HLW = (function () {
     const lab = el('span', 'hl-ctl-lab', o.label);
     const sw = el('label', 'hl-switch');
     const inp = el('input'); inp.type = 'checkbox'; inp.checked = !!o.val;
+    inp.setAttribute('aria-label', o.label);   // a11y: name the switch
     const slid = el('span', 'hl-switch-slider');
     sw.appendChild(inp); sw.appendChild(slid);
     inp.addEventListener('change', () => o.on(inp.checked));
@@ -81,12 +96,18 @@ const HLW = (function () {
     const row = el('div', 'hl-ctl');
     if (o.label) row.appendChild(el('div', 'hl-ctl-lab', o.label));
     const grp = el('div', 'hl-seg');
+    // a11y: expose as a radiogroup so arrow keys / SR announce the choice
+    grp.setAttribute('role', 'radiogroup');
+    if (o.label) grp.setAttribute('aria-label', o.label);
     let cur = o.val;
     o.options.forEach(opt => {
       const b = el('button', 'hl-seg-btn' + (opt.v === cur ? ' on' : ''), opt.t);
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', opt.v === cur ? 'true' : 'false');
       b.addEventListener('click', () => {
-        cur = opt.v; grp.querySelectorAll('.hl-seg-btn').forEach(x => x.classList.remove('on'));
-        b.classList.add('on'); o.on(opt.v);
+        cur = opt.v;
+        grp.querySelectorAll('.hl-seg-btn').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
+        b.classList.add('on'); b.setAttribute('aria-checked', 'true'); o.on(opt.v);
       });
       grp.appendChild(b);
     });
@@ -900,8 +921,14 @@ const HLW = (function () {
       const th = (coll + st.twist * (rMark - 0.75)) * D2R;
       const ox = W * 0.26, oy = H * 0.40, len = Math.min(W * 0.42, 240);
       HLD.bladeSection(ctx, ox, oy, len, { theta: th, phi: m.phi, ampl: 3.0, showForces: false, aoa: m.a }, col);
-      HLD.arrow(ctx, ox + len * 0.5, oy + 34, ox + len * 0.5, oy + 6, col.wind, 2, 8);
-      HLD.text(ctx, 'up-flow', ox + len * 0.5 + 6, oy + 22, col.wind, '10px IBM Plex Sans');
+      // Up-flow arrow: this is the vertical component of the flow reaching the
+      // blade at the reference point. Its LENGTH scales with the up-flow slider
+      // (m/s) so pulling the slider visibly lengthens the arrow, and it is
+      // anchored just below the section origin pointing UP into the disc.
+      const upLen = 14 + (upflow / 12) * (len * 0.42);          // 14px..~115px with slider
+      const uax = ox - len * 0.10;                              // just left of the origin
+      HLD.arrow(ctx, uax, oy + upLen, uax, oy, col.wind, 2.4, 9);
+      HLD.text(ctx, 'up-flow ' + upflow.toFixed(1) + ' m/s', uax + 6, oy + upLen - 6, col.wind, '10px IBM Plex Sans');
       HLD.dline(ctx, sx(rMark), barY, sx(rMark), barY - 4, col.ink, 1, [1, 0]);
       HLD.dot(ctx, sx(rMark), barY - 2, 4, col.ink);
       const rrpm = netTorque > 0.004 ? 'increasing ↑' : netTorque < -0.004 ? 'decaying ↓' : 'steady (balanced)';
@@ -996,7 +1023,10 @@ const HLW = (function () {
       const theta = d.theta;
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
       HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
-      const ox = W * 0.16, oy = H * 0.62, sc = Math.min(W * 0.62, 320);
+      // Centre the origin so the whole triangle uses the canvas instead of the
+      // left edge: leave room on the right for V_rel + the 'rotor plane' label,
+      // and headroom above for the Thrust/TAF vectors.
+      const ox = W * 0.30, oy = H * 0.60, sc = Math.min(W * 0.52, H * 0.62, 340);
       HLD.bladeSection(ctx, ox, oy, sc, {
         theta, phi, ampl: 4.0, showForces: true, showResolve: true,
         cl: HL.clOf(st, theta - phi), cd: HL.cdOf(st, HL.clOf(st, theta - phi)),

@@ -138,6 +138,12 @@ const HL_LESSONS = [
         <li><b>Blade Element Theory</b> (the blades): the same thrust written as
             C<sub>T</sub> = (σ·c<sub>lα</sub>/6)(θ₀ − 3λ/2).</li>
       </ul>
+      <p class="hl-note">This compact <b>1/6</b> form is just the hover case of the
+      general forward-flight thrust equation the simulator solves,
+      C<sub>T</sub> = (σ·c<sub>lα</sub>/4)[θ₀(2/3 + μ²) − (λ + μ·θ<sub>1s</sub>)] —
+      set the advance ratio μ = 0 and (σ·c<sub>lα</sub>/4)·(2/3) becomes
+      (σ·c<sub>lα</sub>/6), giving exactly (σ·c<sub>lα</sub>/6)(θ₀ − 3λ/2). Same
+      physics, two forms; the numbers you see come from the full equation.</p>
       <p>We solve them together for the inflow ratio <b>λ = v<sub>i</sub>/ΩR</b>.
       The pilot story: pull collective → θ₀ up → thrust up → but induced inflow
       also rises, raising φ and trimming α back. Watch thrust, v<sub>i</sub> and

@@ -23,16 +23,16 @@
     <div class="hl-progress-bar"><div class="hl-progress-fill" id="hlProgressFill"></div></div>
     <span class="hl-progress-txt" id="hlProgressTxt"></span>
   </div>
-  <button class="hl-icon-btn" id="hlExamBtn" title="Exam mode — readouts blurred until you click them: predict first, then reveal">🎓</button>
-  <button class="hl-icon-btn" id="hlResetBtn" title="Reset progress">⟲</button>
-  <button class="hl-icon-btn" id="hlThemeBtn" title="Toggle theme">☾</button>
+  <button class="hl-icon-btn" id="hlExamBtn" title="Exam mode — readouts blurred until you click them: predict first, then reveal" aria-label="Toggle exam mode — blur readouts until clicked" aria-pressed="false">🎓</button>
+  <button class="hl-icon-btn" id="hlResetBtn" title="Reset progress" aria-label="Reset all progress">⟲</button>
+  <button class="hl-icon-btn" id="hlThemeBtn" title="Toggle theme" aria-label="Toggle light or dark theme">☾</button>
 </header>
 
 <div class="hl-layout">
   <aside class="hl-sidebar" id="hlSidebar">
     <nav class="hl-nav" id="hlNav"></nav>
   </aside>
-  <main class="hl-main" id="hlMain"></main>
+  <main class="hl-main" id="hlMain" aria-live="polite"></main>
 </div>
 
 <!-- Three.js (local, no CDN) for the 3-D sandbox view -->

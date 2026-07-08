@@ -149,20 +149,43 @@ const HLD = (function () {
      originate at the chord reference point (ox,oy); the rounded leading edge faces
      the relative wind (far end). opts: { theta, phi, ampl, showForces, showResolve,
      cl, cd, stall, airfoil }. All angles in radians. Returns nothing. */
+  /* label with a translucent rounded background chip so text never becomes
+     unreadable when it lands on top of the airfoil or a vector. */
+  function chipLabel(ctx, str, x, y, color, font, align, bg) {
+    font = font || '11px IBM Plex Sans, sans-serif';
+    align = align || 'left';
+    ctx.font = font; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(str).width, h = parseInt(font, 10) + 4;
+    let bx = x;
+    if (align === 'center') bx = x - w / 2;
+    else if (align === 'right') bx = x - w;
+    ctx.save();
+    ctx.fillStyle = bg || 'rgba(13,17,23,0.72)';
+    const pad = 3, r = 4, rx = bx - pad, ry = y - h / 2, rw = w + pad * 2, rh = h;
+    ctx.beginPath();
+    ctx.moveTo(rx + r, ry); ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, r);
+    ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, r); ctx.arcTo(rx, ry + rh, rx, ry, r);
+    ctx.arcTo(rx, ry, rx + rw, ry, r); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = color; ctx.font = font; ctx.textAlign = align; ctx.textBaseline = 'middle';
+    ctx.fillText(str, x, y);
+  }
+
   function bladeSection(ctx, ox, oy, len, opts, col) {
     const th = opts.theta, ph = opts.phi, A = opts.ampl || 1;
     const thV = th * A, phV = Math.min(thV - 0.01, ph * A);
     const aCol = opts.stall ? col.bad : (opts.aoa != null && opts.aoa < 0.035 ? col.warn : col.lift);
 
-    // disc-plane reference
-    dline(ctx, ox - 14, oy, ox + len + 14, oy, col.dim, 1, [5, 4]);
-    text(ctx, 'rotor plane', ox - 12, oy - 5, col.dim, '10px IBM Plex Sans');
+    // disc-plane reference — extend both ways; label sits at the far right end,
+    // clear of the busy origin cluster.
+    dline(ctx, ox - len * 0.34, oy, ox + len * 1.12, oy, col.dim, 1, [5, 4]);
+    chipLabel(ctx, 'rotor plane', ox + len * 1.12, oy - 9, col.dim, '10px IBM Plex Sans', 'right');
 
     // relative wind arrow (tail upstream → head at LE)
     const wlen = len * 0.92;
     const wtx = ox + wlen * Math.cos(phV), wty = oy - wlen * Math.sin(phV);
     arrow(ctx, wtx, wty, ox, oy, col.wind, 2.2, 10);
-    text(ctx, 'V_rel', (ox + wtx) / 2, (oy + wty) / 2 - 8, col.wind, 'bold 11px IBM Plex Sans', 'center');
+    chipLabel(ctx, 'V_rel', ox + wlen * 0.80 * Math.cos(phV), oy - wlen * 0.80 * Math.sin(phV) - 12, col.wind, 'bold 11px IBM Plex Sans', 'center');
 
     // airfoil — NACA 0012 section, ~40% of the chord, centred on the chord line.
     // Reversed along x so the rounded LEADING EDGE points into the relative wind
@@ -187,17 +210,36 @@ const HLD = (function () {
     ctx.globalAlpha = 0.16; ctx.fill(); ctx.globalAlpha = 1; ctx.stroke();
     ctx.restore();
     dot(ctx, ox, oy, 4, col.chord);
-    // label at the airfoil leading edge (far side)
+    // label at the airfoil leading edge (far side) — pushed clear of the chord line
     const lex = ox + ac * Math.cos(thV), ley = oy - ac * Math.sin(thV);
-    text(ctx, opts.airfoilName || 'NACA 0012', lex + 6, ley - 5, col.chord, '10px IBM Plex Sans');
+    chipLabel(ctx, opts.airfoilName || 'NACA 0012', lex + 8, ley - 12, col.chord, '10px IBM Plex Sans', 'left');
 
     // arcs: θ (plane→chord), φ (plane→wind), α (wind→chord)
-    arc(ctx, ox, oy, 34, 0, -thV, col.chord,
-        'θ ' + (th * 180 / Math.PI).toFixed(1) + '°');
-    arc(ctx, ox, oy, 52, 0, -phV, col.wind,
-        'φ ' + (ph * 180 / Math.PI).toFixed(1) + '°');
-    arc(ctx, ox, oy, 70, -phV, -thV, aCol,
-        'α ' + ((th - ph) * 180 / Math.PI).toFixed(1) + '°', 'bold 12px IBM Plex Sans');
+    // Staggered radii + chip labels placed on the arc mid-angle so the three
+    // readouts never stack on top of each other near the busy origin.
+    const arcLbl = (r, a0, a1, color, str, font, dy) => {
+      ctx.strokeStyle = color; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(ox, oy, r, a0, a1, a1 < a0); ctx.stroke();
+      const m = (a0 + a1) / 2;
+      chipLabel(ctx, str, ox + (r + 12) * Math.cos(m), oy + (r + 12) * Math.sin(m) + (dy || 0), color, font || '11px IBM Plex Sans', 'center');
+    };
+    // θ (chord vs plane) small inner arc, label above; φ (wind vs plane) mid arc,
+    // label biased down toward the wind. α (=θ−φ) is the exam angle: draw its
+    // wedge between the two vectors and place the chip straight up into the clear
+    // space above the origin so it never lands on V_rel or the airfoil.
+    arcLbl(40, 0, -thV, col.chord, 'θ ' + (th * 180 / Math.PI).toFixed(1) + '°', null, -6);
+    arcLbl(64, 0, -phV, col.wind, 'φ ' + (ph * 180 / Math.PI).toFixed(1) + '°', null, 12);
+    // α wedge drawn between the wind and chord vectors; its chip is anchored in
+    // the clear headroom above the origin with a thin leader line back to the
+    // wedge, so it stays readable even when θ and φ are both nearly horizontal.
+    const aMid = (thV + phV) / 2;
+    ctx.strokeStyle = aCol; ctx.lineWidth = 2.4;
+    ctx.beginPath(); ctx.arc(ox, oy, 88, -phV, -thV, -thV < -phV); ctx.stroke();
+    const wedgeX = ox + 88 * Math.cos(aMid), wedgeY = oy - 88 * Math.sin(aMid);
+    const aLblX = ox + len * 0.30, aLblY = oy - len * 0.42;   // up-right, into empty space
+    dline(ctx, wedgeX, wedgeY, aLblX, aLblY + 6, aCol, 1, [2, 3]);
+    chipLabel(ctx, 'α ' + ((th - ph) * 180 / Math.PI).toFixed(1) + '° (AoA)',
+      aLblX, aLblY, aCol, 'bold 12px IBM Plex Sans', 'center');
 
     // forces (L and D drawn ~2× for visibility — they are schematic, not to scale)
     if ((opts.showForces || opts.showResolve) && !opts.stall) {
@@ -208,9 +250,9 @@ const HLD = (function () {
       const Dx = -fD * Math.cos(phV), Dy =  fD * Math.sin(phV);   // drag ∥ wind (downstream)
       if (opts.showForces) {
         arrow(ctx, ox, oy, ox + Lx, oy + Ly, col.lift, 2.4, 9);
-        text(ctx, 'L', ox + Lx - 2, oy + Ly - 6, col.lift, 'bold 11px IBM Plex Sans', 'center');
+        chipLabel(ctx, 'L', ox + Lx, oy + Ly - 10, col.lift, 'bold 11px IBM Plex Sans', 'center');
         arrow(ctx, ox, oy, ox + Dx, oy + Dy, col.drag, 2.0, 8);
-        text(ctx, 'D', ox + Dx - 6, oy + Dy + 4, col.drag, '10px IBM Plex Sans', 'right');
+        chipLabel(ctx, 'D', ox + Dx - 10, oy + Dy + 8, col.drag, '10px IBM Plex Sans', 'center');
       }
       // resolve TAF = L + D into thrust (⟂ rotor plane) and F_H (in-plane).
       // Computed from the TRUE inflow angle and one common force scale — NOT from
@@ -231,14 +273,13 @@ const HLD = (function () {
         dline(ctx, ox, oy + Ty, ox + Tx, oy + Ty, col.dim, 1, [3, 3]);
         // thrust (vertical) and F_H (horizontal) vectors
         arrow(ctx, ox, oy, ox, oy + Ty, col.good, 2.4, 9);
-        text(ctx, 'Thrust', ox + 4, oy + Ty + (Ty < 0 ? -4 : 12), col.good, 'bold 10px IBM Plex Sans');
+        chipLabel(ctx, 'Thrust', ox - 26, oy + Ty + (Ty < 0 ? -2 : 4), col.good, 'bold 10px IBM Plex Sans', 'center');
         const fhCol = Tx > 0 ? col.good : col.warn;
         arrow(ctx, ox, oy, ox + Tx, oy, fhCol, 2.4, 9);
-        text(ctx, 'F_H', ox + Tx + (Tx < 0 ? -16 : 4), oy - 5, fhCol, 'bold 10px IBM Plex Sans');
-        text(ctx, '(×6)', ox + Tx + (Tx < 0 ? -16 : 4), oy + 7, col.dim, '8px IBM Plex Sans');
-        // TAF resultant
+        chipLabel(ctx, 'F_H ×6', ox + Tx + (Tx < 0 ? -24 : 24), oy + 15, fhCol, 'bold 10px IBM Plex Sans', 'center');
+        // TAF resultant — label biased right, opposite the Thrust label on the left
         arrow(ctx, ox, oy, ox + Tx, oy + Ty, tafCol, 2.6, 10);
-        text(ctx, 'TAF', ox + Tx + 4, oy + Ty + 4, tafCol, 'bold 11px IBM Plex Sans');
+        chipLabel(ctx, 'TAF', ox + Tx + 22, oy + Ty + 2, tafCol, 'bold 11px IBM Plex Sans', 'center');
       }
     }
     if (opts.stall) {

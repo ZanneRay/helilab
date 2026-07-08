@@ -27,6 +27,9 @@
   function buildSidebar() {
     const nav = $('#hlNav');
     nav.innerHTML = '';
+    // a11y: expose the lesson list as a navigation landmark
+    nav.setAttribute('role', 'navigation');
+    nav.setAttribute('aria-label', 'Lessons');
     HL_STAGES.forEach(stage => {
       const lessons = HL_LESSONS.filter(l => l.stage === stage);
       const done = lessons.filter(l => progress[l.id] === 'done').length;
@@ -36,10 +39,16 @@
       lessons.forEach(l => {
         const idx = HL_LESSONS.indexOf(l) + 1;
         const st = progress[l.id];
-        const item = el('button', 'hl-nav-item' + (!inSandbox && l.id === current ? ' on' : ''));
+        const active = !inSandbox && l.id === current;
+        const item = el('button', 'hl-nav-item' + (active ? ' on' : ''));
         item.innerHTML =
           `<span class="hl-nav-mark ${st || ''}">${st === 'done' ? '✓' : idx}</span>` +
           `<span class="hl-nav-text"><b>${l.title}</b><small>${l.subtitle}</small></span>`;
+        // a11y: label the button and mark the current lesson
+        item.setAttribute('aria-label',
+          `Lesson ${idx}: ${l.title}. ${l.subtitle}.` +
+          (st === 'done' ? ' Completed.' : st === 'seen' ? ' Started.' : ''));
+        if (active) item.setAttribute('aria-current', 'page');
         item.onclick = () => { inSandbox = false; current = l.id; render(); };
         grp.appendChild(item);
       });
@@ -84,6 +93,9 @@
     const wCol = el('div', 'hl-lesson-widget');
     wCol.appendChild(el('div', 'hl-widget-label', '▸ Try it'));
     const mount = el('div', 'hl-widget-mount');
+    // a11y: the interactive diagram is a labelled group of controls
+    mount.setAttribute('role', 'group');
+    mount.setAttribute('aria-label', 'Interactive diagram: ' + lesson.title + '. Use the sliders and toggles to explore; results are shown as text beside the diagram.');
     wCol.appendChild(mount);
     grid.appendChild(wCol); grid.appendChild(readCol);
     main.appendChild(grid);
@@ -115,6 +127,9 @@
 
   function buildCheck(lesson) {
     const box = el('div', 'hl-check');
+    // a11y: expose the whole check as a labelled group
+    box.setAttribute('role', 'group');
+    box.setAttribute('aria-label', 'Comprehension check');
     box.appendChild(el('div', 'hl-check-h', '✎ Quick check'));
     box.appendChild(el('div', 'hl-check-q', lesson.check.q));
     const opts = el('div', 'hl-check-opts');
@@ -125,12 +140,15 @@
         if (answered) return; answered = true;
         const correct = i === lesson.check.answer;
         opts.querySelectorAll('.hl-check-opt').forEach((x, j) => {
-          x.classList.add('done');
-          if (j === lesson.check.answer) x.classList.add('correct');
-          else if (j === i) x.classList.add('wrong');
+          x.classList.add('done'); x.setAttribute('aria-disabled', 'true');
+          if (j === lesson.check.answer) { x.classList.add('correct'); x.setAttribute('aria-label', x.textContent + ' — correct answer'); }
+          else if (j === i) { x.classList.add('wrong'); x.setAttribute('aria-label', x.textContent + ' — your answer, incorrect'); }
         });
         const fb = el('div', 'hl-check-fb ' + (correct ? 'ok' : 'no'),
           (correct ? '✓ Correct. ' : '✗ Not quite. ') + lesson.check.explain);
+        // a11y: announce the feedback to screen readers
+        fb.setAttribute('role', 'status');
+        fb.setAttribute('aria-live', 'polite');
         box.appendChild(fb);
         if (correct && progress[lesson.id] !== 'done') { progress[lesson.id] = 'done'; saveProgress(); buildSidebar(); }
       };
