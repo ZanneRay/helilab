@@ -1028,6 +1028,275 @@ const HLW = (function () {
     ui.onDraw(draw);
   }
 
+  /* =========================================================================
+     wCoriolis — lead/lag hunting from flapping (angular-momentum)
+     top-view disc + in-plane lead/lag angle around azimuth
+     ========================================================================= */
+  function wCoriolis(host) {
+    const ui = scaffold(host);
+    const st = HL.defaultState();
+    let Vkt = 80, articulated = true, psiDeg = 90;
+    // Coriolis in-plane hunting is driven by the FLAP RATE β̇ (accel ∝ 2·Ω·β·β̇).
+    // As the blade flaps UP (β̇>0, advancing→nose) its CoM moves in → it speeds
+    // up and LEADS; flapping DOWN (β̇<0, nose→retreating) it moves out and LAGS.
+    // So the hunting angle ζ(ψ) tracks β̇(ψ): positive lead while rising, negative
+    // lag while falling. A drag hinge lets it hunt (large ζ); an underslung head
+    // sits below the flap axis so the CoM barely shifts radially → ζ almost gone.
+    const betaDot = (c, psi) => {                    // dβ/dψ  (rad per rad)
+      // engine: β = a0 + a1c·cosψ + a1s·sinψ  ⇒  β̇ = −a1c·sinψ + a1s·cosψ
+      return -c.a1c * Math.sin(psi) + c.a1s * Math.cos(psi);
+    };
+    const zetaOf = (c, psi, art) => {
+      const bd = betaDot(c, psi);                    // rad/rad — sign = rising/falling
+      const gain = art ? 0.85 : 0.12;                // articulated hunts freely; underslung ~cancelled
+      return bd * gain;                              // rad (exaggerated for teaching)
+    };
+    const draw = () => {
+      st.V = Vkt * 0.5144;
+      const c = flappingCoeffs(st);
+      const { ctx, W, H, col } = HLD.setup(ui.canvas);
+      HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
+      const cx = W * 0.40, cy = H * 0.52, R = Math.min(W * 0.30, H * 0.40);
+      // colour the disc by lead(+ green)/lag(− purple) hunting angle
+      HLD.discPolar(ctx, cx, cy, R, (psi) => {
+        const z = zetaOf(c, psi, articulated);
+        const t = Math.max(-1, Math.min(1, z / 0.09));
+        if (t >= 0) return `rgba(${Math.round(80 - 20 * t)},${Math.round(180 + 40 * t)},${Math.round(110 - 30 * t)},${0.35 + 0.5 * t})`;
+        return `rgba(${Math.round(150 - 30 * t)},70,${Math.round(190 + 10 * t)},${0.35 + 0.5 * (-t)})`;
+      }, col, { V: st.V });
+      // draw the actual blade: nominal radial line rotated by ζ (in-plane hunt)
+      const psi = psiDeg * D2R;
+      const z = zetaOf(c, psi, articulated);
+      // undisplaced (dashed) vs hunting (solid) blade
+      const pr0 = HLD.polarToCanvas(psi);
+      const prZ = HLD.polarToCanvas(psi + z);        // +ζ leads (ahead in rotation)
+      HLD.dline(ctx, cx, cy, cx + R * Math.cos(pr0), cy + R * Math.sin(pr0), col.dim, 1.4, [4, 3]);
+      HLD.arrow(ctx, cx, cy, cx + R * Math.cos(prZ), cy + R * Math.sin(prZ),
+        z >= 0 ? col.good : 'rgba(180,60,200,0.95)', 3, 9);
+      // small curved arrow indicating lead (CCW-ahead) or lag
+      HLD.dot(ctx, cx, cy, 3, col.ink);
+      const beta = flappingAngle(c, psi) * R2D;
+      // lead/lag angle ζ(ψ) plot along the bottom
+      const pts = [];
+      for (let i = 0; i <= 72; i++) { const p = (i / 72) * 2 * Math.PI; pts.push({ x: i * 5, y: zetaOf(c, p, articulated) * R2D }); }
+      const ys = pts.map(p => p.y); const ay = Math.max(1, Math.max(...ys.map(Math.abs)));
+      const px = W * 0.66, pw = W * 0.32, py = H * 0.14, ph = H * 0.72;
+      // mini-axes
+      HLD.dline(ctx, px, py + ph / 2, px + pw, py + ph / 2, col.grid, 1, [3, 3]);
+      HLD.text(ctx, 'lead / lag ζ(ψ)', px + pw / 2, py - 4, col.dim, '10px IBM Plex Sans', 'center');
+      HLD.text(ctx, '+lead', px, py + 8, col.good, '9px IBM Plex Sans', 'left');
+      HLD.text(ctx, '−lag', px, py + ph - 4, '#c060d0', '9px IBM Plex Sans', 'left');
+      ctx.strokeStyle = col.accent; ctx.lineWidth = 2; ctx.beginPath();
+      pts.forEach((p, i) => { const xx = px + (p.x / 360) * pw, yy = py + ph / 2 - (p.y / ay) * (ph / 2 - 6); i ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy); });
+      ctx.stroke();
+      const zx = px + (psiDeg / 360) * pw, zy = py + ph / 2 - (zetaOf(c, psi, articulated) * R2D / ay) * (ph / 2 - 6);
+      HLD.dot(ctx, zx, zy, 4, col.ink);
+      const zDeg = z * R2D;
+      ui.readout.innerHTML = kv([
+        ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
+        ['Head type', articulated ? 'Articulated (lead–lag hinge)' : 'Underslung (teetering/rigid)', 'var(--hl-accent)'],
+        ['Flap β at ψ=' + psiDeg.toFixed(0) + '°', beta.toFixed(1) + '°', 'var(--hl-lift)'],
+        ['Hunting ζ at ψ=' + psiDeg.toFixed(0) + '°', (zDeg >= 0 ? '+' : '') + zDeg.toFixed(2) + '° ' + (zDeg >= 0 ? '(lead)' : '(lag)'),
+          zDeg >= 0 ? 'var(--hl-good)' : '#c060d0'],
+      ]) + `<p class="hl-note">Coriolis: as the blade flaps <b>up</b> its mass moves
+        <b>in</b> toward the shaft, so it <b>speeds up and leads</b>; flapping down it
+        moves out and <b>lags</b> — angular momentum, the ice-skater. Acceleration ∝
+        <b>2·Ω·β·β̇</b>. ${articulated
+          ? 'This articulated head has a <b>lead–lag hinge + damper</b> so the blade hunts freely (large ζ shown).'
+          : 'This <b>underslung</b> head sits below the flapping axis so the CoM barely shifts radially — the Coriolis hunting is almost cancelled (tiny ζ).'}</p>`;
+    };
+    slider(ui.controls, { label: 'Forward speed', min: 0, max: 160, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
+    slider(ui.controls, { label: 'Azimuth ψ (blade position)', min: 0, max: 355, step: 5, val: psiDeg, unit: '°', fmt: v => v.toFixed(0), on: v => { psiDeg = v; draw(); } });
+    segmented(ui.controls, {
+      label: 'Rotor head',
+      options: [{ v: true, t: 'Articulated (hinge)' }, { v: false, t: 'Underslung' }],
+      val: articulated, on: v => { articulated = v; draw(); },
+    });
+    ui.onDraw(draw);
+  }
+
+  /* =========================================================================
+     wDynamicRollover — front view heli pivoting about a ground contact point
+     bank slider; restoring moment flips to a divergent rolling moment past ψ_crit
+     ========================================================================= */
+  function wDynamicRollover(host) {
+    const ui = scaffold(host);
+    let bankDeg = 3, collPct = 85;   // collective sets thrust ≈ T/W
+    // critical angle where driving moment overtakes the restoring moment:
+    //   T·sinφ·h  =  W·(c·cosφ − v·sinφ)   ⇒  solve for φ given the geometry
+    const criticalDeg = (tw) => {
+      const c = 0.7, v = 1.2, h = 3.0;                 // same geometry as below (m)
+      for (let d = 0; d <= 20; d += 0.1) {
+        const p = d * D2R;
+        if (tw * Math.sin(p) * h > c * Math.cos(p) - v * Math.sin(p)) return d;
+      }
+      return 20;
+    };
+    const draw = () => {
+      const { ctx, W, H, col } = HLD.setup(ui.canvas);
+      HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 32);
+      // T/W from collective (0..100% → θ₀ 4..15°)
+      const st = HL.defaultState(); st.theta0 = 4 + (collPct / 100) * 11;
+      const tw = HL.axialSolve(st, 0).thrust / HL.weightN(st);
+      const phi = bankDeg * D2R;
+      // ground line
+      const gy = H * 0.78;
+      HLD.dline(ctx, 0, gy, W, gy, col.dim, 2, [1, 0]);
+      HLD.hatchRect(ctx, 0, gy, W, 10, col.grid, 8, Math.PI / 4);
+      // pivot = the down-slope skid contact point
+      const pvx = W * 0.42, pvy = gy;
+      HLD.dot(ctx, pvx, pvy, 5, col.warn);
+      HLD.text(ctx, 'pivot (skid on ground)', pvx, pvy + 22, col.warn, '10px IBM Plex Sans', 'center');
+      // helicopter body: rotate the whole airframe about the pivot by φ
+      const bodyLen = Math.min(W * 0.34, 190), bodyH = 26, cgH = 46, mastH = 78;
+      const rot = (dx, dy) => ({ x: pvx + dx * Math.cos(phi) - dy * Math.sin(phi), y: pvy + dx * Math.sin(phi) - dy * Math.cos(phi) });
+      // (dx,dy) in body frame: +dx toward the raised skid (right), +dy up
+      const skidR = rot(bodyLen, 0);      // raised skid tip
+      const cgP = rot(bodyLen * 0.5, cgH);
+      const mastP = rot(bodyLen * 0.5, cgH + mastH);
+      // fuselage box (from pivot skid to raised skid)
+      ctx.strokeStyle = col.ink; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+      const p1 = rot(0, 0), p2 = rot(bodyLen, 0), p3 = rot(bodyLen, bodyH), p4 = rot(0, bodyH);
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y); ctx.closePath(); ctx.stroke();
+      // mast
+      HLD.dline(ctx, cgP.x, cgP.y, mastP.x, mastP.y, col.dim, 3, [1, 0]);
+      // rotor disc (perpendicular to mast → tilts with the airframe)
+      const dR = bodyLen * 0.52;
+      const dxv = Math.cos(phi), dyv = Math.sin(phi);   // disc plane direction (body-x rotated)
+      ctx.strokeStyle = col.accent; ctx.lineWidth = 4; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(mastP.x - dR * dxv, mastP.y - dR * dyv); ctx.lineTo(mastP.x + dR * dxv, mastP.y + dR * dyv); ctx.stroke();
+      ctx.lineCap = 'butt';
+      // thrust vector ⟂ disc (tilts with bank) — length ∝ T/W
+      const WL = 60, tLen = Math.max(16, Math.min(tw, 1.4) * WL);
+      // disc normal in canvas: body-up rotated by φ → (sinφ, -cosφ)
+      const tnx = Math.sin(phi), tny = -Math.cos(phi);
+      HLD.arrow(ctx, mastP.x, mastP.y, mastP.x + tnx * tLen, mastP.y + tny * tLen, tw >= 1 ? col.lift : col.warn, 4, 12);
+      HLD.text(ctx, 'Thrust', mastP.x + tnx * tLen + 6, mastP.y + tny * tLen, tw >= 1 ? col.lift : col.warn, 'bold 11px IBM Plex Sans');
+      // weight at CG (always straight down)
+      HLD.arrow(ctx, cgP.x, cgP.y, cgP.x, cgP.y + WL, col.drag, 3, 10);
+      HLD.text(ctx, 'Weight', cgP.x + 6, cgP.y + WL, col.drag, '11px IBM Plex Sans');
+      // ── moments about the pivot, in real SI units (kN·m) ──────────────────
+      // Real EC135-class geometry: CG a little inboard of and above the pivot
+      // skid, rotor hub high on the mast. Weight RESTORES via its horizontal arm
+      // to the pivot; that arm SHRINKS as the aircraft rolls over the pivot and
+      // reverses past it. Tilted thrust's horizontal component DRIVES the roll.
+      const Wn = HL.weightN(st), thrustN = tw * Wn;
+      const cgLat0 = 0.7, cgVert = 1.2, hubVert = 3.0;   // metres from pivot
+      // horizontal arm of the (down-acting) weight about the pivot as it rolls
+      const restArmM = cgLat0 * Math.cos(phi) - cgVert * Math.sin(phi);
+      const restoreMag = Wn * restArmM / 1000;                     // kN·m (+restores, −aids roll)
+      // horizontal thrust component × hub height drives the roll
+      const driveMag = thrustN * Math.sin(phi) * hubVert / 1000;   // kN·m
+      const critDeg = criticalDeg(tw);
+      const diverging = bankDeg >= critDeg && tw > 0.6;
+      // annotate critical angle marker
+      HLD.text(ctx, 'bank ' + bankDeg.toFixed(0) + '°', mastP.x, H * 0.10, diverging ? col.bad : col.ink, 'bold 13px IBM Plex Sans', 'center');
+      ui.readout.innerHTML = kv([
+        ['Bank about pivot', bankDeg.toFixed(0) + '°', diverging ? 'var(--hl-bad)' : 'var(--hl-ink)'],
+        ['Critical rollover angle', '≈ ' + critDeg.toFixed(1) + '°', 'var(--hl-warn)'],
+        ['Collective (thrust)', collPct.toFixed(0) + '%  ·  T/W ' + tw.toFixed(2), tw >= 1 ? 'var(--hl-good)' : 'var(--hl-ink)'],
+        ['Restoring moment (weight)', restoreMag.toFixed(1) + ' kN·m', restoreMag > 0 ? 'var(--hl-lift)' : 'var(--hl-bad)'],
+        ['Rolling moment (tilted thrust)', driveMag.toFixed(1) + ' kN·m', diverging ? 'var(--hl-bad)' : 'var(--hl-warn)'],
+        ['State', diverging ? 'DIVERGENT — rolling over' : 'recoverable', diverging ? 'var(--hl-bad)' : 'var(--hl-good)'],
+      ]) + `<p class="hl-note">${diverging
+          ? '<b>Past the critical angle (≈' + critDeg.toFixed(1) + '°).</b> The tilted thrust\u2019s horizontal component now exceeds the weight\u2019s restoring moment — the roll is <b>self-amplifying</b>. Cyclic can no longer save it. <b>Smoothly LOWER the collective</b> to kill the thrust that powers the roll.'
+          : 'Below the critical angle (≈' + critDeg.toFixed(1) + '° at this power) the weight still restores the aircraft. Raise the bank past it — or add collective — and the tilted thrust vector takes over. The pivot is a skid/wheel still touching the ground, <b>not</b> the CofG.'}</p>`;
+    };
+    slider(ui.controls, { label: 'Bank angle about pivot', min: 0, max: 20, step: 1, val: bankDeg, unit: '°', fmt: v => v.toFixed(0), on: v => { bankDeg = v; draw(); } });
+    slider(ui.controls, { label: 'Collective (thrust)', min: 30, max: 100, step: 5, val: collPct, unit: '%', fmt: v => v.toFixed(0), on: v => { collPct = v; draw(); } });
+    ui.onDraw(draw);
+  }
+
+  /* =========================================================================
+     wLTE — Loss of Tail-rotor Effectiveness: top view, wind azimuth slider,
+     critical sectors + tail-rotor margin readout (CCW main rotor, left pedal)
+     ========================================================================= */
+  function wLTE(host) {
+    const ui = scaffold(host);
+    let windDeg = 300, windKt = 12, collPct = 90;
+    // relative-wind azimuth: 0 = from the nose, 90 = from the right, 180 = tail,
+    // 270 = from the left. Critical sectors (CCW rotor / left anti-torque pedal):
+    //   weathercock + TR-VRS  ≈ 210–330°
+    //   main-disc vortex intf ≈ 285–315°
+    //   weathervane (tailwind) ≈ 120–240°
+    const inArc = (a, lo, hi) => { a = ((a % 360) + 360) % 360; return lo <= hi ? (a >= lo && a <= hi) : (a >= lo || a <= hi); };
+    const draw = () => {
+      const { ctx, W, H, col } = HLD.setup(ui.canvas);
+      HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
+      const cx = W * 0.40, cy = H * 0.52, R = Math.min(W * 0.30, H * 0.40);
+      // draw sector wedges first (behind the airframe)
+      const wedge = (lo, hi, color) => {
+        // azimuth 0 = nose = up (canvas -y). clockwise with increasing az to the right.
+        const a = (deg) => (-90 + deg) * D2R;  // 0→up, 90→right, 180→down, 270→left
+        ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, R * 1.06, a(lo), a(hi)); ctx.closePath(); ctx.fill();
+      };
+      wedge(120, 240, 'rgba(240,190,60,0.16)');  // weathervane
+      wedge(210, 330, 'rgba(235,70,50,0.13)');   // weathercock + TR-VRS
+      wedge(285, 315, 'rgba(180,60,200,0.30)');  // main-disc vortex interference
+      // fuselage: nose up, tail down; CCW main rotor, tail rotor on the LEFT boom
+      ctx.strokeStyle = col.dim; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(cx, cy, R * 0.16, R * 0.30, 0, 0, 2 * Math.PI); ctx.stroke();  // cabin
+      HLD.dline(ctx, cx, cy + R * 0.30, cx, cy + R * 0.92, col.dim, 3, [1, 0]);                    // tail boom (down = aft)
+      // tail rotor at boom end, on the left side
+      HLD.dot(ctx, cx - 6, cy + R * 0.92, 5, col.accent);
+      HLD.text(ctx, 'tail rotor', cx - 10, cy + R * 0.99, col.accent, '9px IBM Plex Sans', 'right');
+      // main rotor disc
+      ctx.strokeStyle = col.grid; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
+      HLD.text(ctx, 'NOSE', cx, cy - R - 8, col.dim, '10px IBM Plex Sans', 'center');
+      HLD.text(ctx, 'TAIL', cx, cy + R + 16, col.dim, '10px IBM Plex Sans', 'center');
+      HLD.text(ctx, 'R', cx + R + 8, cy, col.dim, '10px IBM Plex Sans', 'left', 'middle');
+      HLD.text(ctx, 'L', cx - R - 8, cy, col.dim, '10px IBM Plex Sans', 'right', 'middle');
+      // wind arrow: comes FROM windDeg toward the aircraft centre
+      const wa = (-90 + windDeg) * D2R;
+      const wx = cx + Math.cos(wa) * (R + 30), wy = cy + Math.sin(wa) * (R + 30);
+      HLD.arrow(ctx, wx, wy, cx + Math.cos(wa) * R * 0.5, cy + Math.sin(wa) * R * 0.5, col.wind, 3, 11);
+      HLD.text(ctx, windKt.toFixed(0) + ' kt wind', wx, wy - 6, col.wind, '10px IBM Plex Sans', 'center');
+      // ── tail-rotor margin model ──────────────────────────────────────────
+      const st = HL.defaultState(); st.theta0 = 4 + (collPct / 100) * 11;
+      const tw = HL.axialSolve(st, 0).thrust / HL.weightN(st);
+      // Clean-air TR margin stays comfortably >1 even at high power (a healthy
+      // rotor holds torque fine with no adverse wind). It only tapers modestly
+      // with power. Adverse wind sectors then subtract from it.
+      let margin = 1.55 - 0.28 * Math.max(0, tw - 0.6) / 1.0;   // ~1.55 low power → ~1.2 high power
+      // wind-strength scaling of the disturbances (grows to full effect ~17 kt)
+      const ws = Math.min(1, windKt / 17);
+      let cause = 'clean';
+      if (inArc(windDeg, 285, 315)) { margin -= 0.75 * ws; cause = 'Main-rotor disc-vortex interference'; }
+      else if (inArc(windDeg, 210, 330)) { margin -= 0.55 * ws; cause = 'Weathercock / tail-rotor VRS'; }
+      else if (inArc(windDeg, 120, 240)) { margin -= 0.45 * ws; cause = 'Weathervane (tailwind) instability'; }
+      margin = Math.max(0, margin);
+      const lte = margin < 1.0;
+      const severe = margin < 0.85;
+      // margin bar
+      const bx = W * 0.72, by = H * 0.18, bw = 34, bh = H * 0.64;
+      HLD.text(ctx, 'TR margin', bx + bw / 2, by - 12, col.dim, '10px IBM Plex Sans', 'center');
+      ctx.strokeStyle = col.dim; ctx.lineWidth = 1; ctx.strokeRect(bx, by, bw, bh);
+      // 1.0 reference line (needed to hold torque)
+      const full = 1.7;
+      const y1 = by + bh - (1.0 / full) * bh;
+      HLD.dline(ctx, bx - 6, y1, bx + bw + 6, y1, col.warn, 1.4, [4, 3]);
+      HLD.text(ctx, 'need', bx + bw + 8, y1, col.warn, '9px IBM Plex Sans', 'left', 'middle');
+      const fillH = Math.min(bh, (margin / full) * bh);
+      ctx.fillStyle = severe ? col.bad : (lte ? col.warn : col.good);
+      ctx.fillRect(bx, by + bh - fillH, bw, fillH);
+      ui.readout.innerHTML = kv([
+        ['Relative wind FROM', windDeg.toFixed(0) + '°  ·  ' + windKt.toFixed(0) + ' kt', 'var(--hl-wind)'],
+        ['Collective (power)', collPct.toFixed(0) + '%  ·  T/W ' + tw.toFixed(2), 'var(--hl-ink)'],
+        ['Disturbance', cause, cause === 'clean' ? 'var(--hl-good)' : 'var(--hl-warn)'],
+        ['Tail-rotor margin', (margin * 100).toFixed(0) + '% of demand', severe ? 'var(--hl-bad)' : (lte ? 'var(--hl-warn)' : 'var(--hl-good)')],
+        ['State', severe ? 'LTE — uncommanded yaw' : (lte ? 'marginal — degrading' : 'controllable'),
+          severe ? 'var(--hl-bad)' : (lte ? 'var(--hl-warn)' : 'var(--hl-good)')],
+      ]) + `<p class="hl-note">${lte
+          ? '<b>Tail-rotor thrust can no longer balance torque.</b> Cause: <b>' + cause + '</b>. <b>Recover:</b> full left (anti-torque) pedal, <b>lower collective</b> to cut torque demand, and gain <b>forward airspeed</b> so the fin and clean airflow restore control.'
+          : 'Margin is above the demand line. LTE bites at <b>low speed, high power, OGE</b> with wind from the yellow/red/purple sectors. Increase the wind speed or power, or point the wind into a critical sector, to watch the margin collapse.'} <i>(CCW main rotor — anti-torque pedal is left. Sector angles are advisory ranges.)</i></p>`;
+    };
+    slider(ui.controls, { label: 'Relative wind direction (FROM)', min: 0, max: 355, step: 5, val: windDeg, unit: '°', fmt: v => v.toFixed(0), on: v => { windDeg = v; draw(); } });
+    slider(ui.controls, { label: 'Wind speed', min: 0, max: 30, step: 1, val: windKt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { windKt = v; draw(); } });
+    slider(ui.controls, { label: 'Collective (power)', min: 40, max: 100, step: 5, val: collPct, unit: '%', fmt: v => v.toFixed(0), on: v => { collPct = v; draw(); } });
+    ui.onDraw(draw);
+  }
+
   /* ── SANDBOX — free exploration combining live panels ──────────────────── */
   function wSandbox(host) {
     host.innerHTML = '';
@@ -1228,7 +1497,8 @@ const HLW = (function () {
 
   return {
     wBigPicture, wBladeElement, wSpanwise, wHover, wVertical, wGroundEffect,
-    wDissymmetry, wFlapping, wEnvelope, wAutorotation, wPerformance, wBetDiagram,
+    wDissymmetry, wFlapping, wEnvelope, wCoriolis, wDynamicRollover, wLTE,
+    wAutorotation, wPerformance, wBetDiagram,
     wSandbox,
   };
 })();

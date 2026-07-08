@@ -355,7 +355,137 @@ const HL_LESSONS = [
     },
   },
 
-  /* ─────────────────────────── STAGE 4 — ADVANCED ──────────────────────── */
+  {
+    id: 'coriolis', stage: 'Forward Flight', title: 'Coriolis Effect — Lead & Lag',
+    subtitle: 'Why blades hunt fore-and-aft as they flap',
+    widget: 'wCoriolis',
+    body: `
+      <p>Flapping solves the lift problem, but it creates a second one. When a
+      blade flaps <b>up</b>, its centre of mass moves <b>closer to the shaft</b>.
+      Conservation of angular momentum then demands it speed up — exactly like a
+      spinning skater pulling their arms in. Flap <b>down</b> and the mass moves
+      out, so the blade slows down. This fore-and-aft "hunting" is the
+      <b>Coriolis effect</b>.</p>
+      <p>The change in rotational energy shows up as an in-plane acceleration:</p>
+      <p style="text-align:center"><b>2·Ω·β·β̇</b> — the Coriolis acceleration,
+      proportional to spin rate Ω, coning β and flap rate β̇.</p>
+      <ul>
+        <li><b>Blade flaps up</b> (advancing→nose) → mass moves in → blade
+            <b>leads</b> (accelerates ahead).</li>
+        <li><b>Blade flaps down</b> (nose→retreating) → mass moves out → blade
+            <b>lags</b> (decelerates behind).</li>
+      </ul>
+      <p>If the blade root were rigid these forces would be enormous, so
+      <b>fully-articulated</b> rotors add a <b>drag (lead–lag) hinge</b> with a
+      damper to let the blade hunt freely. Two-bladed <b>teetering</b> and
+      <b>rigid</b> rotors instead use <b>underslinging</b> (the hub sits below the
+      flapping axis) so the mass barely moves radially, cancelling most of the
+      Coriolis force. Drag the flap slider and watch the blade lead and lag around
+      the azimuth.</p>`,
+    takeaways: [
+      'Coriolis: flap up → mass moves in → blade leads; flap down → mass out → lags.',
+      'It is conservation of angular momentum (the ice-skater), accel ∝ 2·Ω·β·β̇.',
+      'Articulated rotors use a lead–lag hinge + damper; teetering rotors use underslinging.',
+    ],
+    check: {
+      q: 'A rotor blade flaps upward as it moves toward the nose. What does the Coriolis effect do to it in the plane of rotation?',
+      options: [
+        'It speeds up (leads) — its mass has moved closer to the shaft',
+        'It slows down (lags) — its mass has moved outward',
+        'Nothing — flapping and rotation are independent',
+        'It stalls because the angle of attack changes',
+      ], answer: 0,
+      explain: 'Flapping up pulls the blade\u2019s centre of mass inward. Conservation of angular momentum (skater pulling arms in) makes it accelerate ahead — it leads. Flapping down does the reverse (lag). Articulated rotors add a lead\u2013lag hinge to absorb this hunting.',
+    },
+  },
+
+  /* ──────────────────────── STAGE 4 — SAFETY & LIMITS ──────────────────── */
+  {
+    id: 'dynamicrollover', stage: 'Safety & Limits', title: 'Dynamic Rollover',
+    subtitle: 'The pivot-point trap on the ground',
+    widget: 'wDynamicRollover',
+    body: `
+      <p>On the ground a helicopter can roll over at a bank angle far smaller than
+      you would expect — because it is not pivoting about its centre of gravity,
+      but about a <b>fixed point</b>: a skid or wheel still touching the ground
+      (often held by a stuck skid, a slope, or a tie-down).</p>
+      <p>Once a roll starts about that pivot, the <b>tilted thrust vector</b> gains
+      a horizontal component that <b>feeds the roll further</b>. Past a
+      <b>critical rollover angle</b> — typically only about <b>5–8°</b> — recovery
+      by lateral cyclic alone becomes impossible: the disc simply cannot generate
+      enough restoring moment, and reducing collective is the only fix.</p>
+      <ul>
+        <li><b>Cause:</b> a pivot point + a rolling moment (cross-slope, stuck
+            skid, cyclic input, or crosswind) while thrust is near flying weight.</li>
+        <li><b>The trap:</b> the more it rolls, the more the thrust drives the
+            roll — it is a <b>divergent</b>, self-amplifying motion.</li>
+        <li><b>Recovery:</b> <b>smoothly lower the collective</b> to remove the
+            thrust that powers the roll. Never try to "fly out" of it with cyclic
+            once past the critical angle.</li>
+      </ul>
+      <p>Contributing factors: high collective, slope operations, a stuck skid,
+      crosswind, and the CofG. Increase the bank angle in the widget and watch the
+      restoring moment turn into a rolling moment past the critical angle.</p>`,
+    takeaways: [
+      'Dynamic rollover = rolling about a fixed pivot (skid/wheel), not the CofG.',
+      'Critical angle is small (~5–8°); past it, tilted thrust drives the roll — divergent.',
+      'Recovery is to smoothly LOWER COLLECTIVE, not to correct with cyclic.',
+    ],
+    check: {
+      q: 'You feel a dynamic rollover developing during a slope take-off. What is the correct recovery action?',
+      options: [
+        'Smoothly lower the collective to remove the thrust driving the roll',
+        'Apply full opposite lateral cyclic and hold collective',
+        'Increase collective to lift clear of the pivot',
+        'Apply opposite pedal',
+      ], answer: 0,
+      explain: 'Past the critical rollover angle, cyclic cannot generate enough restoring moment and raising collective only increases the thrust that feeds the roll. Smoothly lowering the collective removes the driving force — the one reliable recovery.',
+    },
+  },
+  {
+    id: 'lte', stage: 'Safety & Limits', title: 'Loss of Tail-Rotor Effectiveness',
+    subtitle: 'When the tail rotor can no longer hold the yaw',
+    widget: 'wLTE',
+    body: `
+      <p>The tail rotor must produce enough sideways thrust to balance main-rotor
+      torque. <b>Loss of Tail-rotor Effectiveness (LTE)</b> is an uncommanded,
+      often rapid yaw that happens when the tail rotor's anti-torque thrust is
+      degraded — usually at <b>low airspeed, high power, and out of ground
+      effect</b>, where a relative wind from certain directions upsets it.</p>
+      <p>Three classic wind-azimuth regions (for a CCW main rotor / anti-torque
+      pedal = left) drive it:</p>
+      <ul>
+        <li><b>Weathercock / tail-rotor vortex-ring (≈210–330°):</b> the tail
+            rotor runs in its own vortex ring — thrust becomes erratic.</li>
+        <li><b>Main-rotor disc-vortex interference (≈285–315°):</b> the main-rotor
+            tip vortex washes the tail rotor, cutting its thrust.</li>
+        <li><b>Weathervane instability (≈120–240°):</b> a tailwind tries to swing
+            the nose around.</li>
+      </ul>
+      <p>The danger multiplies with <b>high power</b> (more torque to react) and
+      <b>low speed</b> (no fin authority yet). <b>Recovery:</b> apply <b>full
+      anti-torque pedal</b>, lower collective to cut the torque demand, and gain
+      <b>forward airspeed</b> so the vertical fin and clean airflow restore
+      control. Rotate the wind arrow in the widget and watch the tail-rotor margin
+      collapse in the critical sectors.</p>`,
+    takeaways: [
+      'LTE = uncommanded yaw when tail-rotor anti-torque thrust is degraded.',
+      'Worst at low speed, high power, OGE, with wind in the critical azimuth sectors.',
+      'Recover: full anti-torque pedal, lower collective, gain forward airspeed.',
+    ],
+    check: {
+      q: 'LTE is most likely to occur in which regime?',
+      options: [
+        'Low airspeed, high power, out of ground effect, with wind from a critical sector',
+        'High-speed cruise in level flight',
+        'A steep descent at high forward speed',
+        'Idle on the ground with rotors stopped',
+      ], answer: 0,
+      explain: 'LTE strikes at low airspeed and high power (large torque to react) out of ground effect, when a relative wind from a critical azimuth disturbs the tail rotor. At speed the vertical fin provides directional stability, so LTE is a low-speed phenomenon.',
+    },
+  },
+
+  /* ─────────────────────────── STAGE 5 — ADVANCED ──────────────────────── */
   {
     id: 'autorotation', stage: 'Advanced', title: 'Autorotation',
     subtitle: 'Flying with the engine off',
@@ -483,4 +613,4 @@ const HL_LESSONS = [
 ];
 
 /* group order for the sidebar */
-const HL_STAGES = ['Basics', 'Hover & Vertical', 'Forward Flight', 'Advanced'];
+const HL_STAGES = ['Basics', 'Hover & Vertical', 'Forward Flight', 'Safety & Limits', 'Advanced'];
