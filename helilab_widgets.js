@@ -830,6 +830,16 @@ const HLW = (function () {
           const d = localAoA(stt, c, rm, pm);
           const aoaDeg = d.aoa * R2D;
           const stallEff = stallEffAt(st, d.UT);
+          // Dynamic-pressure share of this cell (0..1). A blade element can only
+          // REALLY stall where there is both high α AND meaningful airload
+          // (q ∝ U_T²). Right at the reverse-flow boundary U_T→0, so α blows up
+          // but q→0 — that is a low-q artefact, not a stall. We therefore gate
+          // every "genuinely stalled" decision (hatch, lift-mode magenta, count,
+          // iso-lines) on the SAME qShare the colour fade uses, with a real
+          // airload floor Q_MIN so the inboard fwd/retreating blob never hatches.
+          const qShare = Math.min(1, Math.pow(Math.max(0, d.UT) / (0.55 * (1 + mu)), 2));
+          const Q_MIN = 0.25;                 // ≈ U_T ≳ 0.4·(1+μ): real dynamic pressure
+          const trulyStalled = !d.reverseFlow && aoaDeg >= stallEff && qShare >= Q_MIN;
           // fill colour by plot mode
           if (d.reverseFlow) {
             ctx.fillStyle = 'rgba(180,60,200,0.5)';
@@ -838,24 +848,28 @@ const HLW = (function () {
           } else if (plotMode === 'pctcrit') {
             // fraction of the local critical α, colour-mapped so 100 % = stall.
             // The inboard blade sees a huge α but almost no dynamic pressure
-            // (U_T→0), so it cannot really stall — we FADE those low-q cells
-            // toward the background by their U_T² share. What is left red is the
-            // OUTBOARD retreating blade, where high α AND real airload coincide.
-            const pct = aoaDeg / stallEff;      // 1.0 = critical
-            const qShare = Math.min(1, Math.pow(Math.max(0, d.UT) / (0.55 * (1 + mu)), 2));
-            ctx.globalAlpha = 0.12 + 0.88 * qShare;
+            // (U_T→0), so it CANNOT really stall. Fading alpha alone still left a
+            // dark-red "stalled-looking" blob there, so we also SCALE THE VALUE by
+            // the airload share: a cell only reports a high %-of-critical when it
+            // actually carries dynamic pressure. Below the Q_MIN airload floor the
+            // reported %-crit is pulled toward the low (green/ok) end, so the only
+            // red left is the OUTBOARD retreating blade where high α AND real
+            // airload genuinely coincide.
+            const pctRaw = aoaDeg / stallEff;                 // 1.0 = critical (uncapped)
+            const airloadConf = Math.min(1, qShare / Q_MIN);  // 0 at U_T→0, 1 above the floor
+            const pct = pctRaw * airloadConf;                 // honest %-crit for display
+            ctx.globalAlpha = 0.20 + 0.80 * qShare;
             ctx.fillStyle = aoaColor(pct * st.stallAoA, st.stallAoA);
           } else { // lift
             const Cl = Math.abs(d.aoa) < stallEff * D2R ? st.clAlpha * d.aoa : 0;
             const dL = Math.max(0, d.UT) * Math.max(0, d.UT) * Cl;
             // in lift mode a genuinely stalled cell (high α + real q) is painted a
             // distinct desaturated magenta so it never reads as "high load" red.
-            const stCell = aoaDeg >= stallEff && d.UT >= 0.2;
-            ctx.fillStyle = stCell ? 'rgb(150,40,110)' : ramp(Math.max(0, dL) / maxLift);
+            ctx.fillStyle = trulyStalled ? 'rgb(150,40,110)' : ramp(Math.max(0, dL) / maxLift);
           }
           if (!d.reverseFlow && pm > Math.PI / 2 - 0.3 && pm < Math.PI / 2 + 0.3 && rm > 0.9)
             tipMach = Math.max(tipMach, HL.omR(st) * (rm + mu * Math.sin(pm)) / sos);
-          if (!d.reverseFlow && Math.sin(pm) < -0.3 && rm >= 0.6 && d.UT >= 0.2)
+          if (!d.reverseFlow && Math.sin(pm) < -0.3 && rm >= 0.6 && qShare >= Q_MIN)
             maxRetAoA = Math.max(maxRetAoA, aoaDeg);
           ctx.beginPath();
           ctx.arc(cx, cy, R * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
@@ -865,7 +879,7 @@ const HLW = (function () {
           // CVD texture: hatch STALLED cells (45°) and reverse-flow cells (135°).
           // A cell only counts as stalled if it also carries real airload
           // (U_T ≥ 0.2) — the low-q inboard blob is high-α but not truly stalled.
-          const stallCell = !d.reverseFlow && aoaDeg >= stallEff && d.UT >= 0.2;
+          const stallCell = trulyStalled;
           if (stallCell || d.reverseFlow) {
             const ang = HLD.polarToCanvas(pm);
             const ux = cx + R * rm * Math.cos(ang), uy = cy + R * rm * Math.sin(ang);
@@ -881,7 +895,9 @@ const HLW = (function () {
       if (showIso && plotMode !== 'lift') {
         const field = (rBar, psiRad) => {
           const d = localAoA(stt, c, rBar, psiRad);
-          if (d.reverseFlow || d.UT < 0.2) return null;   // skip low-q / reverse
+          // skip reverse flow and low-q cells (same airload gate as the fill/hatch)
+          const qS = Math.min(1, Math.pow(Math.max(0, d.UT) / (0.55 * (1 + mu)), 2));
+          if (d.reverseFlow || qS < 0.25) return null;
           const aoaD = d.aoa * R2D;
           return plotMode === 'pctcrit' ? 100 * aoaD / stallEffAt(st, d.UT) : aoaD;
         };
