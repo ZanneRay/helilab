@@ -335,15 +335,22 @@ const HL_LESSONS = [
       </ul>
       <p>So the rotor is squeezed from both ends: the retreating side runs out of
       α, the advancing side runs out of Mach margin.</p>
-      <p><b>Model note:</b> this map is a steady, rigid-blade, simple-inflow model,
-      and it concentrates the high-α region mid-span, next to the reverse-flow
-      zone. In a real aircraft the stall is <b>first felt at the retreating tip</b>
-      (≈0.8–1.0 R, around ψ 270–300°) and spreads inboard — dynamic stall in
-      manoeuvres, blade elasticity and non-uniform inflow all push the onset
-      outboard. <b>For the exam: tip first, spreading inboard</b> as speed, weight,
-      g or density altitude increase. Switch on <b>“weight by dynamic pressure”</b>
-      in the widget and watch the inboard blob fade to nothing — the stall that
-      matters is the one at the tip, where high α meets real airload.</p>`,
+      <p><b>Model note — the blade-twist toggle:</b> the disc map is a steady,
+      rigid-blade beam-element model with the full Drees inflow. The <b>Blade
+      twist</b> switch changes just one input:</p>
+      <ul>
+        <li><b>No twist (exam)</b> — the default. An untwisted blade keeps full
+            pitch out to the tip, so the high-α zone sits <b>outboard on the
+            retreating side and the tip stalls first</b> (≈0.9–1.0 R, ψ≈270°),
+            spreading inboard as speed, weight, g or density altitude rise. This
+            is the clean ATPL/POF plate and the 082 exam answer.</li>
+        <li><b>With twist (real)</b> — the aircraft's real −8° washout unloads
+            the tip and loads the mid-span, so the α peak slides a little
+            <b>inboard (≈0.7 R)</b> and the tip is no longer strictly the first to
+            go. Nothing is faked — only the twist input changes.</li>
+      </ul>
+      <p>Learn the <b>No-twist tip-first picture</b> for the exam; flip the toggle
+      to see how real blade twist shifts the onset inboard.</p>`,
     takeaways: [
       'Retreating blade stall sets the upper speed limit — slow blade, high α.',
       'Advancing-tip compressibility (shock waves) limits from the other side.',

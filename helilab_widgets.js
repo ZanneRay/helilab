@@ -190,6 +190,36 @@ const HLW = (function () {
     return { ...st, theta1s: t.t1s_deg, theta1c: t.t1c_deg };
   }
 
+  /* Local angle of attack with a selectable BLADE-TWIST model. Both modes use
+     the SAME, physically-complete Drees linear inflow (longitudinal κ AND
+     lateral k_y = −2μ, Leishman "Principles" §3.5.2) — there is no inflow
+     simplification any more. The ONLY difference is the blade washout twist:
+
+     model 'exam' — twist set to 0 (untwisted, rectangular blade). With no
+       washout the retreating blade keeps full pitch out to the tip, so the
+       high-α region moves OUTBOARD and the retreating TIP (≈0.9–1.0 R) is the
+       first place to reach 100 % of the critical α — the clean tip-first
+       ATPL(H)/POF picture. This is the exam answer: stall starts at the tip and
+       spreads inboard as speed, weight, g or altitude rise.
+     model 'real' — the aircraft's real −8° washout twist. Twist unloads the
+       tip and loads the mid-span, so the α peak sits a little INBOARD (≈0.7 R)
+       and the tip is no longer strictly the first to stall — the physically
+       honest picture for a real twisted rotor blade.
+
+     Implementation: bladePitch() reads st.twist, so we simply evaluate the
+       normal localAoA() on a twist-zeroed copy of the state for exam mode.
+       Everything else (inflow, flapping, atan2 φ, reverse-flow guard) is
+       untouched — nothing is faked or overlaid, only the twist input changes. */
+  function localAoAmodel(st, c, rBar, psi, model) {
+    if (model !== 'exam') return localAoA(st, c, rBar, psi);
+    // untwisted blade: recompute flapping for the twist-free state so the
+    // coning/flap response is self-consistent with the pitch distribution.
+    const st0 = { ...st, twist: 0 };
+    const c0  = flappingCoeffs(trimmed(st0));
+    const stt0 = trimmed(st0);
+    return localAoA(stt0, c0, rBar, psi);
+  }
+
   /* =========================================================================
      WIDGETS
      ========================================================================= */
@@ -805,7 +835,12 @@ const HLW = (function () {
   /* 9 — Retreating stall & envelope: AoA / %-critical-α / lift contour over disc */
   function wEnvelope(host) {
     const ui = scaffold(host);
-    let Vkt = 60, plotMode = 'pctcrit', showIso = true;
+    let Vkt = 60, plotMode = 'pctcrit', showIso = true, discModel = 'exam';
+    // discModel: 'exam' = untwisted blade (twist = 0), the clean tip-first
+    //   textbook plate — the retreating TIP (≈0.9–1.0 R) is first to reach 100 %
+    //   of critical α; 'real' = the aircraft's real −8° washout twist, which
+    //   unloads the tip so the α peak sits a little inboard (≈0.7 R). Both modes
+    //   use the SAME full Drees inflow — only the blade twist changes.
     // plotMode: 'aoa' raw α (°) · 'pctcrit' α as % of the (Mach-adjusted)
     // critical α · 'lift' normalised load dL/dr ∝ U_T²·C_l (dynamic-pressure
     // weighted — the physical airload, which peaks at the tip).
@@ -821,6 +856,10 @@ const HLW = (function () {
       const stt = trimmed(st);
       const c = flappingCoeffs(stt);
       const mu = advanceRatio(stt);
+      const AOA = (s, cc, rB, ps) => localAoAmodel(s, cc, rB, ps, discModel);
+      // exam mode uses a firmer airload floor so the low-q inboard smear vanishes
+      // entirely and only the outboard retreating stall reads through.
+      const QFLOOR = discModel === 'exam' ? 0.40 : 0.25;
       const sos = sosAtAltFt(st.alt);
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
       HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
@@ -838,7 +877,7 @@ const HLW = (function () {
           const rm = 0.2 + 0.8 * (ir + 0.5) / nr;
           for (let ip = 0; ip < np; ip++) {
             const pm = ((ip + 0.5) / np) * 2 * Math.PI;
-            const d = localAoA(stt, c, rm, pm);
+            const d = AOA(stt, c, rm, pm);
             if (d.reverseFlow) continue;
             const se = stallEffAt(st, d.UT) * D2R;
             const Cl = Math.abs(d.aoa) < se ? st.clAlpha * d.aoa : 0;
@@ -851,7 +890,7 @@ const HLW = (function () {
         for (let ip = 0; ip < np; ip++) {
           const p0 = (ip / np) * 2 * Math.PI, p1 = ((ip + 1) / np) * 2 * Math.PI;
           const pm = (p0 + p1) / 2, rm = (r0 + r1) / 2;
-          const d = localAoA(stt, c, rm, pm);
+          const d = AOA(stt, c, rm, pm);
           const aoaDeg = d.aoa * R2D;
           const stallEff = stallEffAt(st, d.UT);
           // Dynamic-pressure share of this cell (0..1). A blade element can only
@@ -862,7 +901,7 @@ const HLW = (function () {
           // iso-lines) on the SAME qShare the colour fade uses, with a real
           // airload floor Q_MIN so the inboard fwd/retreating blob never hatches.
           const AL = airloadConf(d.UT, mu);
-          const qShare = AL.qShare, Q_MIN = AL.Q_MIN, conf = AL.conf;
+          const qShare = AL.qShare, Q_MIN = QFLOOR, conf = Math.min(1, qShare / QFLOOR);
           const trulyStalled = !d.reverseFlow && aoaDeg >= stallEff && qShare >= Q_MIN;
           // fill colour by plot mode
           if (d.reverseFlow) {
@@ -927,10 +966,10 @@ const HLW = (function () {
       // constant-value iso-lines so the α (or %-crit) zones are visible.
       if (showIso && plotMode !== 'lift') {
         const field = (rBar, psiRad) => {
-          const d = localAoA(stt, c, rBar, psiRad);
+          const d = AOA(stt, c, rBar, psiRad);
           // skip reverse flow and low-q cells (same airload gate as the fill/hatch)
           const qS = Math.min(1, Math.pow(Math.max(0, d.UT) / (0.55 * (1 + mu)), 2));
-          if (d.reverseFlow || qS < 0.25) return null;
+          if (d.reverseFlow || qS < QFLOOR) return null;
           const aoaD = d.aoa * R2D;
           return plotMode === 'pctcrit' ? 100 * aoaD / stallEffAt(st, d.UT) : aoaD;
         };
@@ -979,10 +1018,13 @@ const HLW = (function () {
         : approaching ? 'approaching V_NE' : 'within envelope';
       const envCol = exceeded ? 'var(--hl-bad)' : approaching ? 'var(--hl-warn)' : 'var(--hl-good)';
       const modeNote = {
-        aoa: 'Raw geometric <b>angle of attack</b> (°). Note α peaks <i>inboard</i> on the retreating side — but that is where the tangential speed U_T → 0, so there is almost no dynamic pressure and no real airload. Switch to <b>% of critical α</b> or <b>lift</b> to see where stall is actually felt.',
-        pctcrit: 'α as a <b>percentage of the local critical α</b>. Because the critical α falls with local Mach, the first cells to reach 100 % (red) are on the <b>outboard retreating blade</b> — so stall correctly begins at the <b>tip</b>, ψ≈240–270°. Iso-lines mark the 40/60/80/100/120 % zones.',
+        aoa: 'Raw geometric <b>angle of attack</b> (°). The colour fades where the tangential speed U_T → 0 (almost no dynamic pressure), so the low-load inboard region recedes and the high-α <b>retreating tip</b> stands out. Switch to <b>% of critical α</b> or <b>lift</b> to confirm where stall is actually felt.',
+        pctcrit: 'α as a <b>percentage of the local critical α</b>. Because the critical α falls with local Mach, the first cells to reach 100 % (red) are on the <b>outboard retreating blade</b> — so stall correctly begins at the <b>tip</b>, ψ≈270°. Iso-lines mark the 40/60/80/100/120 % zones.',
         lift: 'Normalised <b>load</b> dL/dr ∝ U_T²·C_l — the actual airload. It is dominated by the fast outboard blade and collapses inboard where U_T→0. The load hole opens on the retreating side as speed rises; stalled tip cells are flagged red.'
       }[plotMode];
+      const modelNote = discModel === 'exam'
+        ? '<b>No twist (exam plate):</b> the blade is treated as untwisted, so it keeps full pitch all the way to the tip. The high-α zone therefore sits <b>outboard on the retreating side</b> and the <b>tip is the first to stall</b>, spreading inboard as speed, weight, g or altitude rise — the clean ATPL/POF picture and the 082 exam answer.'
+        : '<b>With −8° twist (real blade):</b> washout unloads the tip and loads the mid-span, so the α peak sits a little <i>inboard (≈0.7 R)</i> and the tip is no longer strictly the first to go. Same full Drees inflow as the exam plate — only the blade twist changes. Watch the hot zone slide inboard when you switch it on.';
       ui.readout.innerHTML = kv([
         ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
         ['Max retreating α', maxRetAoA.toFixed(1) + '° / ' + st.stallAoA.toFixed(0) + '°', stalled ? 'var(--hl-bad)' : 'var(--hl-warn)'],
@@ -990,9 +1032,12 @@ const HLW = (function () {
         ['Envelope', envTxt, envCol],
       ]) + `<p class="hl-note">${exceeded
         ? '⚠ Outside the envelope: ' + (stalled ? 'retreating tip STALLED (red, hatched) — vibration, nose-up pitch, roll toward the retreating side. ' : '') + (machHigh ? 'advancing tip is compressible — shock/buffet. ' : '') + '<br>' + modeNote
-        : modeNote}</p>`;
+        : modeNote}</p><p class="hl-note">${modelNote}</p>`;
     };
     slider(ui.controls, { label: 'Forward speed', min: 0, max: 180, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
+    segmented(ui.controls, { label: 'Blade twist', val: discModel, options: [
+      { v: 'exam', t: 'No twist (exam)' }, { v: 'real', t: 'With twist (real)' },
+    ], on: v => { discModel = v; draw(); } });
     segmented(ui.controls, { label: 'Plot', val: plotMode, options: [
       { v: 'aoa', t: 'Angle of attack' }, { v: 'pctcrit', t: '% of critical α' }, { v: 'lift', t: 'Lift (load)' },
     ], on: v => { plotMode = v; draw(); } });
