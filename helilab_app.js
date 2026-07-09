@@ -111,7 +111,7 @@
       `<h1>${lesson.title}</h1><div class="hl-lesson-sub">${lesson.subtitle}</div>`;
     main.appendChild(head);
 
-    const grid = el('div', 'hl-lesson-grid');
+    const grid = el('div', 'hl-lesson-grid' + (lesson.wide ? ' hl-lesson-grid--wide' : ''));
     // explanation column
     const readCol = el('div', 'hl-lesson-read');
     readCol.appendChild(el('div', 'hl-lesson-body', lesson.body));
@@ -128,7 +128,10 @@
     mount.setAttribute('role', 'group');
     mount.setAttribute('aria-label', 'Interactive diagram: ' + lesson.title + '. Use the sliders and toggles to explore; results are shown as text beside the diagram.');
     wCol.appendChild(mount);
-    grid.appendChild(wCol); grid.appendChild(readCol);
+    // wide lessons: widget on top (full width), explanation below; otherwise the
+    // usual two-column split with the widget on the right.
+    if (lesson.wide) { grid.appendChild(wCol); grid.appendChild(readCol); }
+    else { grid.appendChild(wCol); grid.appendChild(readCol); }
     main.appendChild(grid);
 
     // mount widget

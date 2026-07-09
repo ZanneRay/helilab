@@ -1412,47 +1412,62 @@ const HLW = (function () {
       // ---- IN-PLANE construction (heads point RIGHT toward the airfoil) -------
       // V_rot: tail at xRotTail, head at the tip (right).
       const xRotTail = tipX - Vrot * sx;
-      HLD.arrow(ctx, xRotTail, oy, tipX, oy, col.lift, 3, 9);
-      // label near the TAIL end of V_rot (left) so it never crowds the φ wedge /
-      // V_rel label bunched at the tip. Hidden if V_rot is too short to hold text.
-      if ((tipX - xRotTail) > 70) {
-        HLD.chipLabel(ctx, 'V_rot = Ω·r', xRotTail + (tipX - xRotTail) * 0.30, oy - 14,
-          col.lift, '11px IBM Plex Sans, sans-serif', 'center');
-      }
-
-      // V_T appended at the TAIL of V_rot. The base of the triangle is U_T long,
-      // so the tail of V_T (= tail of V_rel) is at xBase = tipX − UT*sx.
       const xBase = tipX - UT * sx;            // tail of the whole in-plane base
       const vtCol = Vt < 0 ? col.bad : col.accent;
-      // V_T is drawn so its ARROWHEAD points in the vector's TRUE direction, exactly
-      // as in the exam plate: on the ADVANCING side (Vt>0) it points RIGHT (forward,
-      // same way as V_rot — it adds); on the RETREATING side (Vt<0) it points LEFT
-      // (backward, opposite V_rot — it subtracts). The segment always spans the gap
-      // between the V_rot tail (xRotTail) and the net base tail (xBase); only the
-      // head/tail assignment flips so the sign is read off the arrow direction.
-      // Draw it just BELOW the plane so it never overlaps V_rot's shaft.
-      const yVt = oy + 13;
-      // The V_T segment always spans [min..max] of the two x's; the HEAD marks the
-      // sign. Subtract → head points LEFT (backward). Add → head points RIGHT.
-      const xL = Math.min(xRotTail, xBase), xR = Math.max(xRotTail, xBase);
-      if (Vt < 0) {
-        // subtracts: arrow from RIGHT to LEFT → head on the left (points backward)
-        HLD.arrow(ctx, xR, yVt, xL, yVt, vtCol, 3, 9);
-      } else {
-        // adds: arrow from LEFT to RIGHT → head on the right (points forward)
-        HLD.arrow(ctx, xL, yVt, xR, yVt, vtCol, 3, 9);
-      }
-      // thin connector ticks tying the V_T segment to the plane at both ends
-      HLD.dline(ctx, xRotTail, oy, xRotTail, yVt, col.grid, 1, [2, 3]);
-      HLD.dline(ctx, xBase, oy, xBase, yVt, col.grid, 1, [2, 3]);
-      if (Math.abs(xBase - xRotTail) > 60) {
-        HLD.chipLabel(ctx, (Vt < 0 ? 'V_T = μ·sinψ  (subtracts)' : 'V_T = μ·sinψ  (adds)'),
-          (xRotTail + xBase) / 2, yVt + 15, vtCol, '11px IBM Plex Sans, sans-serif', 'center');
+
+      // V_T is appended at the TAIL of V_rot. Because U_T = V_rot + V_T:
+      //   • ADVANCING (V_T>0): U_T > V_rot ⇒ xBase < xRotTail. V_T points RIGHT
+      //     (forward, same way as V_rot) and lies COLLINEAR on the rotor plane just
+      //     to the LEFT of V_rot, tip-to-tail — exactly the exam plate. No overlap.
+      //   • RETREATING (V_T<0): U_T < V_rot ⇒ the backward V_T would lie ON TOP of
+      //     V_rot's shaft, so it is drawn just BELOW the plane to stay legible.
+      const collinear = (Vt >= 0);
+      const yVt = collinear ? oy : oy + 14;
+
+      // V_rot arrow on the plane. When V_T is collinear we DIM V_rot's own label so
+      // the two share one clean line; the U_T bracket names the net base instead.
+      HLD.arrow(ctx, xRotTail, oy, tipX, oy, col.lift, 3, 9);
+      if ((tipX - xRotTail) > 70) {
+        // On the RETREATING side the V_i downwash arrow sits at xBase in the MIDDLE
+        // of V_rot, so anchor the label hard against the TAIL (left) and left-align
+        // it, well clear of V_i. On the ADVANCING side xBase is left of xRotTail so
+        // a centred mid-span label is clear — place it toward the tip.
+        if (Vt < 0) {
+          HLD.chipLabel(ctx, 'V_rot = Ω·r', xRotTail + 6, oy - 14,
+            col.lift, '11px IBM Plex Sans, sans-serif', 'left');
+        } else {
+          // advancing: centre over V_rot's own span but keep it off the tip so it
+          // never runs into the α_i arc / V_rel label bunched at the tip.
+          HLD.chipLabel(ctx, 'V_rot = Ω·r', xRotTail + (tipX - xRotTail) * 0.44, oy - 14,
+            col.lift, '11px IBM Plex Sans, sans-serif', 'center');
+        }
       }
 
-      // net U_T bracket BELOW the plane (space ABOVE the base is reserved for the
-      // V_i downwash arrow + V_rel, exactly as in the exam plate).
-      const yBr = oy + 28;
+      // V_T segment. HEAD marks the sign: subtract → head LEFT; add → head RIGHT.
+      const xL = Math.min(xRotTail, xBase), xR = Math.max(xRotTail, xBase);
+      if (Vt < 0) {
+        HLD.arrow(ctx, xR, yVt, xL, yVt, vtCol, 3, 9);   // backward (subtracts)
+      } else {
+        HLD.arrow(ctx, xL, yVt, xR, yVt, vtCol, 3, 9);   // forward (adds)
+      }
+      if (!collinear) {
+        // offset case: tie the segment back to the plane with light ticks
+        HLD.dline(ctx, xRotTail, oy, xRotTail, yVt, col.grid, 1, [2, 3]);
+        HLD.dline(ctx, xBase, oy, xBase, yVt, col.grid, 1, [2, 3]);
+      }
+      if (Math.abs(xBase - xRotTail) > 60) {
+        // Advancing: V_T is collinear on the plane, so drop its label just BELOW
+        // the plane (the space is free) — clear of the V_i arrow/label above-left.
+        // Retreating: V_T sits below the plane, so the label goes further below it.
+        const vtLy = collinear ? oy + 13 : yVt + 13;
+        HLD.chipLabel(ctx, (Vt < 0 ? 'V_T = μ·sinψ  (subtracts)' : 'V_T = μ·sinψ  (adds)'),
+          (xRotTail + xBase) / 2, vtLy, vtCol, '11px IBM Plex Sans, sans-serif', 'center');
+      }
+
+      // net U_T bracket BELOW the plane. Drop it clear of the offset V_T + its
+      // label on the retreating side (which occupy oy+14 … oy+27); on the advancing
+      // side V_T is collinear so the bracket can sit higher.
+      const yBr = collinear ? oy + 30 : oy + 46;
       HLD.dline(ctx, xBase, yBr, tipX, yBr, col.ink, 1.5, [2, 3]);
       HLD.tick(ctx, xBase, yBr, 8, Math.PI / 2, col.ink, 1.5);
       HLD.tick(ctx, tipX, yBr, 8, Math.PI / 2, col.ink, 1.5);
@@ -1467,15 +1482,21 @@ const HLW = (function () {
       const yTop  = oy - UP * AMP * sy;          // top of the V_n+V_i stack (above plane)
       const yMid  = oy - v_i * AMP * sy;         // boundary: V_n above, V_i below
       // V_n segment (top): from yTop down to yMid — only when there is forward flow
+      // On the RETREATING side the V_rot label runs rightward from the far-left
+      // tail toward xBase, so put the V_i / V_n labels on the RIGHT of their arrow
+      // (open space before V_rel climbs away). Elsewhere keep them on the LEFT.
+      const viRightLbl = (Vt < 0);
+      const viLx = xBase + (viRightLbl ? 8 : -8);
+      const viAlign = viRightLbl ? 'left' : 'right';
       if (v_n > 1e-4) {
         HLD.arrow(ctx, xBase, yTop, xBase, yMid, col.accent, 2.5, 7);
-        HLD.chipLabel(ctx, 'V_n', xBase - 8, (yTop + yMid) / 2, col.accent,
-          '10px IBM Plex Sans, sans-serif', 'right');
+        HLD.chipLabel(ctx, 'V_n', viLx, (yTop + yMid) / 2, col.accent,
+          '10px IBM Plex Sans, sans-serif', viAlign);
       }
       // V_i segment (bottom): from yMid down to the plane
       HLD.arrow(ctx, xBase, yMid, xBase, oy, col.wind, 2.5, 8);
-      HLD.chipLabel(ctx, 'V_i', xBase - 8, (yMid + oy) / 2, col.wind,
-        '10px IBM Plex Sans, sans-serif', 'right');
+      HLD.chipLabel(ctx, 'V_i', viLx, (yMid + oy) / 2, col.wind,
+        '10px IBM Plex Sans, sans-serif', viAlign);
       // U_P total bracket label at the very top
       const viRight = xBase < 110;
       HLD.chipLabel(ctx, 'U_P = V_i+V_n (×' + AMP + ')', xBase + (viRight ? 8 : -8), yTop - 10,
@@ -1601,7 +1622,9 @@ const HLW = (function () {
 
         // ---- CHORD LINE (solid): LE → TE along the drawn +θ --------------------
         HLD.dline(ctx, hx, hy, hx + rC * uCh.x, hy + rC * uCh.y, col.chord, 2, []);
-        HLD.chipLabel(ctx, 'chord', hx + rC * uCh.x + 5, hy + rC * uCh.y + 7, col.chord,
+        // 'chord' label sits just ABOVE the chord tip so it never crowds the α label,
+        // which is anchored just BELOW the datum near the trailing edge.
+        HLD.chipLabel(ctx, 'chord', hx + rC * uCh.x + 6, hy + rC * uCh.y - 8, col.chord,
           '9px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
 
         // ---- V_rel: comes from the LEFT, head AT the LE, drawn ABOVE the chord --
@@ -1634,8 +1657,8 @@ const HLW = (function () {
         // chip that now sits just above the datum on the right.
         const amid = (thD + phD) / 2;
         const aCol = (aDeg < 0) ? col.warn : (stalled ? col.bad : col.good);
-        const aRad = rC * (Math.abs(aDeg) < 3 ? 0.98 : 0.82);
-        const aLy  = (Math.abs(aDeg) < 3 ? 9 : 0);   // nudge below the datum when flat
+        const aRad = rC * (Math.abs(aDeg) < 3 ? 1.14 : 0.82);
+        const aLy  = (Math.abs(aDeg) < 3 ? 14 : 0);  // push out + below the datum when flat
         HLD.chipLabel(ctx, 'α = ' + aDeg.toFixed(1) + '°',
           hx + aRad * Math.cos(amid), hy + aRad * Math.sin(amid) + aLy,
           aCol, '12px IBM Plex Sans, sans-serif', 'left', 'rgba(13,17,23,0.85)');
@@ -1665,10 +1688,12 @@ const HLW = (function () {
       // as wEnvelope, so the student can pick any cell and watch the triangle
       // below rebuild for it — the BET explains the envelope. A crosshair marks
       // the currently-selected (ψ, r/R) cell. Click or drag anywhere on the disc.
-      const cxC = W - 72, cyC = 78, rC = 56;
+      const cxC = W - 84, cyC = 78, rC = 56;
       discHit = { cx: cxC, cy: cyC, r: rC };            // hand the hit-box to the click handler
-      HLD.text(ctx, 'ENVELOPE — click to pick a section', cxC, cyC - rC - 12, col.dim,
-        '9px IBM Plex Sans, sans-serif', 'center');
+      // title RIGHT-anchored to the disc's right edge so it can never overflow the
+      // canvas, and shortened to fit.
+      HLD.text(ctx, 'ENVELOPE — click to pick', cxC + rC, cyC - rC - 12, col.dim,
+        '9px IBM Plex Sans, sans-serif', 'right');
       const nrD = 8, npD = 48, rMinD = 0.2;
       for (let ir = 0; ir < nrD; ir++) {
         const r0 = rMinD + (1 - rMinD) * ir / nrD, r1 = rMinD + (1 - rMinD) * (ir + 1) / nrD;

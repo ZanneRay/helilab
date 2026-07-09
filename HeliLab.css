@@ -196,6 +196,12 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
 .hl-w { display: flex; flex-direction: column; gap: 10px; }
 .hl-w-stage { width: 100%; aspect-ratio: 16 / 11; background: var(--hl-canvas);
   border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+/* wide lessons: widget spans the full row above the text, so a dense diagram
+   (e.g. the BET velocity triangle) gets the full 1100px width and a taller,
+   less-crowded canvas. */
+.hl-lesson-grid--wide { grid-template-columns: 1fr; }
+.hl-lesson-grid--wide .hl-lesson-widget { position: static; }
+.hl-lesson-grid--wide .hl-w-stage { aspect-ratio: 16 / 8; }
 .hl-w-stage canvas { width: 100%; height: 100%; display: block; }
 .hl-w-stage-short { aspect-ratio: auto; height: 170px; }
 .hl-w-3d { width: 100%; height: 250px; background: var(--hl-canvas);

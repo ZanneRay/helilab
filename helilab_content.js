@@ -371,7 +371,7 @@ const HL_LESSONS = [
   {
     id: 'bet-velocity', stage: 'Forward Flight', title: 'Retreating Stall — the BET Velocity Diagram',
     subtitle: 'Why the retreating blade runs slow — vector by vector',
-    widget: 'wBetVelocity',
+    widget: 'wBetVelocity', wide: true,
     body: `
       <p>The disc map on the previous page tells you <i>where</i> the blade stalls.
       This page shows you <i>why</i>, with the exact velocity triangle you draw on
