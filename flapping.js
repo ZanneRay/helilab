@@ -104,59 +104,108 @@ function omega(st) {
    4.  SIMPLE MOMENTUM INFLOW
    ───────────────────────────────────────────────────────────── */
 /**
- * Uniform inflow ratio λ = v_i / (Ω·R).
+ * TOTAL inflow ratio λ = (V_perp + v_i) / (Ω·R), i.e. the full velocity
+ * NORMAL to the tip-path-plane, expressed as a fraction of the tip speed.
+ * It has TWO parts (Glauert forward-flight relation, Leishman eq. 2.126):
  *
- * Closed CT–λ loop: BET thrust coefficient and Glauert momentum inflow
- * iterated simultaneously, so λ reflects the actual collective setting.
+ *   λ = μ·tan(α_TPP)  +  C_T / (2·√(μ²+λ²))
+ *       └─ throughflow ─┘   └──── induced λ_i ────┘
+ *
+ * • μ·tan(α_TPP)  — the component of the FREE-STREAM velocity that passes
+ *   perpendicularly THROUGH the disc because the tip-path-plane is tilted
+ *   nose-down (α_TPP < 0) in forward flight. This is the "V_n of the
+ *   forward speed" and at 120 kt it already exceeds the induced part.
+ * • C_T/(2√…)     — the classical induced inflow from momentum theory.
+ *
+ * α_TPP is taken as the nose-down body pitch from the drag/weight balance
+ *   D = ½ρV²f_eq , W = 2ρA v_h²  →  α_TPP = −arctan(V²·f_eq /(4·A·v_h²))
+ *   (identical to computeTrimCyclic's fuselage-pitch derivation, inlined
+ *    here to avoid a circular call).
  *
  * BET thrust (75%R twist reference, Van Holten):
- *   CT = (σ·c_lα/4)·[θ₀·(⅔+μ²) − θ_t·(μ²/4) − λ]
+ *   CT = (σ·c_lα/4)·[θ₀·(⅔+μ²) − θ_t·(μ²/4) − λ_i]
  *   Note: twist term → 0 at hover (μ=0) — elegant 75%R cancellation.
  *
- * Glauert momentum:
- *   λ = CT / (2·√(μ²+λ²))
- *
- * Both equations converge together in 15–25 damped iterations.
+ * All coupled and iterated together in 15–25 damped iterations.
  */
-function inflowRatio(st) {
-  const OmR   = tipSpeed(st);
+// Throughflow ratio μ·tan(α_TPP): the free-stream component NORMAL to the
+// tilted disc. Nose-down disc in forward flight → negative. Zero at hover.
+function throughflowRatio(st) {
+  const OmR = tipSpeed(st);
+  if (OmR < 1) return 0;
+  const mu  = st.V / OmR;
+  if (mu <= 1e-4) return 0;
+  const sigma = st.sigma   || 0.076;
+  const clA   = st.clAlpha || 5.73;
+  const t0    = (st.theta0 || 0) * Math.PI / 180;
+  const f_eq  = 0.9;                        // flat-plate equivalent area [m²]
+  const R_t   = st.R || 6.7;
+  const A_t   = Math.PI * R_t * R_t;
+  // hover induced velocity for the SAME collective (μ=0, momentum-only)
+  let lam_h = Math.sqrt(0.006 / 2);
+  for (let k = 0; k < 30; k++) {
+    const CTh = Math.max(1e-6, (sigma * clA / 4) * (t0 * (2/3) - lam_h));
+    const lh_new = CTh / (2 * Math.max(lam_h, 1e-4));
+    if (Math.abs(lh_new - lam_h) < 1e-9) { lam_h = lh_new; break; }
+    lam_h = 0.6 * lam_h + 0.4 * lh_new;
+  }
+  lam_h = Math.max(0.005, lam_h);
+  const v_h    = lam_h * OmR;               // hover induced velocity [m/s]
+  const DoverW = (st.V * st.V * f_eq) / (4 * A_t * v_h * v_h);
+  const alphaTPP = -Math.atan(DoverW);      // nose-down → negative
+  return mu * Math.tan(alphaTPP);           // negative in forward flight
+}
+
+// INDUCED inflow ratio λ_i only (momentum theory, coupled to CT). This is the
+// part that produces blade lift; it is what the BET thrust formula uses.
+function inducedInflowRatio(st) {
+  const OmR = tipSpeed(st);
   if (OmR < 1) return 0.05;
   const mu    = st.V / OmR;
   const sigma = st.sigma   || 0.076;
   const clA   = st.clAlpha || 5.73;
   const t0    = (st.theta0 || 0) * Math.PI / 180;
-  const twst  = (st.twist  || 0) * Math.PI / 180;   // tip-root [rad], ref at 75%R
+  const twst  = (st.twist  || 0) * Math.PI / 180;
+  const muTan = throughflowRatio(st);
 
-  // Starting guess from a typical CT
   const CT0 = 0.006;
-  let lam = mu > 0.1 ? CT0 / (2 * mu) : Math.sqrt(CT0 / 2);
-
+  let lam_i = mu > 0.1 ? CT0 / (2 * mu) : Math.sqrt(CT0 / 2);
   for (let iter = 0; iter < 30; iter++) {
     const CT = Math.max(1e-6, (sigma * clA / 4) * (
-      t0 * (2/3 + mu * mu) - twst * (mu * mu / 4) - lam));
-    const lam_new = CT / (2 * Math.max(Math.sqrt(mu * mu + lam * lam), 1e-4));
-    if (Math.abs(lam_new - lam) < 1e-8) { lam = lam_new; break; }
-    lam = 0.6 * lam + 0.4 * lam_new;   // damped for stability
+      t0 * (2/3 + mu * mu) - twst * (mu * mu / 4) - lam_i));
+    // total λ enters the √(μ²+λ²) resultant (Glauert), so use λ_i+muTan there
+    const lamTot = lam_i + muTan;
+    const lam_i_new = CT / (2 * Math.max(Math.sqrt(mu * mu + lamTot * lamTot), 1e-4));
+    if (Math.abs(lam_i_new - lam_i) < 1e-8) { lam_i = lam_i_new; break; }
+    lam_i = 0.6 * lam_i + 0.4 * lam_i_new;
   }
-  return Math.max(0.005, lam);
+  return Math.max(0.005, lam_i);
+}
+
+// TOTAL inflow ratio λ = μ·tan(α_TPP) + λ_i  — the full velocity normal to
+// the disc, used for the blade-element perpendicular velocity U_P.
+function inflowRatio(st) {
+  return throughflowRatio(st) + inducedInflowRatio(st);
 }
 
 /**
  * Blade-element thrust coefficient C_T at the current state.
- * Consistent with inflowRatio() — uses the same BET formula.
- *   CT = (σ·c_lα/4)·[θ₀·(⅔+μ²) − θ_t·(μ²/4) − λ]
+ * Consistent with inflowRatio() — uses the same BET formula, but on the
+ * INDUCED inflow λ_i only (the μ·tan(α_TPP) throughflow does not create
+ * blade lift, it just tilts the incoming flow):
+ *   CT = (σ·c_lα/4)·[θ₀·(⅔+μ²) − θ_t·(μ²/4) − λ_i]
  */
 function thrustCoeff(st) {
   const OmR   = tipSpeed(st);
   if (OmR < 1) return 0.005;
   const mu    = st.V / OmR;
-  const lam   = inflowRatio(st);
+  const lam_i = inducedInflowRatio(st);   // induced part only
   const sigma = st.sigma   || 0.076;
   const clA   = st.clAlpha || 5.73;
   const t0    = (st.theta0 || 0) * Math.PI / 180;
   const twst  = (st.twist  || 0) * Math.PI / 180;
   return Math.max(1e-6, (sigma * clA / 4) * (
-    t0 * (2/3 + mu * mu) - twst * (mu * mu / 4) - lam));
+    t0 * (2/3 + mu * mu) - twst * (mu * mu / 4) - lam_i));
 }
 
 /**
@@ -273,7 +322,8 @@ function localVelocities(st, coeffs, rBar, psi) {
   const OmR = tipSpeed(st);
   const Om  = omega(st);
   const mu  = advanceRatio(st);
-  const lam0 = inflowRatio(st);
+  const muTan = throughflowRatio(st);       // uniform free-stream throughflow
+  const lam_i = inducedInflowRatio(st);     // induced part (gets Drees gradient)
 
   const beta     = flappingAngle(coeffs, psi);
   const betaDot  = flappingRate(coeffs, psi, Om);
@@ -284,8 +334,9 @@ function localVelocities(st, coeffs, rBar, psi) {
   // Tangential (in-plane)
   const UT = rBar + mu * Math.sin(psi); // normalised by OmR
 
-  // Perpendicular (out-of-plane) — includes linear inflow correction
-  const lam_loc = localInflow(lam0, rBar, psi, mu);
+  // Perpendicular (out-of-plane): uniform throughflow + azimuthally-varying
+  // induced inflow (Drees wake-skew gradient applies to the INDUCED part only).
+  const lam_loc = muTan + localInflow(lam_i, rBar, psi, mu);
   const UP = lam_loc
     + (betaDot / Om) * rBar  // flapping velocity (normalised by OmR since betaDot/Om = dβ/dψ)
     - (q_r * Math.cos(psi) + p_r * Math.sin(psi)) * rBar / Om * (Om / OmR) // body rates, normalised

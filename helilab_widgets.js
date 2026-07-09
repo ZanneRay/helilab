@@ -1459,19 +1459,31 @@ const HLW = (function () {
           '12px IBM Plex Sans, sans-serif', 'left', 'rgba(248,113,113,0.15)');
       }
 
-      // azimuth mini-compass top-right so students keep orientation
-      const cxC = W - 58, cyC = 52, rC = 30;
+      // azimuth + radial-station mini-disc top-right so students keep orientation.
+      // This is a TOP VIEW of the rotor disc: the blade is drawn as a spoke at the
+      // current azimuth, and a STATION DOT slides in/out along that spoke as r/R
+      // changes — answering "where on the blade am I looking?".
+      const cxC = W - 62, cyC = 56, rC = 34;
       ctx.strokeStyle = col.grid; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.arc(cxC, cyC, rC, 0, 2 * Math.PI); ctx.stroke();
+      // hub
+      HLD.dot(ctx, cxC, cyC, 2.5, col.dim);
       HLD.text(ctx, 'N', cxC - 3, cyC - rC - 3, col.dim, '9px sans-serif');
       HLD.text(ctx, 'A', cxC + rC + 2, cyC + 3, col.dim, '9px sans-serif');
       HLD.text(ctx, 'R', cxC - rC - 8, cyC + 3, col.dim, '9px sans-serif');
       HLD.text(ctx, 'T', cxC - 3, cyC + rC + 9, col.dim, '9px sans-serif');
-      // marker: our azimuth convention — ψ=0 TAIL(bottom), 90 ADV(right),
-      // 180 NOSE(top), 270 RET(left). canvas +y is down, so x=sinψ (right at 90),
-      // y=cosψ (down/tail at 0, up/nose at 180) places it correctly.
-      HLD.dot(ctx, cxC + rC * Math.sin(psi), cyC + rC * Math.cos(psi), 4,
-        Vt < 0 ? col.bad : col.good);
+      // blade spoke at current azimuth. convention: ψ=0 TAIL(bottom), 90 ADV(right),
+      // 180 NOSE(top), 270 RET(left). canvas +y is down: x=sinψ, y=cosψ.
+      const bx = Math.sin(psi), by = Math.cos(psi);
+      const spokeCol = Vt < 0 ? col.bad : col.good;
+      ctx.strokeStyle = spokeCol; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cxC, cyC);
+      ctx.lineTo(cxC + rC * bx, cyC + rC * by); ctx.stroke();
+      // radial-station dot: slides from hub (r/R=0) to rim (r/R=1) along the spoke
+      const rStat = rC * rBar;
+      HLD.dot(ctx, cxC + rStat * bx, cyC + rStat * by, 4.5, col.chord);
+      HLD.chipLabel(ctx, 'r/R=' + rBar.toFixed(2), cxC, cyC + rC + 20, col.chord,
+        '9px IBM Plex Sans, sans-serif', 'center');
 
       // ---- readout -----------------------------------------------------------
       const side = psiDeg > 180 && psiDeg < 360 ? 'retreating' : (psiDeg > 0 && psiDeg < 180 ? 'advancing' : (psiDeg === 0 ? 'over tail' : 'over nose'));
@@ -2008,10 +2020,242 @@ const HLW = (function () {
     requestAnimationFrame(render);
   }
 
+  /* =========================================================================
+     wBetModel — the maths behind the velocity diagram (lesson appendix)
+     A static reference: TikZ-style convention diagrams drawn on canvas, the
+     full set of equations the widget actually evaluates, and the sources.
+     Builds its own DOM (no scaffold) so it can stack several figures.
+     ========================================================================= */
+  function wBetModel(host) {
+    host.innerHTML = '';
+    const root = el('div', 'hl-model');
+
+    // helper: build a figure = <canvas> + caption, run a draw callback on it
+    const figs = [];
+    const figure = (heightPx, caption, drawCb) => {
+      const box = el('div', 'hl-model-fig');
+      box.style.height = heightPx + 'px';
+      const cv = el('canvas');
+      cv.setAttribute('role', 'img');
+      box.appendChild(cv);
+      root.appendChild(box);
+      if (caption) root.appendChild(el('div', 'hl-model-figcap', caption));
+      figs.push({ cv, drawCb });
+    };
+    const para = (html) => root.appendChild(el('p', null, html));
+    const head = (txt) => root.appendChild(el('div', 'hl-model-sec-h', txt));
+    const eq = (html) => root.appendChild(el('div', 'hl-eq', html));
+
+    // ── 1. AZIMUTH CONVENTION ──────────────────────────────────────────────
+    head('1 · Azimuth convention (ψ) — top view of the rotor disc');
+    para(`Everything below is written in <b>this app's azimuth convention</b>, which
+      matches the way the H145 (CCW main rotor, viewed from above) is taught. The
+      blade sweeps <b>counter-clockwise</b>. ψ is measured from the tail:`);
+    figure(300, 'Fig. 1 — Top view. ψ=0° tail, 90° advancing (right), 180° nose, 270° retreating (left). Rotation is CCW.',
+      (ctx, W, H, col) => {
+        const cx = W / 2, cy = H / 2, R = Math.min(W, H) * 0.34;
+        // disc
+        ctx.strokeStyle = col.grid; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
+        HLD.dot(ctx, cx, cy, 4, col.dim);
+        // convention: ψ=0 tail(bottom,+y), 90 adv(right,+x), 180 nose(top,-y), 270 ret(left,-x)
+        // screen pos: x = cx + R·sinψ, y = cy + R·cosψ
+        const P = (deg, r) => ({ x: cx + r * Math.sin(deg * D2R), y: cy + r * Math.cos(deg * D2R) });
+        // four cardinal spokes + labels
+        const marks = [
+          { d: 0,   t: 'ψ=0°  TAIL',        c: col.dim },
+          { d: 90,  t: 'ψ=90°  ADVANCING',  c: col.good },
+          { d: 180, t: 'ψ=180°  NOSE',      c: col.dim },
+          { d: 270, t: 'ψ=270°  RETREATING', c: col.bad },
+        ];
+        marks.forEach(m => {
+          const p = P(m.d, R);
+          HLD.dline(ctx, cx, cy, p.x, p.y, col.grid, 1, [3, 3]);
+          const lp = P(m.d, R + 26);
+          const al = m.d === 90 ? 'left' : m.d === 270 ? 'right' : 'center';
+          HLD.chipLabel(ctx, m.t, lp.x, lp.y, m.c, '11px IBM Plex Sans, sans-serif', al);
+          HLD.dot(ctx, p.x, p.y, 3, m.c);
+        });
+        // aircraft nose indicator (top)
+        const np = P(180, R + 4);
+        HLD.arrow(ctx, cx, cy, np.x, np.y - 6, col.accent, 2, 9);
+        HLD.chipLabel(ctx, 'flight →', cx + 6, cy - R * 0.5, col.accent, '10px IBM Plex Sans, sans-serif', 'left');
+        // CCW rotation arrow (curved, from adv toward nose)
+        ctx.strokeStyle = col.accent; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(cx, cy, R * 0.62, (90 - 8) * D2R, (150) * D2R, false); ctx.stroke();
+        const tip = P(150, R * 0.62);
+        HLD.arrow(ctx, tip.x + 6, tip.y - 2, tip.x, tip.y, col.accent, 2, 8);
+        HLD.chipLabel(ctx, 'Ω (CCW)', cx - R * 0.30, cy - R * 0.30, col.accent, '10px IBM Plex Sans, sans-serif', 'center');
+        // a blade at ψ=270 with station r
+        const bp = P(270, R);
+        ctx.strokeStyle = col.bad; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(bp.x, bp.y); ctx.stroke();
+        const sp = P(270, R * 0.62);
+        HLD.dot(ctx, sp.x, sp.y, 4.5, col.chord);
+        HLD.chipLabel(ctx, 'r', sp.x, sp.y - 12, col.chord, '11px IBM Plex Sans, sans-serif', 'center');
+      });
+    eq(`<span class="var">ψ</span> = 0° tail · 90° advancing · 180° nose · 270° retreating` +
+      `   <span class="cmt">(CCW rotor, measured from the tail)</span>`);
+
+    // ── 2. IN-PLANE & PERPENDICULAR VELOCITIES ─────────────────────────────
+    head('2 · Blade-element velocities — U_T and U_P');
+    para(`Freeze one blade element at station <b>r̄ = r/R</b> and azimuth <b>ψ</b>.
+      Two velocity components matter: <b>U<sub>T</sub></b> in the plane of rotation
+      (drives dynamic pressure), and <b>U<sub>P</sub></b> perpendicular to the
+      tip-path-plane (sets the inflow angle). Both are normalised by the tip speed
+      <b>ΩR</b>.`);
+    eq(`<span class="var">U_T</span> = ΩR · ( r̄ + μ·sinψ )` +
+      `\n<span class="var">U_P</span> = ΩR · ( λ + r̄·dβ/dψ + μ·β·cosψ )`);
+    para(`<b>μ = V/ΩR</b> is the advance ratio (forward speed as a fraction of tip
+      speed). On the advancing side sinψ = +1 so the forward flow <b>adds</b> to the
+      rotational speed; on the retreating side sinψ = −1 so it <b>subtracts</b> —
+      that is dissymmetry of lift. <b>β</b> is the flapping angle and <b>dβ/dψ</b>
+      the flapping rate; the last U_P terms are the flapping and free-stream
+      contributions.`);
+
+    // ── 3. TIP-PATH-PLANE & INFLOW ─────────────────────────────────────────
+    head('3 · Tip-path-plane, disc tilt and the inflow λ');
+    para(`In forward flight the disc tilts <b>nose-down</b> by α<sub>TPP</sub> to
+      produce a forward thrust component. The total inflow <b>λ</b> normal to the
+      disc therefore has <b>two</b> parts — this is the point your question (c) was
+      about:`);
+    figure(300, 'Fig. 2 — Side view. The nose-down tip-path-plane makes the free stream V pass partly THROUGH the disc (μ·tanα_TPP) on top of the induced inflow λ_i.',
+      (ctx, W, H, col) => {
+        const cx = W / 2, cy = H / 2;
+        const half = Math.min(W, H) * 0.36;
+        const aTPP = 14 * D2R;  // exaggerated nose-down tilt for clarity
+        // horizon (flight direction) reference
+        HLD.dline(ctx, cx - half - 30, cy, cx + half + 30, cy, col.grid, 1, [4, 4]);
+        HLD.chipLabel(ctx, 'horizontal', cx + half + 4, cy - 8, col.dim, '10px IBM Plex Sans, sans-serif', 'left');
+        // tip-path-plane: a line tilted nose-down. nose is to the LEFT (flight →).
+        const dx = Math.cos(aTPP) * half, dy = Math.sin(aTPP) * half;
+        // front (nose, left) end lower; rear (right) end higher → nose-down disc
+        const fx1 = cx - dx, fy1 = cy + dy, fx2 = cx + dx, fy2 = cy - dy;
+        ctx.strokeStyle = col.accent; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(fx1, fy1); ctx.lineTo(fx2, fy2); ctx.stroke();
+        HLD.chipLabel(ctx, 'tip-path-plane', fx2, fy2 - 12, col.accent, '10px IBM Plex Sans, sans-serif', 'right');
+        HLD.dot(ctx, cx, cy, 3.5, col.ink);
+        // α_TPP arc between horizontal and TPP at the hub (label placed clear, upper-left)
+        HLD.arc(ctx, cx, cy, 40, Math.PI, Math.PI + aTPP, col.warn, '');
+        HLD.chipLabel(ctx, 'α_TPP', cx - 46, cy - 16, col.warn, '10px IBM Plex Sans, sans-serif', 'right');
+        // free-stream V arrow coming from the front (flight direction, →)
+        HLD.arrow(ctx, cx - half - 20, cy, cx - half * 0.35, cy, col.good, 2.5, 9);
+        HLD.chipLabel(ctx, 'V (free stream)', cx - half - 18, cy + 14, col.good, '10px IBM Plex Sans, sans-serif', 'left');
+        // throughflow component through the disc (down through TPP) at a point fwd of hub
+        const px = cx - dx * 0.5, py = cy + dy * 0.5;
+        // normal to TPP points "down-and-back"; draw the μ·tanα throughflow downward
+        const nlen = half * 0.42;
+        const nx = Math.sin(aTPP), ny = Math.cos(aTPP); // unit normal (downward through disc)
+        HLD.arrow(ctx, px, py, px + nx * nlen, py + ny * nlen, col.bad, 2, 8);
+        HLD.chipLabel(ctx, 'μ·tanα_TPP', px + nx * nlen + 4, py + ny * nlen, col.bad, '10px IBM Plex Sans, sans-serif', 'left');
+        // induced inflow λ_i straight down through hub
+        HLD.arrow(ctx, cx + dx * 0.4, cy - dy * 0.4, cx + dx * 0.4 + nx * nlen * 0.7, cy - dy * 0.4 + ny * nlen * 0.7, col.wind, 2, 8);
+        HLD.chipLabel(ctx, 'λ_i (induced)', cx + dx * 0.4 + nx * nlen * 0.7 + 4, cy - dy * 0.4 + ny * nlen * 0.7, col.wind, '10px IBM Plex Sans, sans-serif', 'left');
+      });
+    eq(`<span class="var">λ</span> = μ·tan(α_TPP) + λ_i` +
+      `   <span class="cmt">total = throughflow + induced</span>` +
+      `\n<span class="var">λ_i</span> = C_T / ( 2·√(μ² + λ²) )` +
+      `   <span class="cmt">Glauert momentum inflow</span>`);
+    para(`The <b>throughflow</b> term μ·tan(α_TPP) is the component of the aircraft's
+      own velocity passing straight through the tilted disc. In a hover it is zero;
+      by ~120 kt it is already larger than the induced part λ_i, which is exactly
+      why it must be included. Across the disc the induced part is not uniform — the
+      wake skews back, modelled with the <b>Drees</b> linear inflow:`);
+    eq(`<span class="var">λ_i(r̄,ψ)</span> = λ_i · ( 1 + κ·r̄·cosψ + k_y·r̄·sinψ )` +
+      `\nκ = (4/3)·μ / (√(μ²+λ²) + λ)      k_y = −2μ`);
+
+    // ── 4. BLADE-ELEMENT ANGLES ────────────────────────────────────────────
+    head('4 · Blade-element angles — θ, φ and α');
+    para(`With U<sub>T</sub> and U<sub>P</sub> in hand the section angles follow
+      directly. <b>θ</b> is the geometric pitch you set (collective + cyclic +
+      twist), <b>φ</b> is the inflow angle the relative wind makes with the disc,
+      and the angle of attack is their difference:`);
+    figure(300, 'Fig. 3 — Blade section. Relative wind V_rel arrives at inflow angle φ below the disc plane; chord is pitched up by θ; α = θ − φ. Angles exaggerated.',
+      (ctx, W, H, col) => {
+        const cx = W * 0.46, cy = H * 0.54;
+        const chord = Math.min(W * 0.44, 240);
+        const thetaV = 18 * D2R, phiV = 9 * D2R;  // exaggerated for clarity
+        // disc-plane datum (horizontal dashed) — extend well to the right, label in the clear
+        HLD.dline(ctx, cx - chord * 0.7, cy, cx + chord * 0.95, cy, col.grid, 1, [4, 4]);
+        HLD.chipLabel(ctx, 'plane of rotation (U_T)', cx + chord * 0.95, cy + 15, col.dim, '10px IBM Plex Sans, sans-serif', 'right');
+        // airfoil at pitch θ (nose-up = rotate -θ in canvas since +y is down)
+        const pts = HLD.nacaProfile(0.12, 56);
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(-thetaV);
+        ctx.beginPath();
+        const c0 = -chord * 0.34;
+        pts.forEach((p, i) => { const X = c0 + p.x * chord, Y = -p.y * chord;
+          if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y); });
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(251,146,60,0.12)'; ctx.fill();
+        ctx.strokeStyle = col.chord; ctx.lineWidth = 2; ctx.stroke();
+        // chord line
+        HLD.dline(ctx, c0, 0, c0 + chord, 0, col.chord, 1.2, [6, 4]);
+        ctx.restore();
+        // relative wind: arrives from lower-left at angle φ below the datum, into LE
+        const wl = chord * 0.6;
+        const wx = cx - wl * Math.cos(phiV), wy = cy + wl * Math.sin(phiV);
+        HLD.arrow(ctx, wx, wy, cx - chord * 0.30, cy, col.wind, 2.2, 9);
+        HLD.chipLabel(ctx, 'V_rel', wx - 4, wy + 4, col.wind, '11px IBM Plex Sans, sans-serif', 'right');
+        // θ arc (datum → chord, above), φ arc (datum → wind, below) — well-separated radii
+        HLD.arc(ctx, cx, cy, 58, -thetaV, 0, col.chord, 'θ');
+        HLD.arc(ctx, cx, cy, 40, 0, phiV, col.wind, 'φ');
+        // α label above the chord, clear of the airfoil
+        HLD.chipLabel(ctx, 'α = θ − φ', cx - chord * 0.05, cy - chord * 0.30, col.good, '12px IBM Plex Sans, sans-serif', 'left');
+      });
+    eq(`<span class="var">φ</span> = atan2( U_P , U_T )      <span class="cmt">inflow angle</span>` +
+      `\n<span class="var">θ</span>(r̄,ψ) = θ₀ + θ_tw·(r̄ − 0.75) + θ_1c·cosψ + θ_1s·sinψ` +
+      `\n<span class="var">α</span> = θ − φ           <span class="cmt">→ stall when α > α_crit</span>`);
+    para(`Twist is referenced at 75%R, so the −8° washout lowers the tip pitch and
+      unloads it. When the net U<sub>T</sub> on the retreating side is small, φ grows
+      and the section needs a large θ to hold α below the stall — the mechanism the
+      main diagram shows vector-by-vector.`);
+
+    // ── 5. FLAPPING (for completeness) ─────────────────────────────────────
+    head('5 · Where β comes from — first-harmonic flapping');
+    para(`The flapping angle used in U<sub>P</sub> is the first-harmonic solution of
+      the blade flapping equation (Van Holten / Leishman). Coning a₀ and the disc
+      tilts a₁ (longitudinal) and b₁ (lateral) close the loop:`);
+    eq(`<span class="var">β</span>(ψ) = a₀ − a₁·cosψ − b₁·sinψ` +
+      `\na₀ = (γ/8)·[ θ₀(1+μ²) + θ_tw(1/20 − μ²/12) − (4/3)λ ]`);
+
+    // ── REFERENCES ─────────────────────────────────────────────────────────
+    const refs = el('div', 'hl-model-refs');
+    refs.innerHTML =
+      '<h4>Where the formulas come from</h4>' +
+      '<ol>' +
+      '<li>Leishman, J.G. — <i>Principles of Helicopter Aerodynamics</i>, 2nd ed. ' +
+        'Blade-element velocities U_T/U_P (eq. 2.126, 3.x), Glauert forward-flight inflow λ = μ·tanα + C_T/(2√(μ²+λ²)), and the linear-inflow (Drees) model.</li>' +
+      '<li>Van Holten, Th. — <i>Helicopter Performance, Stability and Control</i> ' +
+        '(TU Delft AE4-314). First-harmonic flapping coefficients a₀, a₁, b₁ (eqs. 78–80) used for β(ψ).</li>' +
+      '<li>Drees, J.M. (1949) — the linear-inflow wake-skew gradient κ and k_y = −2μ. ' +
+        'See <a href="https://move.rpi.edu/sites/default/files/publication-documents/2016-7.pdf" target="_blank" rel="noopener">RPI course notes (PDF)</a> and ' +
+        '<a href="https://ocw.snu.ac.kr/sites/default/files/NOTE/Week9_3.pdf" target="_blank" rel="noopener">SNU OpenCourseWare (PDF)</a>.</li>' +
+      '<li>Wagtendonk, W.J. — <i>Principles of Helicopter Flight</i>. Retreating-blade ' +
+        'stall, dissymmetry of lift and the azimuth/9-o\'clock stall picture.</li>' +
+      '<li>NASA Ames — dynamic-stall azimuth studies, e.g. ' +
+        '<a href="https://rotorcraft.arc.nasa.gov/Publications/files/Nguyen_ERF99.pdf" target="_blank" rel="noopener">Nguyen, ERF 1999 (PDF)</a>.</li>' +
+      '</ol>' +
+      '<p style="font-size:12px;color:var(--text3);margin:8px 0 0">All angle conventions ' +
+      'on this page follow the app-wide standard: ψ from the tail, CCW rotor (H145/BK117 D-3).</p>';
+    root.appendChild(refs);
+
+    host.appendChild(root);
+
+    // draw all figures once, and redraw on resize
+    const drawAll = () => figs.forEach(f => {
+      const s = HLD.setup(f.cv);
+      HLD.clear(s.ctx, s.W, s.H, s.col); HLD.grid(s.ctx, s.W, s.H, s.col, 32);
+      f.drawCb(s.ctx, s.W, s.H, s.col);
+    });
+    requestAnimationFrame(drawAll);
+    const ro = new ResizeObserver(drawAll);
+    figs.forEach(f => ro.observe(f.cv.parentElement));
+  }
+
   return {
     wBigPicture, wBladeElement, wSpanwise, wHover, wVertical, wGroundEffect,
     wDissymmetry, wFlapping, wEnvelope, wCoriolis, wDynamicRollover, wLTE,
-    wAutorotation, wPerformance, wBetDiagram, wBetVelocity,
+    wAutorotation, wPerformance, wBetDiagram, wBetVelocity, wBetModel,
     wSandbox,
   };
 })();

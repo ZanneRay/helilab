@@ -419,6 +419,7 @@ const HL_LESSONS = [
       ], answer: 0,
       explain: 'sin(270°) = −1, so V_T = μ·sinψ·ΩR is negative — it points backward and is subtracted from the rotational speed V_rot. The net in-plane speed U_T is therefore small, and the blade must fly at a high α to keep making lift. Push the speed up and that α reaches the stall angle at the retreating tip first.',
     },
+    appendix: { title: 'The Maths Behind the Diagram', widget: 'wBetModel' },
   },
 
   {

@@ -130,6 +130,33 @@
     // comprehension check
     if (lesson.check) main.appendChild(buildCheck(lesson));
 
+    // optional full-width appendix (e.g. a math-model reference with its own
+    // diagrams). Rendered by a named widget so it can draw on canvas.
+    if (lesson.appendix) {
+      const ap = el('div', 'hl-appendix');
+      ap.innerHTML = '<div class="hl-appendix-toggle" role="button" tabindex="0" aria-expanded="false">▸ ' +
+        lesson.appendix.title + '</div>';
+      const body = el('div', 'hl-appendix-body');
+      body.style.display = 'none';
+      ap.appendChild(body);
+      let built = false;
+      const openIt = () => {
+        const open = body.style.display === 'none';
+        body.style.display = open ? 'block' : 'none';
+        ap.querySelector('.hl-appendix-toggle').setAttribute('aria-expanded', String(open));
+        ap.querySelector('.hl-appendix-toggle').textContent =
+          (open ? '▾ ' : '▸ ') + lesson.appendix.title;
+        if (open && !built) {
+          built = true;
+          const fn = HLW[lesson.appendix.widget];
+          if (fn) { try { fn(body); } catch (e) { body.innerHTML = '<div class="hl-err">Appendix error: ' + e.message + '</div>'; console.error(e); } }
+        }
+      };
+      ap.querySelector('.hl-appendix-toggle').onclick = openIt;
+      ap.querySelector('.hl-appendix-toggle').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openIt(); } };
+      main.appendChild(ap);
+    }
+
     // footer nav
     const foot = el('div', 'hl-lesson-foot');
     const prev = el('button', 'hl-foot-btn', '← Previous');

@@ -125,14 +125,20 @@ section('4. Linear inflow lateral gradient (ky=−2μ): higher on retreating');
 {
   const st = fwdState(60);
   const mu = advanceRatio(st);
-  const lam0 = inflowRatio(st);
-  const adv = localInflow(lam0, 0.75, 90 * D2R, mu);
-  const ret = localInflow(lam0, 0.75, 270 * D2R, mu);
-  check('inflow(RET ψ=270) > inflow(ADV ψ=90)', ret > adv, `ret=${ret.toFixed(4)} adv=${adv.toFixed(4)} λ0=${lam0.toFixed(4)}`);
+  // Drees wake-skew gradient applies to the INDUCED inflow only; the uniform
+  // throughflow μ·tan(α_TPP) is added separately and does not vary with ψ.
+  const lam_i = ctx.inducedInflowRatio(st);
+  const adv = localInflow(lam_i, 0.75, 90 * D2R, mu);
+  const ret = localInflow(lam_i, 0.75, 270 * D2R, mu);
+  check('induced inflow(RET ψ=270) > (ADV ψ=90)', ret > adv, `ret=${ret.toFixed(4)} adv=${adv.toFixed(4)} λ_i=${lam_i.toFixed(4)}`);
   // Drees skew κ·cos(ψ): cos(180)=−1 so FWD has LOWER, AFT (cos0=+1) HIGHER.
-  const front = localInflow(lam0, 0.75, 180 * D2R, mu);
-  const rear = localInflow(lam0, 0.75, 0, mu);
+  const front = localInflow(lam_i, 0.75, 180 * D2R, mu);
+  const rear = localInflow(lam_i, 0.75, 0, mu);
   check('Drees skew present (AFT ψ=0 vs FWD ψ=180 differ)', Math.abs(front - rear) > 1e-4, `AFT=${rear.toFixed(4)} FWD=${front.toFixed(4)}`);
+  // NEW: throughflow term is present and negative (nose-down disc) in fwd flight
+  const muTan = ctx.throughflowRatio(st);
+  check('throughflow μ·tan(α_TPP) present & negative @60kt', muTan < -1e-3, `μ·tanα=${muTan.toFixed(4)}`);
+  check('throughflow vanishes at hover', Math.abs(ctx.throughflowRatio({ ...st, V: 0 })) < 1e-9, `hover μ·tanα=${ctx.throughflowRatio({ ...st, V: 0 }).toFixed(6)}`);
 }
 
 /* ── TEST 5 — trim cyclic zeroes disc flapping; t1s<0 ──────────────── */
