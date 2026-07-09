@@ -45,6 +45,7 @@
 
   let current = HL_LESSONS[0].id;
   let inSandbox = false;
+  let inMaths = false;
 
   /* ── sidebar ──────────────────────────────────────────────────────────── */
   function buildSidebar() {
@@ -62,7 +63,7 @@
       lessons.forEach(l => {
         const idx = HL_LESSONS.indexOf(l) + 1;
         const st = progress[l.id];
-        const active = !inSandbox && l.id === current;
+        const active = !inSandbox && !inMaths && l.id === current;
         const item = el('button', 'hl-nav-item' + (active ? ' on' : ''));
         item.innerHTML =
           `<span class="hl-nav-mark ${st || ''}">${st === 'done' ? '✓' : idx}</span>` +
@@ -72,7 +73,7 @@
           `Lesson ${idx}: ${l.title}. ${l.subtitle}.` +
           (st === 'done' ? ' Completed.' : st === 'seen' ? ' Started.' : ''));
         if (active) item.setAttribute('aria-current', 'page');
-        item.onclick = () => { inSandbox = false; current = l.id; render(); };
+        item.onclick = () => { inSandbox = false; inMaths = false; current = l.id; render(); };
         grp.appendChild(item);
       });
       nav.appendChild(grp);
@@ -80,8 +81,15 @@
     // sandbox entry
     const sbBtn = el('button', 'hl-nav-sandbox' + (inSandbox ? ' on' : ''),
       '<span>🛠</span><span class="hl-nav-text"><b>Sandbox</b><small>Free exploration — all controls</small></span>');
-    sbBtn.onclick = () => { inSandbox = true; render(); };
+    sbBtn.onclick = () => { inSandbox = true; inMaths = false; render(); };
     nav.appendChild(sbBtn);
+
+    // maths / deep-dive entry (optional, not part of the exam theory) — for
+    // verification and the students who want to see the model underneath.
+    const mBtn = el('button', 'hl-nav-sandbox hl-nav-maths' + (inMaths ? ' on' : ''),
+      '<span>∑</span><span class="hl-nav-text"><b>The Maths</b><small>Behind the diagrams — for the curious</small></span>');
+    mBtn.onclick = () => { inMaths = true; inSandbox = false; render(); };
+    nav.appendChild(mBtn);
 
     // overall progress
     const total = HL_LESSONS.length;
@@ -223,6 +231,24 @@
     main.scrollTop = 0;
   }
 
+  /* ── maths view (deep-dive, optional) ─────────────────────────────────── */
+  function renderMaths() {
+    const main = $('#hlMain');
+    main.innerHTML = '';
+    const head = el('div', 'hl-lesson-head');
+    head.innerHTML = `<div class="hl-lesson-stage">Deep dive · not exam material</div>
+      <h1>The Maths Behind the Diagrams</h1><div class="hl-lesson-sub">The exact model
+      the velocity diagram evaluates — conventions, blade-element velocities, the
+      tip-path-plane and inflow, the section angles and flapping. For verification
+      and for anyone who wants to look under the hood. You do not need any of this
+      for the exam.</div>`;
+    main.appendChild(head);
+    const mount = el('div', 'hl-maths-mount');
+    main.appendChild(mount);
+    try { HLW.wBetModel(mount); } catch (e) { mount.innerHTML = '<div class="hl-err">Maths error: ' + e.message + '</div>'; console.error(e); }
+    main.scrollTop = 0;
+  }
+
   /* ── theme ────────────────────────────────────────────────────────────── */
   function applyTheme(t) {
     document.documentElement.setAttribute('data-theme', t);
@@ -233,7 +259,8 @@
   /* ── render dispatch ──────────────────────────────────────────────────── */
   function render() {
     buildSidebar();
-    if (inSandbox) renderSandbox();
+    if (inMaths) renderMaths();
+    else if (inSandbox) renderSandbox();
     else renderLesson(HL_LESSONS.find(l => l.id === current));
   }
 

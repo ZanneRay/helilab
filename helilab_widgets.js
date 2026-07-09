@@ -1397,18 +1397,24 @@ const HLW = (function () {
       // ================= AIRFOIL INSET (upper-left) ============================
       // A compact detail callout: the blade section at pitch θ, the relative wind
       // coming in at angle φ below the chord line, and α = θ − φ between them.
+      // Blade moves to the RIGHT (V_rot → +x), so the LEADING EDGE faces RIGHT
+      // and the relative wind arrives from the lower-RIGHT — kept consistent with
+      // the velocity triangle below (V_rot points right).
       const fx = W * 0.26, fy = H * 0.26;          // inset centre
       const chordLen = Math.min(W * 0.28, 160);
       const drawFoil = (pitchRad, style) => {
         const pts = HLD.nacaProfile(0.12, 56);
         ctx.save();
         ctx.translate(fx, fy);
-        ctx.rotate(-pitchRad);          // nose-up pitch (canvas up = −y)
+        // Mirror the profile so the nose (p.x=0) sits on the RIGHT (negate X).
+        // With LE on the right, a nose-up pitch tilts the right side UP (canvas
+        // −y), which is rotate(-pitchRad) in canvas coords.
+        ctx.rotate(-pitchRad);
         ctx.globalAlpha = style.alpha;
         ctx.beginPath();
         const cx0 = -chordLen * 0.35;   // put the quarter-chord near the inset centre
         pts.forEach((p, i) => {
-          const X = cx0 + p.x * chordLen, Y = -p.y * chordLen;
+          const X = -(cx0 + p.x * chordLen), Y = -p.y * chordLen;  // negate X = mirror LE→right
           if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
         });
         ctx.closePath();
@@ -1418,15 +1424,15 @@ const HLW = (function () {
         ctx.globalAlpha = 1;
       };
 
-      // chord reference line through the inset centre (the θ=0 datum)
-      HLD.dline(ctx, fx - chordLen * 0.5, fy, fx + chordLen * 0.7, fy, col.grid, 1, [4, 4]);
+      // chord reference line through the inset centre (the θ=0 datum) — LE side is right
+      HLD.dline(ctx, fx - chordLen * 0.7, fy, fx + chordLen * 0.5, fy, col.grid, 1, [4, 4]);
 
       const pitchAt = (rr) => bladePitch(stt, rr, psi);
       if (twistOn) {
         drawFoil(pitchAt(0.0), { stroke: col.chord, alpha: 0.16, w: 1 });   // max pitch (root)
         drawFoil(pitchAt(1.0), { stroke: col.chord, alpha: 0.16, w: 1 });   // min pitch (tip)
-        HLD.chipLabel(ctx, 'twist span (root↔tip)', fx - chordLen * 0.35, fy - chordLen * 0.42,
-          col.chord, '10px IBM Plex Sans, sans-serif', 'left', 'rgba(13,17,23,0.55)');
+        HLD.chipLabel(ctx, 'twist span (root↔tip)', fx + chordLen * 0.35, fy - chordLen * 0.42,
+          col.chord, '10px IBM Plex Sans, sans-serif', 'right', 'rgba(13,17,23,0.55)');
       }
       // current section — sharp
       drawFoil(theta, {
@@ -1434,23 +1440,32 @@ const HLW = (function () {
         fill: (stalled ? 'rgba(248,113,113,0.14)' : 'rgba(251,146,60,0.10)'),
         alpha: 0.95, w: 2,
       });
-      // relative wind into the leading edge, angle φ below the chord datum
+      // relative wind arriving from the lower-RIGHT into the (now right-facing)
+      // leading edge, angle φ below the chord datum.
       if (!reverse) {
         const wl = chordLen * 0.62;
-        const wax = fx - wl * Math.cos(phi), way = fy + wl * Math.sin(phi);
-        HLD.arrow(ctx, wax, way, fx - chordLen * 0.02, fy, col.wind, 2, 8);
-        HLD.chipLabel(ctx, 'V_rel', wax - 4, way + 4, col.wind, '10px IBM Plex Sans, sans-serif', 'right');
-        // θ (chord vs datum) and φ (wind vs datum) arcs, staggered radii
-        HLD.arc(ctx, fx, fy, 34, -theta, 0, col.chord, 'θ ' + (theta * R2D).toFixed(1) + '°');
+        const wax = fx + wl * Math.cos(phi), way = fy + wl * Math.sin(phi);
+        HLD.arrow(ctx, wax, way, fx + chordLen * 0.02, fy, col.wind, 2, 8);
+        HLD.chipLabel(ctx, 'V_rel', wax + 4, way + 4, col.wind, '10px IBM Plex Sans, sans-serif', 'left');
+        // θ = chord above the datum (LE tilts UP → −y): arc from −θ to 0 on the
+        // RIGHT (LE) side. φ = incoming wind below the datum (+y): arc 0 → +φ.
+        // Arcs drawn WITHOUT their own labels so text never lands on the airfoil.
+        HLD.arc(ctx, fx, fy, 34, -theta, 0, col.chord, '');
         HLD.arc(ctx, fx, fy, 20, 0, phi, col.wind, '');
+        // θ label placed clear to the upper-right, away from the LE outline and
+        // the V_rel shaft.
+        HLD.chipLabel(ctx, 'θ ' + (theta * R2D).toFixed(1) + '°',
+          fx + chordLen * 0.30, fy - chordLen * 0.16,
+          col.chord, '11px IBM Plex Sans, sans-serif', 'left', 'rgba(13,17,23,0.55)');
+        // α label — LEFT-anchored so the full text always stays on-canvas.
         HLD.chipLabel(ctx, 'α = θ−φ = ' + (aoa * R2D).toFixed(1) + '°  (φ ' + (phi * R2D).toFixed(1) + '°)',
-          fx + chordLen * 0.16, fy + chordLen * 0.5,
-          stalled ? col.bad : col.good, '11px IBM Plex Sans, sans-serif', 'left');
+          fx - chordLen * 0.62, fy + chordLen * 0.46,
+          stalled ? col.bad : col.good, '11px IBM Plex Sans, sans-serif', 'left', 'rgba(13,17,23,0.55)');
       } else {
-        HLD.chipLabel(ctx, 'reverse flow — α undefined', fx - chordLen * 0.35, fy + chordLen * 0.5,
-          col.bad, '11px IBM Plex Sans, sans-serif', 'left');
+        HLD.chipLabel(ctx, 'reverse flow — α undefined', fx - chordLen * 0.62, fy + chordLen * 0.46,
+          col.bad, '11px IBM Plex Sans, sans-serif', 'left', 'rgba(13,17,23,0.55)');
       }
-      HLD.text(ctx, 'blade section @ r/R=' + rBar.toFixed(2), fx - chordLen * 0.5, fy + chordLen * 0.66,
+      HLD.text(ctx, 'blade section @ r/R=' + rBar.toFixed(2), fx - chordLen * 0.62, fy + chordLen * 0.64,
         col.dim, '10px IBM Plex Sans, sans-serif', 'left');
 
       // reverse-flow flag
