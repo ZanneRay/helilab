@@ -1433,9 +1433,13 @@ const HLW = (function () {
       //  • V_i (=U_P) is a short vertical arrow pointing DOWN, sitting ABOVE the
       //    rotor plane at the tail, its head landing on the tail of V_rot/V_T.
       //  • V_rel runs from the TOP of V_i (upper-left) down to the airfoil (right).
-      const tipX = W * 0.86, oy = H * 0.66;    // airfoil/tip on the RIGHT; common head
+      // Tip sits at ~60% width (was 0.86) so the whole triangle is CENTRED with room
+      // on BOTH sides — the base can stretch left AND the airfoil/wedge/ghosts (which
+      // fan out to the RIGHT of the tip, ~150px) stay on-canvas. On the retreating
+      // side U_T is short, so at 0.86 everything used to bunch against the right edge.
+      const tipX = W * 0.60, oy = H * 0.66;    // airfoil/tip; common head of the triangle
       const maxIn = Math.max(Math.abs(Vrot) + Math.abs(Vt), Math.abs(UT), 1.0);
-      const sx = Math.min((W * 0.72) / maxIn, 300);   // px per unit (in-plane)
+      const sx = Math.min((W * 0.50) / maxIn, 300);   // px per unit (in-plane)
       const AMP = 6;                           // exaggerate the tiny U_P for visibility
       const sy = sx;
 
@@ -1456,7 +1460,7 @@ const HLW = (function () {
       //   • RETREATING (V_T<0): U_T < V_rot ⇒ the backward V_T would lie ON TOP of
       //     V_rot's shaft, so it is drawn just BELOW the plane to stay legible.
       const collinear = (Vt >= 0);
-      const yVt = collinear ? oy : oy + 14;
+      const yVt = collinear ? oy : oy + 7;   // halved offset (was +14) — sits closer to plane
 
       // V_rot arrow on the plane. When V_T is collinear we DIM V_rot's own label so
       // the two share one clean line; the U_T bracket names the net base instead.
@@ -1499,9 +1503,9 @@ const HLW = (function () {
       }
 
       // net U_T bracket BELOW the plane. Drop it clear of the offset V_T + its
-      // label on the retreating side (which occupy oy+14 … oy+27); on the advancing
-      // side V_T is collinear so the bracket can sit higher.
-      const yBr = collinear ? oy + 30 : oy + 46;
+      // label on the retreating side (which now occupy oy+7 … oy+20 after halving the
+      // offset); on the advancing side V_T is collinear so the bracket can sit higher.
+      const yBr = collinear ? oy + 30 : oy + 34;
       HLD.dline(ctx, xBase, yBr, tipX, yBr, col.ink, 1.5, [2, 3]);
       HLD.tick(ctx, xBase, yBr, 8, Math.PI / 2, col.ink, 1.5);
       HLD.tick(ctx, tipX, yBr, 8, Math.PI / 2, col.ink, 1.5);
@@ -1521,9 +1525,12 @@ const HLW = (function () {
       const yVn   = oy - (v_i + v_n) * AMP * sy;         // top of V_n / base of V_flap
       // On the RETREATING side the V_rot label runs rightward from the far-left
       // tail toward xBase, so put the V_i / V_n labels on the RIGHT of their arrow.
-      const viRightLbl = (Vt < 0);
-      const viLx = xBase + (viRightLbl ? 8 : -8);
-      const viAlign = viRightLbl ? 'left' : 'right';
+      // V_i / V_n little labels go on the LEFT of their vertical arrow (toward the
+      // free space between xRotTail and xBase on the retreating side, or the open
+      // left margin on the advancing side). This keeps the RIGHT of the stack fully
+      // free for the V_flap offset arrow + its label, so nothing collides.
+      const viLx = xBase - 8;
+      const viAlign = 'right';
       // V_i segment (bottom): from yVi down to the plane
       HLD.arrow(ctx, xBase, yVi, xBase, oy, col.wind, 2.5, 8);
       HLD.chipLabel(ctx, 'V_i', viLx, (yVi + oy) / 2, col.wind,
@@ -1534,26 +1541,64 @@ const HLW = (function () {
         HLD.chipLabel(ctx, 'V_n', viLx, (yVn + yVi) / 2, col.accent,
           '10px IBM Plex Sans, sans-serif', viAlign);
       }
-      // V_flap segment (top): the flapping-velocity term, drawn IN the stack from
-      // the V_n boundary (yVn). Signed — when it ADDS (advancing, v_flap>0) it
-      // extends the stack UP from yVn to yTop; when it SUBTRACTS (retreating,
-      // v_flap<0) it eats DOWN from yVn to yTop (yTop is then BELOW yVn). Coloured
-      // green (lift, adds) / warn-orange (opposes) so the two cases read at a glance.
+      // V_flap segment: the flapping-velocity term. Its ARROW shows the PHYSICAL
+      // airflow direction the flapping induces, and its sign tells the stack what to do:
+      //   • ADVANCING (v_flap>0, blade flaps UP): the section chases the downwash, so
+      //     the induced flow it sees points DOWN — it ADDS to U_P. Drawn IN the stack,
+      //     head DOWN, extending the stack up from yVn to yTop (taller → φ↑ → α↓).
+      //   • RETREATING (v_flap<0, blade flaps DOWN): the section drops away from the
+      //     downwash, so the induced flow it sees points UP — it SUBTRACTS from U_P.
+      //     The physical airflow arrow must therefore point UP. We draw it as its OWN
+      //     up-pointing arrow just to the SIDE of the stack (small offset, like V_T),
+      //     spanning the amount it removes (from yVn up to yTop, which is ABOVE yVn).
       if (Math.abs(v_flap) > 1e-4) {
         const flCol = v_flap > 0 ? col.good : col.warn;
-        // arrow points from the V_n boundary toward the new stack top
-        HLD.arrow(ctx, xBase, yVn, xBase, yTop, flCol, 2.5, 7);
-        const flTxt = 'V_flap ' + (v_flap > 0 ? '↑ adds (α↓)' : '↓ subtracts (α↑)');
-        // Pull the label far to the side (±20 vs the ±8 used by V_i/V_n) so it never
-        // overlaps them when the stack is short (retreating, V_flap eats down past
-        // V_n). For the ADDING case sit it at the segment midpoint (nudged down a
-        // touch to clear the U_P total label). For the SUBTRACTING (retreating) case
-        // the V_flap arrow crosses the rotor plane and its midpoint lands right on
-        // top of the α_i / V_rot labels at the tip — so LIFT the label well ABOVE the
-        // stack (above yVn) where the space is empty, clear of the plane zone.
-        const flLy  = v_flap > 0 ? (yVn + yTop) / 2 + 6 : Math.min(yVn, yTop) - 12;
-        HLD.chipLabel(ctx, flTxt, xBase + (viRightLbl ? 26 : -26), flLy, flCol,
-          '10px IBM Plex Sans, sans-serif', viAlign, 'rgba(0,0,0,0.5)');
+        if (v_flap > 0) {
+          // adds: in-stack, head DOWN (toward the plane), matching the V_i and V_n
+          // arrows — the up-flapping section sees MORE downward-relative flow. yTop
+          // is ABOVE yVn (stack grew), so tail=yTop → head=yVn points DOWN. Drawn as
+          // its OWN arrow just to the RIGHT of the stack (+6px offset, faint ticks),
+          // exactly like the subtract case, so V_i/V_n labels stay clear on the LEFT.
+          const flDx = 6;
+          HLD.arrow(ctx, xBase + flDx, yTop, xBase + flDx, yVn, flCol, 2.5, 7);
+          HLD.dline(ctx, xBase, yVn, xBase + flDx, yVn, col.grid, 1, [2, 3]);
+          HLD.dline(ctx, xBase, yTop, xBase + flDx, yTop, col.grid, 1, [2, 3]);
+          // Label placement for the ADD case is constrained on BOTH sides: the V_rel
+          // resultant runs DOWN-RIGHT from the stack top (xBase,yTop) to the tip, so
+          // the RIGHT of the V_flap span is crossed by V_rel; and on the ADVANCING
+          // side xBase sits far LEFT (short base), so a left-side label would run off
+          // the canvas. So: when there is room on the left (base tail not near the
+          // left margin) put the label LEFT, right-aligned, in the upper band (clear
+          // of the lower V_i/V_n mini-labels). Otherwise (advancing, tight left) place
+          // it just ABOVE the stack top by the U_P label, left-aligned, where V_rel
+          // has not yet diverged from xBase.
+          const flTxt = 'V_flap ↓ adds (α↓)';
+          if (xBase > 150) {
+            HLD.chipLabel(ctx, flTxt, xBase - 8, (yVn + yTop) / 2, flCol,
+              '10px IBM Plex Sans, sans-serif', 'right', 'rgba(0,0,0,0.5)');
+          } else {
+            HLD.chipLabel(ctx, flTxt, xBase + 8, yTop + 12, flCol,
+              '10px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0.5)');
+          }
+        } else {
+          // subtracts: the down-flapping blade sees UPWARD induced flow, so the
+          // PHYSICAL airflow arrow must point UP. yTop is BELOW yVn on the retreating
+          // side (U_P shrank / went up-flow), so drawing tail=yTop (low) → head=yVn
+          // (high) makes the head sit at the TOP = pointing UP, exactly the physical
+          // upward flow the down-flapping section sees. It is drawn as its OWN arrow
+          // just to the RIGHT of the stack with a SMALL offset (+6px, a touch less
+          // than V_T's +7), tied back to the stack top/bottom with faint ticks like
+          // V_T. The V_i/V_n labels are on the LEFT, so the whole right side is free.
+          const flDx = 6;
+          HLD.arrow(ctx, xBase + flDx, yTop, xBase + flDx, yVn, flCol, 2.5, 7);
+          HLD.dline(ctx, xBase, yVn, xBase + flDx, yVn, col.grid, 1, [2, 3]);
+          HLD.dline(ctx, xBase, yTop, xBase + flDx, yTop, col.grid, 1, [2, 3]);
+          // Label near the TOP (head) of the up-arrow, well ABOVE the rotor plane so
+          // it never touches the plane, V_rel, or the tip clustered near oy.
+          const flTxt = 'V_flap ↑ subtracts (α↑)';
+          HLD.chipLabel(ctx, flTxt, xBase + flDx + 6, yVn + 8, flCol,
+            '10px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0.5)');
+        }
       }
       // U_P total bracket label at the very top of the stack
       const viRight = xBase < 110;
