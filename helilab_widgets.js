@@ -1373,15 +1373,19 @@ const HLW = (function () {
       // blade flaps up (advancing) and SUBTRACTS when it flaps down (retreating).
       const v_flap = (flappingRate(cNat, psi, Om) / Om) * rBar;   // signed; + grows U_P
       // The V_rel / α_i triangle now MOVES with the full U_P (incl. flapping) so the
-      // student literally watches α shrink (advancing) / grow (retreating). U_P is
-      // clamped to stay ≥0 for the downward-plate geometry; the small residual
-      // up-flow case (very high-speed advancing) is flagged rather than flipped.
-      const UPfull = v_i + v_n + v_flap;
-      const UP     = Math.max(UPfull, 0);   // downward plate geometry (guard ≥0)
-      const upflowWarn = UPfull < -1e-3;    // advancing high-speed net up-flow flag
+      // student literally watches α shrink (advancing) / grow (retreating). We do NOT
+      // clamp U_P: when the DOWN-flapping retreating blade (v_flap<0) overwhelms the
+      // downward through-flow (V_i+V_n), the NET flow through the disc reverses to
+      // UPWARD (U_P<0). Physically V_rel then arrives from BELOW the rotor plane, φ
+      // goes NEGATIVE, and α = θ−φ GROWS — exactly what deepens retreating-blade
+      // stall. Drawing it honestly lets the student see V_rel drop below the TPP.
+      const UP     = v_i + v_n + v_flap;    // signed: >0 down-flow, <0 up-flow
+      const netUpflow = UP < -1e-3;         // net up-flow (V_rel from below the TPP)
       const theta = bladePitch(stt, rBar, psi);
       const reverse = UT < 0;
-      // φ = inflow angle = depression of the relative wind below the rotor plane.
+      // φ = inflow angle = signed depression of V_rel below the rotor plane
+      //   φ>0 → down-flow: V_rel sits BELOW the TPP (normal case);
+      //   φ<0 → net up-flow: V_rel arrives FROM BELOW the TPP (tilts up through it).
       const phi   = reverse ? 0 : Math.atan2(UP, UT);
       const aoa   = theta - phi;
       const stalled = !reverse && aoa > stt.stallAoA * D2R;
@@ -1542,10 +1546,13 @@ const HLW = (function () {
         const flTxt = 'V_flap ' + (v_flap > 0 ? '↑ adds (α↓)' : '↓ subtracts (α↑)');
         // Pull the label far to the side (±20 vs the ±8 used by V_i/V_n) so it never
         // overlaps them when the stack is short (retreating, V_flap eats down past
-        // V_n). Sit it at the segment midpoint; for the adding case nudge it down a
-        // touch so it clears the U_P total label that sits just above yTop.
-        const flLy  = v_flap > 0 ? (yVn + yTop) / 2 + 6 : (yVn + yTop) / 2;
-        HLD.chipLabel(ctx, flTxt, xBase + (viRightLbl ? 20 : -20), flLy, flCol,
+        // V_n). For the ADDING case sit it at the segment midpoint (nudged down a
+        // touch to clear the U_P total label). For the SUBTRACTING (retreating) case
+        // the V_flap arrow crosses the rotor plane and its midpoint lands right on
+        // top of the α_i / V_rot labels at the tip — so LIFT the label well ABOVE the
+        // stack (above yVn) where the space is empty, clear of the plane zone.
+        const flLy  = v_flap > 0 ? (yVn + yTop) / 2 + 6 : Math.min(yVn, yTop) - 12;
+        HLD.chipLabel(ctx, flTxt, xBase + (viRightLbl ? 26 : -26), flLy, flCol,
           '10px IBM Plex Sans, sans-serif', viAlign, 'rgba(0,0,0,0.5)');
       }
       // U_P total bracket label at the very top of the stack
@@ -1558,19 +1565,44 @@ const HLW = (function () {
       HLD.arrow(ctx, xBase, yTop, tipX, oy, col.wind, 3, 10);
       // label on the V_rel shaft toward the TIP end (60% from tail) and lifted
       // above the line, clear of V_rot / V_i.
-      const vrx = xBase + (tipX - xBase) * 0.6, vry = yTop + (oy - yTop) * 0.6;
-      HLD.chipLabel(ctx, 'V_rel', vrx, vry - 12, col.wind,
+      // For φ<0 (net up-flow) the tail yTop is BELOW the plane and the U_T bracket
+      // label sits centred in the mid-span just under the plane — exactly where the
+      // shaft midpoint is. So for that case push the V_rel label UP toward the tip
+      // (70% from tail, near the plane) and to the right, well clear of the U_T
+      // bracket. Normal case keeps the mid-shaft spot.
+      const vrFrac = netUpflow ? 0.70 : 0.5;
+      const vrx = xBase + (tipX - xBase) * vrFrac, vry = yTop + (oy - yTop) * vrFrac;
+      HLD.chipLabel(ctx, 'V_rel', vrx + (netUpflow ? 4 : -6), vry - 12, col.wind,
         '12px IBM Plex Sans, sans-serif', 'center');
 
-      // α_i (=φ) arc at the TIP, between V_rot (along the plane, pointing left from
-      // the tip toward the tail, canvas angle π) and V_rel (just ABOVE that line,
-      // toward the V_i top). φ is small, so draw a short wedge from (π−φ) to π.
+      // α_i (=φ) arc at the TIP, between V_rot (along the plane, canvas angle π) and
+      // V_rel. Signed: φ>0 → V_rel BELOW the plane (wedge from π−φ to π, opening
+      // upward); φ<0 → V_rel ABOVE the plane, i.e. arriving FROM BELOW the TPP
+      // (wedge from π to π−φ = π+|φ|, opening downward). Either way it is the angle
+      // between the rotor plane and V_rel at the tip.
       if (!reverse) {
-        HLD.arc(ctx, tipX, oy, 40, Math.PI - phi, Math.PI, col.wind, '');
-        // φ label BELOW the plane just left of the tip, clear of the V_rot / V_rel
-        // labels above the line and of the V_T label / U_T bracket further left.
-        HLD.chipLabel(ctx, 'α_i = φ = ' + (phi * R2D).toFixed(1) + '°',
-          tipX - 8, oy + 15, col.wind, '10px IBM Plex Sans, sans-serif', 'right');
+        HLD.arc(ctx, tipX, oy, 40, Math.min(Math.PI, Math.PI - phi),
+          Math.max(Math.PI, Math.PI - phi), phi < 0 ? col.warn : col.wind, '');
+        // φ label just left of the tip. For φ>0 the V_rel shaft sits below the plane
+        // so the label goes just ABOVE the plane. For φ<0 the wedge opens DOWNWARD
+        // (V_rel from below the TPP), and the V_rot label runs along the plane just
+        // above it — so drop the φ label well BELOW the plane (oy+30) where the
+        // space is free, keep it SHORT (the full "from below TPP" story is already
+        // in the up-flow chip top-left), and give it a dark backing so it can never
+        // read as one line with the V_rot label.
+        // For φ<0 the V_rel shaft rises from its tail at (xBase, yTop) — which is
+        // BELOW the plane — up to the tip. That shaft sweeps the space just below
+        // and left of the tip, so anchor the φ label to the LEFT of the shaft tail
+        // (xBase−10, right-aligned) at the tail's own height, where nothing else
+        // sits. For φ>0 keep the original just-above-plane spot at the tip.
+        if (phi < 0) {
+          HLD.chipLabel(ctx, 'α_i = φ = ' + (phi * R2D).toFixed(1) + '°',
+            xBase - 10, yTop + 4, col.warn,
+            '10px IBM Plex Sans, sans-serif', 'right', 'rgba(0,0,0,0.6)');
+        } else {
+          HLD.chipLabel(ctx, 'α_i = φ = ' + (phi * R2D).toFixed(1) + '°',
+            tipX - 8, oy + 15, col.wind, '10px IBM Plex Sans, sans-serif', 'right');
+        }
       }
       HLD.dot(ctx, tipX, oy, 3.5, col.ink);
 
@@ -1642,7 +1674,15 @@ const HLW = (function () {
           'left', 'rgba(0,0,0,0)');
 
         // ---- α wedge between V_rel (φ) and the chord (θ), at the tip vertex -------
-        const phD  = phi < 0 ? 0 : Math.min(pitchDisp(theta * R2D) - 3 * D2R,
+        // Normal case (φ>0): V_rel sits BELOW the chord, wedge = θ..φ (φ<θ).
+        // Up-flow case (φ<0): V_rel arrives FROM BELOW the TPP, so on screen it
+        // swings PAST the rotor plane to the OTHER side of the chord. We map φ<0 to
+        // a negative drawn angle (same display scale as pitch) so the α wedge visibly
+        // OPENS WIDER than θ alone — the student sees α = θ−φ grow beyond θ. The
+        // label always prints the TRUE α.
+        const phD  = phi < 0
+          ? pitchDisp(phi * R2D)                       // negative → wedge grows past θ
+          : Math.min(pitchDisp(theta * R2D) - 3 * D2R,
                      Math.atan2(UP, UT));           // keep V_rel visually below chord
         const aCol = stalled ? col.bad : col.good;
         ctx.save();
@@ -1673,8 +1713,15 @@ const HLW = (function () {
 
       // reverse-flow flag
       if (reverse) {
-        HLD.chipLabel(ctx, '⚠ reverse flow (U_T < 0)', ox + 40, oy - 70, col.bad,
+        HLD.chipLabel(ctx, '⚠ reverse flow (U_T < 0)', 40, oy - 70, col.bad,
           '12px IBM Plex Sans, sans-serif', 'left', 'rgba(248,113,113,0.15)');
+      } else if (netUpflow) {
+        // Net UP-flow through the disc: the down-flapping retreating blade's V_flap
+        // has overwhelmed V_i+V_n, so V_rel now arrives FROM BELOW the TPP (φ<0,
+        // α grows). Flag it so the student sees WHY α deepens on the retreating side.
+        HLD.chipLabel(ctx, '↑ net up-flow (U_P < 0) — V_rel from below TPP, α grows',
+          40, oy - 70, col.warn,
+          '11px IBM Plex Sans, sans-serif', 'left', 'rgba(214,158,46,0.15)');
       }
 
       // ===== INTERACTIVE ENVELOPE MINI-DISC (top-right) =======================
