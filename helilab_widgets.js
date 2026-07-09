@@ -1304,7 +1304,16 @@ const HLW = (function () {
      faked; this is the same physics as the disc map, just drawn as one triangle. */
   function wBetVelocity(host) {
     const ui = scaffold(host);
-    let Vkt = 120, psiDeg = 270, rBar = 0.75, twistOn = true;
+    let Vkt = 120, psiDeg = 270, rBar = 0.75, twistOn = true, discModel = 'exam';
+    // Mach-adjusted critical α (NACA-0012 trend) — identical rule to wEnvelope so
+    // the BET stall verdict matches the disc map cell-for-cell.
+    const stallEffAt = (st, UT) => {
+      const Mloc = HL.omR(st) * Math.max(0, UT) / sosAtAltFt(st.alt);
+      return Math.max(5, st.stallAoA - 18 * Math.max(0, Mloc - 0.30));
+    };
+    // hit-box of the interactive mini-envelope disc (set each draw) so the click
+    // handler can convert canvas x/y → (ψ, r/R).
+    let discHit = null;
 
     const draw = () => {
       const st = HL.defaultState();
@@ -1346,6 +1355,24 @@ const HLW = (function () {
       const phi   = reverse ? 0 : Math.atan2(UP, UT);
       const aoa   = theta - phi;
       const stalled = !reverse && aoa > stt.stallAoA * D2R;
+
+      // ── ENVELOPE-CONSISTENT VERDICT (same model as the disc map on the previous
+      // page). We evaluate localAoAmodel() for THIS exact cell with the chosen
+      // exam/real model and apply the identical Mach-critical-α + airload gate the
+      // wEnvelope colour map uses, so a red map cell always reads STALLED here.
+      const dCell   = localAoAmodel(stt, c, rBar, psi, discModel);
+      const stallEffDeg = stallEffAt(st, dCell.UT);          // Mach-adjusted crit α (°)
+      const cellAoAdeg  = dCell.aoa * R2D;
+      const qShare  = airloadConf(dCell.UT, mu).qShare;      // 0..1 dynamic-pressure share
+      const Q_MIN   = discModel === 'exam' ? 0.40 : 0.25;    // same airload floor as map
+      const cellReverse = dCell.reverseFlow;
+      const cellStalled = !cellReverse && cellAoAdeg >= stallEffDeg && qShare >= Q_MIN;
+      const cellNear    = !cellReverse && !cellStalled && cellAoAdeg >= stallEffDeg - 2 && qShare >= Q_MIN;
+      const pctCrit = stallEffDeg > 0 ? 100 * cellAoAdeg / stallEffDeg : 0;
+      const verdict = cellReverse ? { t: 'REVERSE FLOW (U_T < 0)', c: 'var(--hl-bad)' }
+        : cellStalled ? { t: 'STALLED — beyond critical α', c: 'var(--hl-bad)' }
+        : cellNear ? { t: 'NEAR STALL — approaching critical α', c: 'var(--hl-warn)' }
+        : { t: 'WITHIN ENVELOPE', c: 'var(--hl-good)' };
 
       // physical magnitudes (m/s) for the readout
       const VrotMS = Vrot * OmR, VtMS = Vt * OmR, UTMS = UT * OmR, UPMS = UP * OmR;
@@ -1492,10 +1519,15 @@ const HLW = (function () {
 
       const pitchAt = (rr) => bladePitch(stt, rr, psi);
       if (twistOn) {
-        drawFoil(pitchAt(0.0), { stroke: col.chord, alpha: 0.16, w: 1 });   // max pitch (root)
-        drawFoil(pitchAt(1.0), { stroke: col.chord, alpha: 0.16, w: 1 });   // min pitch (tip)
+        // faint GHOST outlines of the root (max pitch) and tip (min pitch) sections
+        // so the washout SPAN is visible behind the sharp current section. Use a
+        // clearly-visible dashed accent so low-vision students can see the twist.
+        ctx.save(); ctx.setLineDash([4, 3]);
+        drawFoil(pitchAt(0.20), { stroke: col.accent, alpha: 0.55, w: 1.5 });  // root end (high pitch)
+        drawFoil(pitchAt(1.00), { stroke: col.accent, alpha: 0.55, w: 1.5 });  // tip end (low pitch)
+        ctx.restore();
         HLD.chipLabel(ctx, 'twist span (root↔tip)', fx + chordLen * 0.35, fy - chordLen * 0.42,
-          col.chord, '10px IBM Plex Sans, sans-serif', 'right', 'rgba(13,17,23,0.55)');
+          col.accent, '10px IBM Plex Sans, sans-serif', 'right', 'rgba(13,17,23,0.55)');
       }
       // current section — sharp
       drawFoil(theta, {
@@ -1503,18 +1535,24 @@ const HLW = (function () {
         fill: (stalled ? 'rgba(248,113,113,0.14)' : 'rgba(251,146,60,0.10)'),
         alpha: 0.95, w: 2,
       });
-      // relative wind arriving from the lower-RIGHT into the (now right-facing)
-      // leading edge, angle φ below the chord datum.
+      // relative wind arriving into the leading edge (RIGHT), consistent with the
+      // velocity triangle below: there V_rel runs from the base tail (ABOVE the
+      // plane, at the top of V_i) DOWN-and-RIGHT to the airfoil on the plane. So
+      // here the V_rel arrow TAIL is UPPER-LEFT and its HEAD is at the LE (right),
+      // travelling down-right at angle φ below the chord datum — the SAME direction
+      // of travel as V_rel in the triangle.
       if (!reverse) {
-        const wl = chordLen * 0.62;
-        const wax = fx + wl * Math.cos(phi), way = fy + wl * Math.sin(phi);
-        HLD.arrow(ctx, wax, way, fx + chordLen * 0.02, fy, col.wind, 2, 8);
-        HLD.chipLabel(ctx, 'V_rel', wax + 4, way + 4, col.wind, '10px IBM Plex Sans, sans-serif', 'left');
-        // θ = chord above the datum (LE tilts UP → −y): arc from −θ to 0 on the
-        // RIGHT (LE) side. φ = incoming wind below the datum (+y): arc 0 → +φ.
-        // Arcs drawn WITHOUT their own labels so text never lands on the airfoil.
+        const wl  = chordLen * 0.66;
+        // head just short of the LE (right); tail up-and-left of it by angle φ
+        const hx  = fx + chordLen * 0.14, hy = fy;             // arrow head at/near LE
+        const tlx = hx - wl * Math.cos(phi), tly = hy - wl * Math.sin(phi); // tail upper-left
+        HLD.arrow(ctx, tlx, tly, hx, hy, col.wind, 2, 8);
+        HLD.chipLabel(ctx, 'V_rel', tlx - 4, tly - 4, col.wind, '10px IBM Plex Sans, sans-serif', 'right');
+        // θ = chord tilted up at the LE (right side up → −y): arc −θ..0 at the LE.
+        // φ = depression of the relative wind below the chord datum (+y): arc 0..+φ
+        // measured at the LE, matching V_rel's down-right direction of travel.
         HLD.arc(ctx, fx, fy, 34, -theta, 0, col.chord, '');
-        HLD.arc(ctx, fx, fy, 20, 0, phi, col.wind, '');
+        HLD.arc(ctx, fx, fy, 22, 0, phi, col.wind, '');
         // θ label placed clear to the upper-right, away from the LE outline and
         // the V_rel shaft.
         HLD.chipLabel(ctx, 'θ ' + (theta * R2D).toFixed(1) + '°',
@@ -1537,35 +1575,65 @@ const HLW = (function () {
           '12px IBM Plex Sans, sans-serif', 'left', 'rgba(248,113,113,0.15)');
       }
 
-      // azimuth + radial-station mini-disc top-right so students keep orientation.
-      // This is a TOP VIEW of the rotor disc: the blade is drawn as a spoke at the
-      // current azimuth, and a STATION DOT slides in/out along that spoke as r/R
-      // changes — answering "where on the blade am I looking?".
-      const cxC = W - 62, cyC = 56, rC = 34;
-      ctx.strokeStyle = col.grid; ctx.lineWidth = 1;
+      // ===== INTERACTIVE ENVELOPE MINI-DISC (top-right) =======================
+      // A LIVE, CLICKABLE copy of the disc map from the previous page. It is
+      // coloured by % of the local critical α with the SAME model + airload gate
+      // as wEnvelope, so the student can pick any cell and watch the triangle
+      // below rebuild for it — the BET explains the envelope. A crosshair marks
+      // the currently-selected (ψ, r/R) cell. Click or drag anywhere on the disc.
+      const cxC = W - 72, cyC = 78, rC = 56;
+      discHit = { cx: cxC, cy: cyC, r: rC };            // hand the hit-box to the click handler
+      HLD.text(ctx, 'ENVELOPE — click to pick a section', cxC, cyC - rC - 12, col.dim,
+        '9px IBM Plex Sans, sans-serif', 'center');
+      const nrD = 8, npD = 48, rMinD = 0.2;
+      for (let ir = 0; ir < nrD; ir++) {
+        const r0 = rMinD + (1 - rMinD) * ir / nrD, r1 = rMinD + (1 - rMinD) * (ir + 1) / nrD;
+        for (let ip = 0; ip < npD; ip++) {
+          const p0 = (ip / npD) * 2 * Math.PI, p1 = ((ip + 1) / npD) * 2 * Math.PI;
+          const pmD = (p0 + p1) / 2, rmD = (r0 + r1) / 2;
+          const dd = localAoAmodel(stt, c, rmD, pmD, discModel);
+          const se = stallEffAt(st, dd.UT);
+          const qs = airloadConf(dd.UT, mu).qShare;
+          if (dd.reverseFlow) { ctx.fillStyle = 'rgba(180,60,200,0.55)'; }
+          else {
+            const conf = Math.min(1, qs / Q_MIN);
+            const pct = (dd.aoa * R2D / se) * conf;        // honest %-crit (airload-gated)
+            ctx.globalAlpha = 0.35 + 0.55 * qs;
+            ctx.fillStyle = aoaColor(pct * st.stallAoA, st.stallAoA);
+          }
+          ctx.beginPath();
+          ctx.arc(cxC, cyC, rC * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
+          ctx.arc(cxC, cyC, rC * r0, HLD.polarToCanvas(p1), HLD.polarToCanvas(p0), false);
+          ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+        }
+      }
+      ctx.strokeStyle = col.dim; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.arc(cxC, cyC, rC, 0, 2 * Math.PI); ctx.stroke();
-      // hub
       HLD.dot(ctx, cxC, cyC, 2.5, col.dim);
       HLD.text(ctx, 'N', cxC - 3, cyC - rC - 3, col.dim, '9px sans-serif');
       HLD.text(ctx, 'A', cxC + rC + 2, cyC + 3, col.dim, '9px sans-serif');
       HLD.text(ctx, 'R', cxC - rC - 8, cyC + 3, col.dim, '9px sans-serif');
       HLD.text(ctx, 'T', cxC - 3, cyC + rC + 9, col.dim, '9px sans-serif');
-      // blade spoke at current azimuth. convention: ψ=0 TAIL(bottom), 90 ADV(right),
-      // 180 NOSE(top), 270 RET(left). canvas +y is down: x=sinψ, y=cosψ.
+      // crosshair marker at the selected cell. convention: ψ=0 TAIL(bottom),
+      // 90 ADV(right), 180 NOSE(top), 270 RET(left). x=sinψ, y=cosψ (canvas +y down).
       const bx = Math.sin(psi), by = Math.cos(psi);
-      const spokeCol = Vt < 0 ? col.bad : col.good;
-      ctx.strokeStyle = spokeCol; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(cxC, cyC);
-      ctx.lineTo(cxC + rC * bx, cyC + rC * by); ctx.stroke();
-      // radial-station dot: slides from hub (r/R=0) to rim (r/R=1) along the spoke
-      const rStat = rC * rBar;
-      HLD.dot(ctx, cxC + rStat * bx, cyC + rStat * by, 4.5, col.chord);
-      HLD.chipLabel(ctx, 'r/R=' + rBar.toFixed(2), cxC, cyC + rC + 20, col.chord,
-        '9px IBM Plex Sans, sans-serif', 'center');
+      const mrx = cxC + rC * rBar * bx, mry = cyC + rC * rBar * by;
+      ctx.strokeStyle = col.ink; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(cxC, cyC); ctx.lineTo(cxC + rC * bx, cyC + rC * by); ctx.stroke();
+      HLD.dot(ctx, mrx, mry, 6, cellReverse ? col.bad : (cellStalled ? col.bad : col.chord));
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(mrx, mry, 6, 0, 2 * Math.PI); ctx.stroke();
+      HLD.chipLabel(ctx, 'ψ=' + psiDeg.toFixed(0) + '°  r/R=' + rBar.toFixed(2), cxC, cyC + rC + 20,
+        col.chord, '9px IBM Plex Sans, sans-serif', 'center');
 
       // ---- readout -----------------------------------------------------------
       const side = psiDeg > 180 && psiDeg < 360 ? 'retreating' : (psiDeg > 0 && psiDeg < 180 ? 'advancing' : (psiDeg === 0 ? 'over tail' : 'over nose'));
-      ui.readout.innerHTML = kv([
+      // envelope verdict banner — the headline the student reads first, driven by
+      // the SAME model as the disc map so it matches the previous page cell-for-cell.
+      const banner = `<div style="margin:0 0 8px;padding:7px 10px;border-radius:6px;
+        font-weight:700;text-align:center;color:#fff;background:${verdict.c};
+        letter-spacing:.02em">${verdict.t}</div>`;
+      ui.readout.innerHTML = banner + kv([
         ['Azimuth ψ', psiDeg.toFixed(0) + '°  (' + side + ')', 'var(--hl-ink)'],
         ['V_rot = Ω·r', VrotMS.toFixed(0) + ' m/s', 'var(--hl-lift)'],
         ['V_T = μ·sinψ', (VtMS >= 0 ? '+' : '') + VtMS.toFixed(0) + ' m/s', Vt < 0 ? 'var(--hl-bad)' : 'var(--hl-accent)'],
@@ -1578,14 +1646,25 @@ const HLW = (function () {
         ['φ inflow angle', (phi * R2D).toFixed(1) + '°', 'var(--hl-wind)'],
         ['α = θ − φ', reverse ? 'n/a (reverse)' : (aoa * R2D).toFixed(1) + '° / ' + stt.stallAoA.toFixed(0) + '°',
           stalled ? 'var(--hl-bad)' : 'var(--hl-good)'],
-      ]) + `<p class="hl-note">On the <b>retreating</b> side (ψ=270°) the forward-flow
+        ['α vs critical (map model)', cellReverse ? 'n/a (reverse)'
+          : cellAoAdeg.toFixed(1) + '° / ' + stallEffDeg.toFixed(1) + '°  (' + pctCrit.toFixed(0) + '%)',
+          cellStalled ? 'var(--hl-bad)' : (cellNear ? 'var(--hl-warn)' : 'var(--hl-good)')],
+      ]) + `<p class="hl-note"><b>Reading the envelope with the BET:</b> the coloured
+        mini-disc (top-right) is the SAME stall map as the previous page —
+        <b>click any cell</b> (or drag the ψ / r/R sliders) and this triangle
+        rebuilds for that exact blade section. The verdict banner above uses the
+        identical critical-α + airload model as the map, so a <b style="color:var(--hl-bad)">red</b>
+        cell always reads <b>STALLED</b> here and a <b style="color:var(--hl-accent)">purple</b>
+        cell reads <b>REVERSE FLOW</b>. That is how the retreating stall is built,
+        vector by vector.</p>
+        <p class="hl-note">On the <b>retreating</b> side (ψ=270°) the forward-flow
         term <b style="color:var(--hl-bad)">V_T</b> points <b>backward</b>, so it is
         <b>subtracted</b> from <b style="color:var(--hl-lift)">V_rot</b> — the net
         <b>U_T</b> is short and the blade must fly at a high <b>α</b> to keep its
         lift. On the advancing side V_T adds instead. Drag the azimuth to watch
-        V_T flip from adding to subtracting. The faint airfoils show the pitch
-        span from root to tip washout; toggle <b>twist off</b> to see the section
-        swing to full untwisted pitch.</p>
+        V_T flip from adding to subtracting. The dashed <b style="color:var(--hl-accent)">ghost
+        airfoils</b> in the inset show the pitch span from root to tip washout;
+        toggle <b>twist off</b> to see the section swing to full untwisted pitch.</p>
         <p class="hl-note"><b>The perpendicular flow U_P (Leishman, combined
         momentum + blade-element theory):</b><br>
         <span style="font-family:var(--hl-mono,monospace);white-space:nowrap">
@@ -1620,7 +1699,7 @@ const HLW = (function () {
       label: 'Azimuth ψ', min: 0, max: 360, step: 1, val: psiDeg, unit: '°',
       on: v => { psiDeg = v; draw(); },
     });
-    slider(ui.controls, {
+    const rSl = slider(ui.controls, {
       label: 'Blade station r/R', min: 0.2, max: 1.0, step: 0.01, val: rBar, unit: '',
       fmt: v => (+v).toFixed(2), on: v => { rBar = v; draw(); },
     });
@@ -1628,10 +1707,48 @@ const HLW = (function () {
       label: 'Forward speed', min: 0, max: 160, step: 1, val: Vkt, unit: ' kt',
       on: v => { Vkt = v; draw(); },
     });
+    segmented(ui.controls, {
+      label: 'Stall model (matches disc map)', val: discModel, options: [
+        { v: 'exam', t: 'No twist (exam)' }, { v: 'real', t: 'With twist (real)' },
+      ], on: v => { discModel = v; draw(); },
+    });
     toggle(ui.controls, {
       label: 'Blade twist on (−8° washout)', val: twistOn,
       on: v => { twistOn = v; draw(); },
     });
+
+    // ---- interactive mini-envelope: click / drag on the disc to pick a section
+    // Maps a canvas point inside the disc hit-box back to (ψ, r/R) using the same
+    // convention as the crosshair: ψ=0 TAIL(bottom), 90 ADV(right), 180 NOSE(top),
+    // 270 RET(left); x=sinψ, y=cosψ with canvas +y down.
+    const pickFromEvent = (ev) => {
+      if (!discHit) return false;
+      const rect = ui.canvas.getBoundingClientRect();
+      // canvas backing store may be scaled vs CSS pixels — convert to canvas coords
+      const scaleX = ui.canvas.width / rect.width, scaleY = ui.canvas.height / rect.height;
+      const px = (ev.clientX - rect.left) * scaleX / (window.devicePixelRatio || 1);
+      const py = (ev.clientY - rect.top) * scaleY / (window.devicePixelRatio || 1);
+      const dx = px - discHit.cx, dy = py - discHit.cy;
+      const dist = Math.hypot(dx, dy);
+      if (dist > discHit.r * 1.12) return false;                 // click outside the disc
+      // ψ from atan2: x=sinψ, y=cosψ  →  ψ = atan2(dx, dy)
+      let psiRad = Math.atan2(dx, dy);
+      let pd = psiRad * R2D; if (pd < 0) pd += 360;
+      psiDeg = Math.round(pd);
+      rBar = Math.max(0.2, Math.min(1.0, dist / discHit.r));
+      psiSl.set(psiDeg); rSl.set(+rBar.toFixed(2));
+      draw();
+      return true;
+    };
+    let dragging = false;
+    ui.canvas.style.cursor = 'crosshair';
+    ui.canvas.addEventListener('pointerdown', (ev) => {
+      if (pickFromEvent(ev)) { dragging = true; ui.canvas.setPointerCapture?.(ev.pointerId); ev.preventDefault(); }
+    });
+    ui.canvas.addEventListener('pointermove', (ev) => { if (dragging) { pickFromEvent(ev); ev.preventDefault(); } });
+    ui.canvas.addEventListener('pointerup', () => { dragging = false; });
+    ui.canvas.addEventListener('pointercancel', () => { dragging = false; });
+
     ui.onDraw(draw);
   }
 
