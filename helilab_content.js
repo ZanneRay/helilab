@@ -378,6 +378,17 @@ const HL_LESSONS = [
       the exam. Pick any point on the blade — a blade station <b>r/R</b>, an
       <b>azimuth ψ</b> and a <b>forward speed</b> — and read off every velocity the
       blade element sees.</p>
+      <p><b>Read the envelope with the BET.</b> The small coloured disc in the top
+      right is the <i>same</i> retreating-stall map as the previous page. <b>Click
+      any cell</b> (or drag across it) to pick that cross-section — the crosshair
+      jumps there and the triangle below rebuilds for that exact <b>ψ</b> and
+      <b>r/R</b>. The banner over the read-out then gives the verdict using the
+      <i>identical</i> critical-α and airload model as the map, so a <b>red</b> cell
+      always reads <b>STALLED</b> and a <b>purple</b> cell reads <b>REVERSE FLOW</b>
+      here too. Use the <b>stall-model toggle</b> (Exam-plate / Realistic) to keep
+      the BET and the map in step. This is how you learn the envelope — cell by
+      cell, vector by vector: click a red patch, watch V<sub>T</sub> subtract and
+      α climb past critical.</p>
       <p>Build the in-plane speed head-to-tail, exactly as in the book:</p>
       <ul>
         <li><b>V<sub>rot</sub> = Ω·r</b> — the rotational speed. It always points
@@ -408,6 +419,7 @@ const HL_LESSONS = [
       'On the retreating blade the net U_T is small, forcing a high α to hold lift.',
       'α = θ − φ; when α exceeds the critical angle the section stalls.',
       'Blade washout lowers tip pitch — turn it off and the tip goes to full pitch.',
+      'Click a cell on the mini-disc to see the exact BET triangle and stall verdict for that section — same model as the envelope map.',
     ],
     check: {
       q: 'At ψ = 270° (retreating), the forward-flow term V_T = μ·sinψ…',
