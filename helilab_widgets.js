@@ -1296,10 +1296,10 @@ const HLW = (function () {
                                  vertically at the tip of U_T.
         • V_rel  = √(U_T²+U_P²)  resultant, with θ (pitch), φ (inflow angle),
                                  α = θ−φ marked exactly as in the exam drawing.
-     Plus a twist visualiser: faint GHOST airfoils at the max- and min-twist
-     pitch (root and tip washout) with the current blade station drawn sharp
-     between them, and a "twist off" toggle (untwisted blade) so students see
-     the section swing to full pitch.
+     Plus a twist visualiser: the ACTIVE blade section is drawn sharp at the tip
+     and its drawn pitch θ(r) tracks the −8° washout as you sweep r/R, with a
+     "twist off" toggle (untwisted blade) so students see the section swing to
+     full pitch.
      All numbers come straight from localVelocities()/bladePitch() — nothing is
      faked; this is the same physics as the disc map, just drawn as one triangle. */
   function wBetVelocity(host) {
@@ -1434,7 +1434,7 @@ const HLW = (function () {
       //    rotor plane at the tail, its head landing on the tail of V_rot/V_T.
       //  • V_rel runs from the TOP of V_i (upper-left) down to the airfoil (right).
       // Tip sits at ~60% width (was 0.86) so the whole triangle is CENTRED with room
-      // on BOTH sides — the base can stretch left AND the airfoil/wedge/ghosts (which
+      // on BOTH sides — the base can stretch left AND the airfoil/wedge (which
       // fan out to the RIGHT of the tip, ~150px) stay on-canvas. On the retreating
       // side U_T is short, so at 0.86 everything used to bunch against the right edge.
       const tipX = W * 0.60, oy = H * 0.66;    // airfoil/tip; common head of the triangle
@@ -1682,9 +1682,9 @@ const HLW = (function () {
 
       // ================= AIRFOIL AT THE TIP (integrated in the triangle) =========
       // The blade SECTION is drawn RIGHT AT THE TIP where V_rel lands, exactly as in
-      // the sketch. The ACTIVE section (current r/R) is WHITE and filled; behind it,
-      // GREY GHOST sections at other blade stations fan out DOWN-and-RIGHT to show
-      // how the −8° washout TWIST lowers the pitch θ(r) from root to tip.
+      // the sketch. The ACTIVE section (current r/R) is WHITE and filled. Its drawn
+      // pitch θ(r) tracks the −8° washout twist as you sweep r/R, and the readout
+      // prints the true θ/φ/α, so the twist story is carried by the single active section.
       //
       // ONE angle model: canvas angle 0 = +x (right, toward the TE), positive = CW
       // = DOWN on screen. Leading edge on the LEFT (so V_rel meets the nose head-on).
@@ -1698,7 +1698,7 @@ const HLW = (function () {
         const pitchDisp = (thetaDeg) => Math.sign(thetaDeg || 1) *
           Math.max(4, Math.min(30, Math.abs(thetaDeg) * 2.0)) * D2R;
         // LE origin: a little UP-and-RIGHT of the tip so the section sits on the
-        // common head and the ghosts fan into the free space lower-right.
+        // common head, in the free space lower-right of the triangle.
         const lex = tipX + 6, ley = oy - 2;
         const naca = HLD.nacaProfile(0.12, 56);
         const drawFoilAt = (leX, leY, len, drawnPitch, style) => {
@@ -1718,21 +1718,6 @@ const HLW = (function () {
           ctx.restore();
           return u;
         };
-
-        // ---- GHOST sections along the span (root→tip) showing the twist ----------
-        // Skip the station closest to the active r/R so the white foil stays clean.
-        const ghostStations = [0.30, 0.50, 0.75, 0.95];
-        ghostStations.forEach((rG) => {
-          if (Math.abs(rG - rBar) < 0.06) return;              // don't shadow the active one
-          const thG = bladePitch(stt, rG, psi) * R2D;          // true pitch° at this station
-          // fan the ghosts progressively DOWN-and-RIGHT so they read as a span sweep
-          const dx = (rG - 0.5) * 26, dy = (rG - 0.5) * 34 + 30;
-          drawFoilAt(lex + 34 + dx, ley + 24 + dy, foilLen * 0.9, pitchDisp(thG), {
-            stroke: col.dim, fill: 'rgba(160,160,170,0.10)', alpha: 0.55, w: 1.3,
-          });
-          HLD.chipLabel(ctx, 'r/R=' + rG.toFixed(2), lex + 34 + dx + foilLen * 0.92,
-            ley + 24 + dy + 4, col.dim, '8px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
-        });
 
         // ---- ACTIVE section (current r/R) — WHITE, filled, on top -----------------
         const uCh = drawFoilAt(lex, ley, foilLen, pitchDisp(theta * R2D), {
@@ -1777,8 +1762,14 @@ const HLW = (function () {
           col.wind, '10px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
         HLD.chipLabel(ctx, 'α = θ−φ = ' + (aoa * R2D).toFixed(1) + '°', lgx, lgy + 32,
           (stalled ? col.bad : col.good), '11px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
-        HLD.chipLabel(ctx, 'grey = twist ghosts (span r/R)', lgx, lgy + 50,
-          col.dim, '8px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
+        // Didactic modelling caveat, always visible on the diagram: this is a
+        // UNIFORM-inflow BET. Real tip vortices add downwash at the tip, so the
+        // U_P<0 (flow-from-below-TPP) reversal shown here comes earlier/stronger
+        // than in reality. Muted, small, sits below the θ/φ/α legend in free space.
+        HLD.chipLabel(ctx, 'Model: uniform inflow — real tip vortices add tip downwash,',
+          lgx, lgy + 46, col.dim, '8px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
+        HLD.chipLabel(ctx, 'so U_P<0 (flow from below TPP) comes later/less in reality.',
+          lgx, lgy + 57, col.dim, '8px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
       } else {
         HLD.chipLabel(ctx, 'reverse flow — α undefined', tipX - 140, oy - 40,
           col.bad, '11px IBM Plex Sans, sans-serif', 'left', 'rgba(248,113,113,0.15)');
@@ -1890,10 +1881,9 @@ const HLW = (function () {
         <b>U_T</b> is short and the blade must fly at a high <b>α</b> to keep its
         lift. On the advancing side V_T adds instead. Drag the azimuth to watch
         V_T flip from adding to subtracting. The <b>white airfoil</b> at the tip is
-        the LIVE section at this ψ / r/R; the <b style="color:var(--hl-dim)">grey
-        ghost airfoils</b> fanning below it are the same blade at other span
-        stations (root→tip washout) — toggle <b>twist off</b> to see them collapse
-        onto one untwisted pitch.</p>
+        the LIVE section at this ψ / r/R; its drawn pitch θ(r) tracks the −8°
+        washout as you sweep the blade station — toggle <b>twist off</b> to see it
+        swing to one untwisted pitch.</p>
         <p class="hl-note"><b>Why the flapping term matters:</b> a blade flapping
         <b>up</b> (the <b>advancing</b> side) drives its own section upward through
         the air, so <b style="color:var(--hl-good)">V_flap</b> ADDS to U_P — φ
@@ -1924,7 +1914,18 @@ const HLW = (function () {
         The inflow angle <b>φ = arctan(U_P / U_T)</b> is therefore the
         small positive depression of <b style="color:var(--hl-wind)">V_rel</b> below
         the rotor plane, and <b>α = θ − φ</b>. U_P is drawn ×${AMP} for visibility —
-        its direction and the resulting α are exact.</p>`;
+        its direction and the resulting α are exact.</p>
+        <p class="hl-note" style="border-left:0;opacity:.9"><b>Model note — uniform
+        inflow:</b> this BET uses a <b>uniform induced inflow</b> (V_i taken
+        spanwise-constant), the standard exam simplification. Real rotors shed
+        <b>tip vortices</b> that add extra downwash near the tip, so the induced
+        flow there is larger than shown. Consequently the swing to
+        <b style="color:var(--hl-warn)">net up-flow (U_P &lt; 0, V_rel from below the
+        TPP)</b> on the retreating tip appears <b>earlier and stronger</b> in this
+        uniform model than in reality — in a real rotor the extra tip downwash
+        delays and softens it. The large retreating-tip <b>α</b> itself is still
+        correct (retreating-blade stall does begin at the tip); it is specifically
+        the <b>U_P &lt; 0 reversal</b> that a uniform-inflow model over-drives.</p>`;
     };
 
     segmented(ui.controls, {
