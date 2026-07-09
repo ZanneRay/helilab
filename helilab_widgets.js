@@ -1424,12 +1424,30 @@ const HLW = (function () {
       // so the tail of V_T (= tail of V_rel) is at xBase = tipX − UT*sx.
       const xBase = tipX - UT * sx;            // tail of the whole in-plane base
       const vtCol = Vt < 0 ? col.bad : col.accent;
-      // draw V_T from the V_rot tail to the base tail (advancing: base further
-      // left; retreating: base to the right of the V_rot tail).
-      HLD.arrow(ctx, xRotTail, oy, xBase, oy, vtCol, 3, 9);
+      // V_T is drawn so its ARROWHEAD points in the vector's TRUE direction, exactly
+      // as in the exam plate: on the ADVANCING side (Vt>0) it points RIGHT (forward,
+      // same way as V_rot — it adds); on the RETREATING side (Vt<0) it points LEFT
+      // (backward, opposite V_rot — it subtracts). The segment always spans the gap
+      // between the V_rot tail (xRotTail) and the net base tail (xBase); only the
+      // head/tail assignment flips so the sign is read off the arrow direction.
+      // Draw it just BELOW the plane so it never overlaps V_rot's shaft.
+      const yVt = oy + 13;
+      // The V_T segment always spans [min..max] of the two x's; the HEAD marks the
+      // sign. Subtract → head points LEFT (backward). Add → head points RIGHT.
+      const xL = Math.min(xRotTail, xBase), xR = Math.max(xRotTail, xBase);
+      if (Vt < 0) {
+        // subtracts: arrow from RIGHT to LEFT → head on the left (points backward)
+        HLD.arrow(ctx, xR, yVt, xL, yVt, vtCol, 3, 9);
+      } else {
+        // adds: arrow from LEFT to RIGHT → head on the right (points forward)
+        HLD.arrow(ctx, xL, yVt, xR, yVt, vtCol, 3, 9);
+      }
+      // thin connector ticks tying the V_T segment to the plane at both ends
+      HLD.dline(ctx, xRotTail, oy, xRotTail, yVt, col.grid, 1, [2, 3]);
+      HLD.dline(ctx, xBase, oy, xBase, yVt, col.grid, 1, [2, 3]);
       if (Math.abs(xBase - xRotTail) > 60) {
         HLD.chipLabel(ctx, (Vt < 0 ? 'V_T = μ·sinψ  (subtracts)' : 'V_T = μ·sinψ  (adds)'),
-          (xRotTail + xBase) / 2, oy + 16, vtCol, '11px IBM Plex Sans, sans-serif', 'center');
+          (xRotTail + xBase) / 2, yVt + 15, vtCol, '11px IBM Plex Sans, sans-serif', 'center');
       }
 
       // net U_T bracket BELOW the plane (space ABOVE the base is reserved for the
@@ -1485,89 +1503,155 @@ const HLW = (function () {
       HLD.dot(ctx, tipX, oy, 3.5, col.ink);
 
       // ================= AIRFOIL INSET (upper-left) ============================
-      // A compact detail callout: the blade section at pitch θ, the relative wind
-      // coming in at angle φ below the chord line, and α = θ − φ between them.
-      // Blade moves to the RIGHT (V_rot → +x), so the LEADING EDGE faces RIGHT
-      // and the relative wind arrives from the lower-RIGHT — kept consistent with
-      // the velocity triangle below (V_rot points right).
-      const fx = W * 0.26, fy = H * 0.26;          // inset centre
-      const chordLen = Math.min(W * 0.28, 160);
-      const drawFoil = (pitchRad, style) => {
+      // A compact, self-contained callout that shows the ANGLE-OF-ATTACK geometry
+      // explicitly and matches the velocity triangle below it:
+      //   • the blade SECTION drawn at pitch θ (nose-up),
+      //   • the CHORD LINE through the section (the datum α is measured FROM),
+      //   • the ROTOR-PLANE reference (horizontal dashed) — θ sits between them,
+      //   • the relative wind V_rel arriving from the LOWER-LEFT at angle φ below
+      //     the rotor plane and striking the LEADING EDGE head-on,
+      //   • α = θ − φ, the wedge between the CHORD LINE and V_rel.
+      //
+      // MIRRORED section: the LEADING EDGE (rounded) faces LEFT, so the relative
+      // wind meets the nose from the lower-left exactly like a classic 2-D aerofoil
+      // sketch — the same physical flow the triangle draws (V_rel from lower-left
+      // UP-and-RIGHT onto the blade).
+      //
+      // ONE consistent angle model for the whole inset. Canvas angle 0 = +x (right,
+      // toward the TE); positive = clockwise = DOWN on screen. With the LE on the
+      // LEFT and the section nose-up:
+      //   • chord direction TE-ward (LE→TE) = +θ  (TE end lower on screen),
+      //   • rotor-plane datum TE-ward        =  0,
+      //   • V_rel downstream direction        = +φ (depressed φ below the plane).
+      // Both the foil polygon AND the chord ray are built from this same +θ, so
+      // they can never disagree.
+      // Real blade angles are only a few degrees, so the inset uses DISPLAY angles
+      // chosen so the α GAP between the chord and V_rel is always clearly visible,
+      // while every LABEL shows the TRUE value. Convention (matching the triangle):
+      // the rotor-plane datum is horizontal (0). BOTH the chord and V_rel point
+      // DOWN-and-RIGHT (into the blade), depressed BELOW the plane. Since the true
+      // inflow angle φ is SMALLER than the pitch θ, V_rel (at φ) sits ABOVE the
+      // chord (at θ), and the opening BETWEEN them is α = θ − φ.
+      //   • rotor-plane datum  = 0            (horizontal),
+      //   • V_rel downstream    = +phD         (small depression, ABOVE the chord),
+      //   • chord (LE→TE)       = +phD + aD    (steeper; TE lower),
+      // so on screen the visible wedge between V_rel and the chord = aD ∝ α.
+      const phD = 8 * D2R;                                  // drawn V_rel depression (readable)
+      // drawn α gap keeps the TRUE SIGN of α: positive ⇒ chord BELOW V_rel (normal
+      // lift), negative ⇒ chord ABOVE V_rel (blade at negative incidence).
+      const aDeg = aoa * R2D;
+      const aMag = Math.max(9, Math.min(34, Math.abs(aDeg) * 2.4));   // visible magnitude
+      const aD  = Math.sign(aDeg || 1) * aMag * D2R;        // signed drawn gap
+      const thD = phD + aD;                                 // chord = V_rel + signed α
+      const uCh = { x: Math.cos(thD), y: Math.sin(thD) };   // drawn LE→TE unit
+      const nCh = { x: -uCh.y, y: uCh.x };                  // drawn chord normal
+
+      // Self-contained panel at the TOP-LEFT with safe margins. Every element of
+      // the callout (foil, chord, V_rel, wedges, labels) is sized to stay INSIDE.
+      const pnX = 24, pnY = 18, pnW = W * 0.40, pnH = H * 0.42;
+      const chordLen = pnW * 0.42;
+      // LE origin placed so the V_rel tail (to its lower-left) still fits inside
+      // the panel, and the TE + chord label fit to the right.
+      const fx = pnX + pnW * 0.42, fy = pnY + pnH * 0.42;   // LEADING EDGE origin
+
+      // solid-ish bounding panel so the callout reads as a distinct detail view.
+      ctx.save();
+      ctx.fillStyle = 'rgba(13,17,23,0.80)';
+      ctx.strokeStyle = col.grid; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.rect(pnX, pnY, pnW, pnH); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      HLD.chipLabel(ctx, 'AIRFOIL SECTION @ r/R=' + rBar.toFixed(2) + '  (angles enlarged)',
+        pnX + 8, pnY + 12, col.dim, '9px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
+
+      // Section polygon: CHORD from the LE (fx,fy) toward the TE along the drawn +θ.
+      // nacaProfile: p.x 0→1 = LE→TE, p.y = half-thickness (mapped along the normal).
+      const drawFoil = (style) => {
         const pts = HLD.nacaProfile(0.12, 56);
         ctx.save();
-        ctx.translate(fx, fy);
-        // Mirror the profile so the nose (p.x=0) sits on the RIGHT (negate X).
-        // With LE on the right, a nose-up pitch tilts the right side UP (canvas
-        // −y), which is rotate(-pitchRad) in canvas coords.
-        ctx.rotate(-pitchRad);
         ctx.globalAlpha = style.alpha;
         ctx.beginPath();
-        const cx0 = -chordLen * 0.35;   // put the quarter-chord near the inset centre
         pts.forEach((p, i) => {
-          const X = -(cx0 + p.x * chordLen), Y = -p.y * chordLen;  // negate X = mirror LE→right
+          const along = p.x * chordLen, thick = p.y * chordLen;
+          const X = fx + along * uCh.x + thick * nCh.x;
+          const Y = fy + along * uCh.y + thick * nCh.y;
           if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
         });
         ctx.closePath();
         if (style.fill) { ctx.fillStyle = style.fill; ctx.fill(); }
         ctx.strokeStyle = style.stroke; ctx.lineWidth = style.w || 1.5; ctx.stroke();
         ctx.restore();
-        ctx.globalAlpha = 1;
       };
-
-      // chord reference line through the inset centre (the θ=0 datum) — LE side is right
-      HLD.dline(ctx, fx - chordLen * 0.7, fy, fx + chordLen * 0.5, fy, col.grid, 1, [4, 4]);
-
-      const pitchAt = (rr) => bladePitch(stt, rr, psi);
-      if (twistOn) {
-        // faint GHOST outlines of the root (max pitch) and tip (min pitch) sections
-        // so the washout SPAN is visible behind the sharp current section. Use a
-        // clearly-visible dashed accent so low-vision students can see the twist.
-        ctx.save(); ctx.setLineDash([4, 3]);
-        drawFoil(pitchAt(0.20), { stroke: col.accent, alpha: 0.55, w: 1.5 });  // root end (high pitch)
-        drawFoil(pitchAt(1.00), { stroke: col.accent, alpha: 0.55, w: 1.5 });  // tip end (low pitch)
-        ctx.restore();
-        HLD.chipLabel(ctx, 'twist span (root↔tip)', fx + chordLen * 0.35, fy - chordLen * 0.42,
-          col.accent, '10px IBM Plex Sans, sans-serif', 'right', 'rgba(13,17,23,0.55)');
-      }
-      // current section — sharp
-      drawFoil(theta, {
+      // current section — sharp, filled (a clean single aerofoil, no ghost clutter)
+      drawFoil({
         stroke: stalled ? col.bad : col.chord,
-        fill: (stalled ? 'rgba(248,113,113,0.14)' : 'rgba(251,146,60,0.10)'),
-        alpha: 0.95, w: 2,
+        fill: (stalled ? 'rgba(248,113,113,0.16)' : 'rgba(251,146,60,0.12)'),
+        alpha: 0.98, w: 2,
       });
-      // relative wind arriving into the leading edge (RIGHT), consistent with the
-      // velocity triangle below: there V_rel runs from the base tail (ABOVE the
-      // plane, at the top of V_i) DOWN-and-RIGHT to the airfoil on the plane. So
-      // here the V_rel arrow TAIL is UPPER-LEFT and its HEAD is at the LE (right),
-      // travelling down-right at angle φ below the chord datum — the SAME direction
-      // of travel as V_rel in the triangle.
+
+      // ---- ROTOR-PLANE datum (horizontal dashed, through the LE) ---------------
+      // label sits slightly ABOVE the datum on the right so it can never collide
+      // with the α wedge / α label, which live just BELOW the datum near the LE.
+      HLD.dline(ctx, fx - chordLen * 0.55, fy, fx + chordLen * 1.10, fy, col.grid, 1, [4, 4]);
+      HLD.chipLabel(ctx, 'rotor plane', fx + chordLen * 1.12, fy - 7, col.dim,
+        '9px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
+
       if (!reverse) {
-        const wl  = chordLen * 0.66;
-        // head just short of the LE (right); tail up-and-left of it by angle φ
-        const hx  = fx + chordLen * 0.14, hy = fy;             // arrow head at/near LE
-        const tlx = hx - wl * Math.cos(phi), tly = hy - wl * Math.sin(phi); // tail upper-left
-        HLD.arrow(ctx, tlx, tly, hx, hy, col.wind, 2, 8);
-        HLD.chipLabel(ctx, 'V_rel', tlx - 4, tly - 4, col.wind, '10px IBM Plex Sans, sans-serif', 'right');
-        // θ = chord tilted up at the LE (right side up → −y): arc −θ..0 at the LE.
-        // φ = depression of the relative wind below the chord datum (+y): arc 0..+φ
-        // measured at the LE, matching V_rel's down-right direction of travel.
-        HLD.arc(ctx, fx, fy, 34, -theta, 0, col.chord, '');
-        HLD.arc(ctx, fx, fy, 22, 0, phi, col.wind, '');
-        // θ label placed clear to the upper-right, away from the LE outline and
-        // the V_rel shaft.
-        HLD.chipLabel(ctx, 'θ ' + (theta * R2D).toFixed(1) + '°',
-          fx + chordLen * 0.30, fy - chordLen * 0.16,
-          col.chord, '11px IBM Plex Sans, sans-serif', 'left', 'rgba(13,17,23,0.55)');
-        // α label — LEFT-anchored so the full text always stays on-canvas.
-        HLD.chipLabel(ctx, 'α = θ−φ = ' + (aoa * R2D).toFixed(1) + '°  (φ ' + (phi * R2D).toFixed(1) + '°)',
-          fx - chordLen * 0.62, fy + chordLen * 0.46,
-          stalled ? col.bad : col.good, '11px IBM Plex Sans, sans-serif', 'left', 'rgba(13,17,23,0.55)');
+        // All three wedges share the LEADING-EDGE vertex, so θ, φ, α close exactly.
+        const hx = fx, hy = fy, rC = chordLen;
+
+        // ---- CHORD LINE (solid): LE → TE along the drawn +θ --------------------
+        HLD.dline(ctx, hx, hy, hx + rC * uCh.x, hy + rC * uCh.y, col.chord, 2, []);
+        HLD.chipLabel(ctx, 'chord', hx + rC * uCh.x + 5, hy + rC * uCh.y + 7, col.chord,
+          '9px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
+
+        // ---- V_rel: comes from the LEFT, head AT the LE, drawn ABOVE the chord --
+        // at the small depression +phD, so the opening between V_rel and the chord
+        // IS the angle of attack α.
+        const wl  = chordLen * 1.02;
+        const tlx = hx - wl * Math.cos(phD), tly = hy - wl * Math.sin(phD);   // tail to the left
+        // continuation past the LE (downstream +phD) first, so the arrow sits on top.
+        HLD.dline(ctx, hx, hy, hx + rC * 0.85 * Math.cos(phD),
+          hy + rC * 0.85 * Math.sin(phD), col.wind, 1, [3, 3]);
+        HLD.arrow(ctx, tlx, tly, hx, hy, col.wind, 2.5, 9);
+        HLD.chipLabel(ctx, 'V_rel (relative wind)', tlx + 2, tly - 8, col.wind,
+          '10px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
+
+        // ---- α WEDGE (filled) between V_rel (+phD) and the CHORD (+thD) --------
+        // — the headline angle, drawn downstream of the LE in clear space. The arc
+        // spans from V_rel to the chord in whichever order keeps the true sign of α
+        // (chord below V_rel = positive; chord above = negative incidence).
+        ctx.save();
+        ctx.fillStyle = (aDeg < 0) ? 'rgba(187,101,59,0.34)'
+          : (stalled ? 'rgba(248,113,113,0.32)' : 'rgba(74,222,128,0.30)');
+        ctx.beginPath(); ctx.moveTo(hx, hy);
+        ctx.arc(hx, hy, rC * 0.72, Math.min(phD, thD), Math.max(phD, thD), false);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+        // α label centred inside the wedge, downstream of the LE. When |α| is tiny
+        // the wedge is razor-thin and its mid-angle hugs the rotor-plane datum, so
+        // we push the label OUTWARD along the wedge bisector by a floor amount and
+        // bias it a touch below the datum — keeping it clear of the 'rotor plane'
+        // chip that now sits just above the datum on the right.
+        const amid = (thD + phD) / 2;
+        const aCol = (aDeg < 0) ? col.warn : (stalled ? col.bad : col.good);
+        const aRad = rC * (Math.abs(aDeg) < 3 ? 0.98 : 0.82);
+        const aLy  = (Math.abs(aDeg) < 3 ? 9 : 0);   // nudge below the datum when flat
+        HLD.chipLabel(ctx, 'α = ' + aDeg.toFixed(1) + '°',
+          hx + aRad * Math.cos(amid), hy + aRad * Math.sin(amid) + aLy,
+          aCol, '12px IBM Plex Sans, sans-serif', 'left', 'rgba(13,17,23,0.85)');
+
+        // legend stacked at the panel BOTTOM-LEFT (inside the box), no collisions.
+        const lx = pnX + 8, ly = pnY + pnH - 46;
+        HLD.chipLabel(ctx, 'θ (pitch) = ' + (theta * R2D).toFixed(1) + '°', lx, ly,
+          col.chord, '10px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
+        HLD.chipLabel(ctx, 'φ (inflow) = ' + (phi * R2D).toFixed(1) + '°', lx, ly + 16,
+          col.wind, '10px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
+        HLD.chipLabel(ctx, 'α = θ−φ = ' + (aoa * R2D).toFixed(1) + '°', lx, ly + 32,
+          (stalled ? col.bad : col.good), '11px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
       } else {
-        HLD.chipLabel(ctx, 'reverse flow — α undefined', fx - chordLen * 0.62, fy + chordLen * 0.46,
-          col.bad, '11px IBM Plex Sans, sans-serif', 'left', 'rgba(13,17,23,0.55)');
+        HLD.chipLabel(ctx, 'reverse flow — α undefined', pnX + 8, pnY + pnH - 14,
+          col.bad, '11px IBM Plex Sans, sans-serif', 'left', 'rgba(248,113,113,0.15)');
       }
-      HLD.text(ctx, 'blade section @ r/R=' + rBar.toFixed(2), fx - chordLen * 0.62, fy + chordLen * 0.64,
-        col.dim, '10px IBM Plex Sans, sans-serif', 'left');
 
       // reverse-flow flag
       if (reverse) {
