@@ -1316,19 +1316,40 @@ const HLW = (function () {
       const OmR = HL.omR(st);
       const mu  = advanceRatio(stt);
 
-      const v     = localVelocities(stt, c, rBar, psi);   // {UT, UP} normalised by OmR
+      // ── EASA exam-plate convention (clean blade-element diagram) ─────────────
+      // U_T is ALWAYS the true tangential speed r̄ + μ·sinψ, so advancing vs.
+      // retreating and the reverse-flow guard stay physically honest.
+      // U_P is the INDUCED DOWNWASH λ_i only — the momentum-theory downwash that
+      // makes blade lift. It is ALWAYS positive (down THROUGH the disc), so the
+      // relative wind is always depressed BELOW the rotor plane and the inflow
+      // angle φ is always a positive number. This is the standard ATPL(H)/POF
+      // plate: it deliberately omits the disc-tilt free-stream throughflow term
+      // (μ·tan α_TPP, the more advanced effect that can flip U_P upward on the
+      // nose side) so students see the clean downwash picture every time.
       const Vrot  = rBar;                 // rotational speed (norm)
       const Vt    = mu * Math.sin(psi);   // tangential comp of forward flow (norm, signed)
-      const UT    = v.UT;                 // = Vrot + Vt
-      const UP    = v.UP;
+      const UT    = Vrot + Vt;            // TRUE tangential speed (signed)
+      // U_P = the TOTAL perpendicular (through-disc) flow the blade sees, split
+      // into the two components of Fig 11.14 (vertical airflow / translational
+      // lift):  v_i  = induced downwash (large in hover, DECAYS with speed)
+      //         v_n  = normal component of the forward free-stream through the
+      //                disc (grows with speed).  Both act DOWNWARD through the
+      //                disc, so U_P = v_i + v_n is ALWAYS positive (down). Their
+      //                sum dips (translational lift) then rises past V_BROC.
+      const v_i   = inducedInflowRatio(stt);            // induced downwash (>0, down)
+      const v_n   = Math.abs(throughflowRatio(stt));    // |normal free-stream comp| (>0, down)
+      const lam_i = v_i;                                // kept for readout compatibility
+      const UP    = v_i + v_n;            // total downwash (always down)
       const theta = bladePitch(stt, rBar, psi);
-      const phi   = inflowAngle(UT, UP);
-      const aoa   = theta - phi;
       const reverse = UT < 0;
+      // φ = inflow angle = depression of the relative wind below the rotor plane.
+      const phi   = reverse ? 0 : Math.atan2(UP, UT);
+      const aoa   = theta - phi;
       const stalled = !reverse && aoa > stt.stallAoA * D2R;
 
       // physical magnitudes (m/s) for the readout
       const VrotMS = Vrot * OmR, VtMS = Vt * OmR, UTMS = UT * OmR, UPMS = UP * OmR;
+      const ViMS = v_i * OmR, VnMS = v_n * OmR;
       const VrelMS = Math.hypot(UTMS, UPMS);
 
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
@@ -1340,59 +1361,101 @@ const HLW = (function () {
       //   • LOWER panel  = the in-plane + perpendicular VELOCITY TRIANGLE
       //   • UPPER-LEFT inset = the AIRFOIL SECTION at pitch θ with θ/φ/α marked
       // ------------------------------------------------------------------------
-      const ox = W * 0.14, oy = H * 0.74;      // triangle origin low on the canvas
+      // ── Geometry follows the EASA exam plate EXACTLY ──────────────────────────
+      //  • The AIRFOIL / blade tip sits on the RIGHT: that is where V_rot, V_T and
+      //    V_rel all POINT TO (their common head) and where the inflow angle α_i
+      //    (=φ) is measured.
+      //  • V_rot points RIGHT toward the airfoil, tail on the LEFT.
+      //  • V_T is appended at the TAIL of V_rot: advancing ADDS (tail slides further
+      //    left, lengthening the base); retreating SUBTRACTS (V_T points right from
+      //    the tail, shortening the base). V_rel always starts at the TAIL of V_T.
+      //  • V_i (=U_P) is a short vertical arrow pointing DOWN, sitting ABOVE the
+      //    rotor plane at the tail, its head landing on the tail of V_rot/V_T.
+      //  • V_rel runs from the TOP of V_i (upper-left) down to the airfoil (right).
+      const tipX = W * 0.86, oy = H * 0.66;    // airfoil/tip on the RIGHT; common head
       const maxIn = Math.max(Math.abs(Vrot) + Math.abs(Vt), Math.abs(UT), 1.0);
-      const sx = Math.min((W * 0.80) / maxIn, 300);   // px per unit (in-plane)
+      const sx = Math.min((W * 0.72) / maxIn, 300);   // px per unit (in-plane)
       const AMP = 6;                           // exaggerate the tiny U_P for visibility
       const sy = sx;
 
       // rotor-plane baseline (in-plane reference for the triangle)
-      HLD.dline(ctx, ox - 30, oy, W - 10, oy, col.grid, 1, [5, 4]);
+      HLD.dline(ctx, 20, oy, W - 10, oy, col.grid, 1, [5, 4]);
       HLD.text(ctx, 'rotor plane', W - 12, oy - 6, col.dim, '11px IBM Plex Sans, sans-serif', 'right');
 
-      // ---- IN-PLANE construction: V_rot then V_T head-to-tail ----------------
-      const xRot = ox + Vrot * sx;
-      HLD.arrow(ctx, ox, oy, xRot, oy, col.lift, 3, 9);
-      HLD.chipLabel(ctx, 'V_rot = Ω·r', (ox + xRot) / 2, oy - 14, col.lift, '11px IBM Plex Sans, sans-serif', 'center');
+      // ---- IN-PLANE construction (heads point RIGHT toward the airfoil) -------
+      // V_rot: tail at xRotTail, head at the tip (right).
+      const xRotTail = tipX - Vrot * sx;
+      HLD.arrow(ctx, xRotTail, oy, tipX, oy, col.lift, 3, 9);
+      // label near the TAIL end of V_rot (left) so it never crowds the φ wedge /
+      // V_rel label bunched at the tip. Hidden if V_rot is too short to hold text.
+      if ((tipX - xRotTail) > 70) {
+        HLD.chipLabel(ctx, 'V_rot = Ω·r', xRotTail + (tipX - xRotTail) * 0.30, oy - 14,
+          col.lift, '11px IBM Plex Sans, sans-serif', 'center');
+      }
 
-      // V_T: continue from the tip of V_rot. Advancing adds forward; retreating
-      // points BACK — visibly pulling the tip leftwards.
-      const xUT = ox + UT * sx;    // = xRot + Vt*sx
+      // V_T appended at the TAIL of V_rot. The base of the triangle is U_T long,
+      // so the tail of V_T (= tail of V_rel) is at xBase = tipX − UT*sx.
+      const xBase = tipX - UT * sx;            // tail of the whole in-plane base
       const vtCol = Vt < 0 ? col.bad : col.accent;
-      HLD.arrow(ctx, xRot, oy, xUT, oy, vtCol, 3, 9);
-      HLD.chipLabel(ctx, (Vt < 0 ? 'V_T = μ·sinψ  (subtracts)' : 'V_T = μ·sinψ  (adds)'),
-        (xRot + xUT) / 2, oy + 16, vtCol, '11px IBM Plex Sans, sans-serif', 'center');
+      // draw V_T from the V_rot tail to the base tail (advancing: base further
+      // left; retreating: base to the right of the V_rot tail).
+      HLD.arrow(ctx, xRotTail, oy, xBase, oy, vtCol, 3, 9);
+      if (Math.abs(xBase - xRotTail) > 60) {
+        HLD.chipLabel(ctx, (Vt < 0 ? 'V_T = μ·sinψ  (subtracts)' : 'V_T = μ·sinψ  (adds)'),
+          (xRotTail + xBase) / 2, oy + 16, vtCol, '11px IBM Plex Sans, sans-serif', 'center');
+      }
 
-      // net U_T bracket underneath (from origin to the U_T tip)
-      const yBr = oy + 34;
-      HLD.dline(ctx, ox, yBr, xUT, yBr, col.ink, 1.5, [2, 3]);
-      HLD.tick(ctx, ox, yBr, 8, Math.PI / 2, col.ink, 1.5);
-      HLD.tick(ctx, xUT, yBr, 8, Math.PI / 2, col.ink, 1.5);
-      HLD.chipLabel(ctx, 'U_T (net) = ' + UTMS.toFixed(0) + ' m/s', (ox + xUT) / 2, yBr + 12,
+      // net U_T bracket BELOW the plane (space ABOVE the base is reserved for the
+      // V_i downwash arrow + V_rel, exactly as in the exam plate).
+      const yBr = oy + 28;
+      HLD.dline(ctx, xBase, yBr, tipX, yBr, col.ink, 1.5, [2, 3]);
+      HLD.tick(ctx, xBase, yBr, 8, Math.PI / 2, col.ink, 1.5);
+      HLD.tick(ctx, tipX, yBr, 8, Math.PI / 2, col.ink, 1.5);
+      HLD.chipLabel(ctx, 'U_T (net) = ' + UTMS.toFixed(0) + ' m/s', (xBase + tipX) / 2, yBr + 12,
         col.ink, '11px IBM Plex Sans, sans-serif', 'center');
 
-      // ---- U_P (perpendicular flow) at the U_T tip — drawn UP (canvas −y) so it
-      // reaches into the empty space above the plane and never hits the bracket.
-      const yUP = oy - UP * AMP * sy;
-      HLD.arrow(ctx, xUT, oy, xUT, yUP, col.wind, 2.5, 8);
-      // keep the U_P label off the right edge / 'rotor plane' text
-      const upLabelRight = xUT < W - 120;
-      HLD.chipLabel(ctx, 'U_P (×' + AMP + ')', xUT + (upLabelRight ? 8 : -8), (oy + yUP) / 2, col.wind,
-        '11px IBM Plex Sans, sans-serif', upLabelRight ? 'left' : 'right');
+      // ---- U_P = V_i + V_n : the perpendicular through-disc flow, drawn as TWO
+      // stacked DOWNWARD segments at the base tail (above the plane), exactly the
+      // two curves of Fig 11.14. V_n (free-stream normal comp) on top, V_i
+      // (induced downwash) below it; together they span from yTop down to the
+      // plane. Their common head sits ON the plane (tail of the in-plane base).
+      const yTop  = oy - UP * AMP * sy;          // top of the V_n+V_i stack (above plane)
+      const yMid  = oy - v_i * AMP * sy;         // boundary: V_n above, V_i below
+      // V_n segment (top): from yTop down to yMid — only when there is forward flow
+      if (v_n > 1e-4) {
+        HLD.arrow(ctx, xBase, yTop, xBase, yMid, col.accent, 2.5, 7);
+        HLD.chipLabel(ctx, 'V_n', xBase - 8, (yTop + yMid) / 2, col.accent,
+          '10px IBM Plex Sans, sans-serif', 'right');
+      }
+      // V_i segment (bottom): from yMid down to the plane
+      HLD.arrow(ctx, xBase, yMid, xBase, oy, col.wind, 2.5, 8);
+      HLD.chipLabel(ctx, 'V_i', xBase - 8, (yMid + oy) / 2, col.wind,
+        '10px IBM Plex Sans, sans-serif', 'right');
+      // U_P total bracket label at the very top
+      const viRight = xBase < 110;
+      HLD.chipLabel(ctx, 'U_P = V_i+V_n (×' + AMP + ')', xBase + (viRight ? 8 : -8), yTop - 10,
+        col.wind, '11px IBM Plex Sans, sans-serif', viRight ? 'left' : 'right');
 
-      // ---- V_rel resultant: origin → (U_T tip, U_P tip) ----------------------
-      HLD.arrow(ctx, ox, oy, xUT, yUP, col.wind, 3, 10);
-      HLD.chipLabel(ctx, 'V_rel', ox + (xUT - ox) * 0.55, oy + (yUP - oy) * 0.55 - 12, col.wind,
+      // ---- V_rel resultant: from the TOP of V_i (upper-left) DOWN to the airfoil
+      // (tip, right). It lies just below V_rot, meeting it at the tip where α_i is.
+      HLD.arrow(ctx, xBase, yTop, tipX, oy, col.wind, 3, 10);
+      // label on the V_rel shaft toward the TIP end (60% from tail) and lifted
+      // above the line, clear of V_rot / V_i.
+      const vrx = xBase + (tipX - xBase) * 0.6, vry = yTop + (oy - yTop) * 0.6;
+      HLD.chipLabel(ctx, 'V_rel', vrx, vry - 12, col.wind,
         '12px IBM Plex Sans, sans-serif', 'center');
 
-      // φ arc between rotor plane and V_rel (only meaningful when U_T>0)
-      const relAng = Math.atan2(yUP - oy, xUT - ox);
+      // α_i (=φ) arc at the TIP, between V_rot (along the plane, pointing left from
+      // the tip toward the tail, canvas angle π) and V_rel (just ABOVE that line,
+      // toward the V_i top). φ is small, so draw a short wedge from (π−φ) to π.
       if (!reverse) {
-        // arc only — the φ value is annotated in the airfoil inset to avoid
-        // stacking labels on the crowded triangle origin.
-        HLD.arc(ctx, ox, oy, 42, relAng, 0, col.wind, '');
+        HLD.arc(ctx, tipX, oy, 40, Math.PI - phi, Math.PI, col.wind, '');
+        // φ label BELOW the plane just left of the tip, clear of the V_rot / V_rel
+        // labels above the line and of the V_T label / U_T bracket further left.
+        HLD.chipLabel(ctx, 'α_i = φ = ' + (phi * R2D).toFixed(1) + '°',
+          tipX - 8, oy + 15, col.wind, '10px IBM Plex Sans, sans-serif', 'right');
       }
-      HLD.dot(ctx, ox, oy, 3.5, col.ink);
+      HLD.dot(ctx, tipX, oy, 3.5, col.ink);
 
       // ================= AIRFOIL INSET (upper-left) ============================
       // A compact detail callout: the blade section at pitch θ, the relative wind
@@ -1507,7 +1570,9 @@ const HLW = (function () {
         ['V_rot = Ω·r', VrotMS.toFixed(0) + ' m/s', 'var(--hl-lift)'],
         ['V_T = μ·sinψ', (VtMS >= 0 ? '+' : '') + VtMS.toFixed(0) + ' m/s', Vt < 0 ? 'var(--hl-bad)' : 'var(--hl-accent)'],
         ['U_T (net in-plane)', UTMS.toFixed(0) + ' m/s', reverse ? 'var(--hl-bad)' : 'var(--hl-ink)'],
-        ['U_P (perp. flow)', UPMS.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+        ['&nbsp;&nbsp;V_i = λ_i·ΩR (induced ↓)', ViMS.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+        ['&nbsp;&nbsp;V_n = V·sinα_TPP (free-stream ↓)', VnMS.toFixed(1) + ' m/s', 'var(--hl-accent)'],
+        ['U_P = V_i + V_n (downwash ↓)', UPMS.toFixed(1) + ' m/s', 'var(--hl-wind)'],
         ['V_rel', VrelMS.toFixed(0) + ' m/s', 'var(--hl-wind)'],
         ['θ pitch', (theta * R2D).toFixed(1) + '°', 'var(--hl-chord)'],
         ['φ inflow angle', (phi * R2D).toFixed(1) + '°', 'var(--hl-wind)'],
@@ -1520,8 +1585,26 @@ const HLW = (function () {
         lift. On the advancing side V_T adds instead. Drag the azimuth to watch
         V_T flip from adding to subtracting. The faint airfoils show the pitch
         span from root to tip washout; toggle <b>twist off</b> to see the section
-        swing to full untwisted pitch. U_P is drawn ×${AMP} for visibility — its
-        direction and the resulting α are exact.</p>`;
+        swing to full untwisted pitch.</p>
+        <p class="hl-note"><b>The perpendicular flow U_P (Leishman, combined
+        momentum + blade-element theory):</b><br>
+        <span style="font-family:var(--hl-mono,monospace);white-space:nowrap">
+        U_P = <b style="color:var(--hl-wind)">λ_i·ΩR</b>
+        + <b style="color:var(--hl-accent)">V·sinα_TPP</b>
+        + <b style="color:var(--hl-lift)">r·β̇</b> + …</span><br>
+            <b style="color:var(--hl-wind)">induced</b>  
+        <b style="color:var(--hl-accent)">climb / normal free-stream</b>  
+        <b style="color:var(--hl-lift)">flapping</b><br>
+        In this exam plate we keep the two that matter for translational lift:
+        <b style="color:var(--hl-wind)">V_i</b> = the induced downwash (large in
+        hover, <b>decays</b> with speed) and <b style="color:var(--hl-accent)">V_n</b>
+        = the normal component of the forward free-stream (<b>grows</b> with
+        speed). Both act <b>down through the disc</b>, so <b>U_P = V_i + V_n</b> is
+        always positive — it <b>dips</b> around V_BROC (translational lift) then
+        rises again. The inflow angle <b>φ = arctan(U_P / U_T)</b> is therefore the
+        small positive depression of <b style="color:var(--hl-wind)">V_rel</b> below
+        the rotor plane, and <b>α = θ − φ</b>. U_P is drawn ×${AMP} for visibility —
+        its direction and the resulting α are exact.</p>`;
     };
 
     segmented(ui.controls, {
