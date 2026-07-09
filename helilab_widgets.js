@@ -1282,6 +1282,250 @@ const HLW = (function () {
   }
 
   /* =========================================================================
+     wBetVelocity — the BET velocity triangle for retreating-stall teaching.
+     Shows, at any (r/R, ψ, speed), the FULL vector construction the book draws
+     in TikZ:
+        • V_rot  = Ω·r          (rotational speed, always forward along chord)
+        • V_T    = μ·sinψ·ΩR    (tangential component of the forward flow) drawn
+                                 head-to-tail ON TOP of V_rot, so on the
+                                 retreating side (ψ=270°, sinψ=−1) it points
+                                 BACKWARD and is visibly SUBTRACTED → the short
+                                 net U_T that makes the retreating blade slow.
+        • U_T    = V_rot + V_T   (net in-plane speed — the tail of V_rel)
+        • U_P    = λ + β̇·r + …  (perpendicular flow: inflow + flapping) drawn
+                                 vertically at the tip of U_T.
+        • V_rel  = √(U_T²+U_P²)  resultant, with θ (pitch), φ (inflow angle),
+                                 α = θ−φ marked exactly as in the exam drawing.
+     Plus a twist visualiser: faint GHOST airfoils at the max- and min-twist
+     pitch (root and tip washout) with the current blade station drawn sharp
+     between them, and a "twist off" toggle (untwisted blade) so students see
+     the section swing to full pitch.
+     All numbers come straight from localVelocities()/bladePitch() — nothing is
+     faked; this is the same physics as the disc map, just drawn as one triangle. */
+  function wBetVelocity(host) {
+    const ui = scaffold(host);
+    let Vkt = 120, psiDeg = 270, rBar = 0.75, twistOn = true;
+
+    const draw = () => {
+      const st = HL.defaultState();
+      if (!twistOn) st.twist = 0;
+      st.V = Vkt * 0.5144;
+      const stt = trimmed(st);
+      const c   = flappingCoeffs(stt);
+      const psi = psiDeg * D2R;
+      const OmR = HL.omR(st);
+      const mu  = advanceRatio(stt);
+
+      const v     = localVelocities(stt, c, rBar, psi);   // {UT, UP} normalised by OmR
+      const Vrot  = rBar;                 // rotational speed (norm)
+      const Vt    = mu * Math.sin(psi);   // tangential comp of forward flow (norm, signed)
+      const UT    = v.UT;                 // = Vrot + Vt
+      const UP    = v.UP;
+      const theta = bladePitch(stt, rBar, psi);
+      const phi   = inflowAngle(UT, UP);
+      const aoa   = theta - phi;
+      const reverse = UT < 0;
+      const stalled = !reverse && aoa > stt.stallAoA * D2R;
+
+      // physical magnitudes (m/s) for the readout
+      const VrotMS = Vrot * OmR, VtMS = Vt * OmR, UTMS = UT * OmR, UPMS = UP * OmR;
+      const VrelMS = Math.hypot(UTMS, UPMS);
+
+      const { ctx, W, H, col } = HLD.setup(ui.canvas);
+      HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
+
+      // ================= LAYOUT ================================================
+      // Two clearly-separated panels so the airfoil never sits on top of the
+      // velocity vectors:
+      //   • LOWER panel  = the in-plane + perpendicular VELOCITY TRIANGLE
+      //   • UPPER-LEFT inset = the AIRFOIL SECTION at pitch θ with θ/φ/α marked
+      // ------------------------------------------------------------------------
+      const ox = W * 0.14, oy = H * 0.74;      // triangle origin low on the canvas
+      const maxIn = Math.max(Math.abs(Vrot) + Math.abs(Vt), Math.abs(UT), 1.0);
+      const sx = Math.min((W * 0.80) / maxIn, 300);   // px per unit (in-plane)
+      const AMP = 6;                           // exaggerate the tiny U_P for visibility
+      const sy = sx;
+
+      // rotor-plane baseline (in-plane reference for the triangle)
+      HLD.dline(ctx, ox - 30, oy, W - 10, oy, col.grid, 1, [5, 4]);
+      HLD.text(ctx, 'rotor plane', W - 12, oy - 6, col.dim, '11px IBM Plex Sans, sans-serif', 'right');
+
+      // ---- IN-PLANE construction: V_rot then V_T head-to-tail ----------------
+      const xRot = ox + Vrot * sx;
+      HLD.arrow(ctx, ox, oy, xRot, oy, col.lift, 3, 9);
+      HLD.chipLabel(ctx, 'V_rot = Ω·r', (ox + xRot) / 2, oy - 14, col.lift, '11px IBM Plex Sans, sans-serif', 'center');
+
+      // V_T: continue from the tip of V_rot. Advancing adds forward; retreating
+      // points BACK — visibly pulling the tip leftwards.
+      const xUT = ox + UT * sx;    // = xRot + Vt*sx
+      const vtCol = Vt < 0 ? col.bad : col.accent;
+      HLD.arrow(ctx, xRot, oy, xUT, oy, vtCol, 3, 9);
+      HLD.chipLabel(ctx, (Vt < 0 ? 'V_T = μ·sinψ  (subtracts)' : 'V_T = μ·sinψ  (adds)'),
+        (xRot + xUT) / 2, oy + 16, vtCol, '11px IBM Plex Sans, sans-serif', 'center');
+
+      // net U_T bracket underneath (from origin to the U_T tip)
+      const yBr = oy + 34;
+      HLD.dline(ctx, ox, yBr, xUT, yBr, col.ink, 1.5, [2, 3]);
+      HLD.tick(ctx, ox, yBr, 8, Math.PI / 2, col.ink, 1.5);
+      HLD.tick(ctx, xUT, yBr, 8, Math.PI / 2, col.ink, 1.5);
+      HLD.chipLabel(ctx, 'U_T (net) = ' + UTMS.toFixed(0) + ' m/s', (ox + xUT) / 2, yBr + 12,
+        col.ink, '11px IBM Plex Sans, sans-serif', 'center');
+
+      // ---- U_P (perpendicular flow) at the U_T tip — drawn UP (canvas −y) so it
+      // reaches into the empty space above the plane and never hits the bracket.
+      const yUP = oy - UP * AMP * sy;
+      HLD.arrow(ctx, xUT, oy, xUT, yUP, col.wind, 2.5, 8);
+      // keep the U_P label off the right edge / 'rotor plane' text
+      const upLabelRight = xUT < W - 120;
+      HLD.chipLabel(ctx, 'U_P (×' + AMP + ')', xUT + (upLabelRight ? 8 : -8), (oy + yUP) / 2, col.wind,
+        '11px IBM Plex Sans, sans-serif', upLabelRight ? 'left' : 'right');
+
+      // ---- V_rel resultant: origin → (U_T tip, U_P tip) ----------------------
+      HLD.arrow(ctx, ox, oy, xUT, yUP, col.wind, 3, 10);
+      HLD.chipLabel(ctx, 'V_rel', ox + (xUT - ox) * 0.55, oy + (yUP - oy) * 0.55 - 12, col.wind,
+        '12px IBM Plex Sans, sans-serif', 'center');
+
+      // φ arc between rotor plane and V_rel (only meaningful when U_T>0)
+      const relAng = Math.atan2(yUP - oy, xUT - ox);
+      if (!reverse) {
+        // arc only — the φ value is annotated in the airfoil inset to avoid
+        // stacking labels on the crowded triangle origin.
+        HLD.arc(ctx, ox, oy, 42, relAng, 0, col.wind, '');
+      }
+      HLD.dot(ctx, ox, oy, 3.5, col.ink);
+
+      // ================= AIRFOIL INSET (upper-left) ============================
+      // A compact detail callout: the blade section at pitch θ, the relative wind
+      // coming in at angle φ below the chord line, and α = θ − φ between them.
+      const fx = W * 0.26, fy = H * 0.26;          // inset centre
+      const chordLen = Math.min(W * 0.28, 160);
+      const drawFoil = (pitchRad, style) => {
+        const pts = HLD.nacaProfile(0.12, 56);
+        ctx.save();
+        ctx.translate(fx, fy);
+        ctx.rotate(-pitchRad);          // nose-up pitch (canvas up = −y)
+        ctx.globalAlpha = style.alpha;
+        ctx.beginPath();
+        const cx0 = -chordLen * 0.35;   // put the quarter-chord near the inset centre
+        pts.forEach((p, i) => {
+          const X = cx0 + p.x * chordLen, Y = -p.y * chordLen;
+          if (i === 0) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+        });
+        ctx.closePath();
+        if (style.fill) { ctx.fillStyle = style.fill; ctx.fill(); }
+        ctx.strokeStyle = style.stroke; ctx.lineWidth = style.w || 1.5; ctx.stroke();
+        ctx.restore();
+        ctx.globalAlpha = 1;
+      };
+
+      // chord reference line through the inset centre (the θ=0 datum)
+      HLD.dline(ctx, fx - chordLen * 0.5, fy, fx + chordLen * 0.7, fy, col.grid, 1, [4, 4]);
+
+      const pitchAt = (rr) => bladePitch(stt, rr, psi);
+      if (twistOn) {
+        drawFoil(pitchAt(0.0), { stroke: col.chord, alpha: 0.16, w: 1 });   // max pitch (root)
+        drawFoil(pitchAt(1.0), { stroke: col.chord, alpha: 0.16, w: 1 });   // min pitch (tip)
+        HLD.chipLabel(ctx, 'twist span (root↔tip)', fx - chordLen * 0.35, fy - chordLen * 0.42,
+          col.chord, '10px IBM Plex Sans, sans-serif', 'left', 'rgba(13,17,23,0.55)');
+      }
+      // current section — sharp
+      drawFoil(theta, {
+        stroke: stalled ? col.bad : col.chord,
+        fill: (stalled ? 'rgba(248,113,113,0.14)' : 'rgba(251,146,60,0.10)'),
+        alpha: 0.95, w: 2,
+      });
+      // relative wind into the leading edge, angle φ below the chord datum
+      if (!reverse) {
+        const wl = chordLen * 0.62;
+        const wax = fx - wl * Math.cos(phi), way = fy + wl * Math.sin(phi);
+        HLD.arrow(ctx, wax, way, fx - chordLen * 0.02, fy, col.wind, 2, 8);
+        HLD.chipLabel(ctx, 'V_rel', wax - 4, way + 4, col.wind, '10px IBM Plex Sans, sans-serif', 'right');
+        // θ (chord vs datum) and φ (wind vs datum) arcs, staggered radii
+        HLD.arc(ctx, fx, fy, 34, -theta, 0, col.chord, 'θ ' + (theta * R2D).toFixed(1) + '°');
+        HLD.arc(ctx, fx, fy, 20, 0, phi, col.wind, '');
+        HLD.chipLabel(ctx, 'α = θ−φ = ' + (aoa * R2D).toFixed(1) + '°  (φ ' + (phi * R2D).toFixed(1) + '°)',
+          fx + chordLen * 0.16, fy + chordLen * 0.5,
+          stalled ? col.bad : col.good, '11px IBM Plex Sans, sans-serif', 'left');
+      } else {
+        HLD.chipLabel(ctx, 'reverse flow — α undefined', fx - chordLen * 0.35, fy + chordLen * 0.5,
+          col.bad, '11px IBM Plex Sans, sans-serif', 'left');
+      }
+      HLD.text(ctx, 'blade section @ r/R=' + rBar.toFixed(2), fx - chordLen * 0.5, fy + chordLen * 0.66,
+        col.dim, '10px IBM Plex Sans, sans-serif', 'left');
+
+      // reverse-flow flag
+      if (reverse) {
+        HLD.chipLabel(ctx, '⚠ reverse flow (U_T < 0)', ox + 40, oy - 70, col.bad,
+          '12px IBM Plex Sans, sans-serif', 'left', 'rgba(248,113,113,0.15)');
+      }
+
+      // azimuth mini-compass top-right so students keep orientation
+      const cxC = W - 58, cyC = 52, rC = 30;
+      ctx.strokeStyle = col.grid; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cxC, cyC, rC, 0, 2 * Math.PI); ctx.stroke();
+      HLD.text(ctx, 'N', cxC - 3, cyC - rC - 3, col.dim, '9px sans-serif');
+      HLD.text(ctx, 'A', cxC + rC + 2, cyC + 3, col.dim, '9px sans-serif');
+      HLD.text(ctx, 'R', cxC - rC - 8, cyC + 3, col.dim, '9px sans-serif');
+      HLD.text(ctx, 'T', cxC - 3, cyC + rC + 9, col.dim, '9px sans-serif');
+      // marker: our azimuth convention — ψ=0 TAIL(bottom), 90 ADV(right),
+      // 180 NOSE(top), 270 RET(left). canvas +y is down, so x=sinψ (right at 90),
+      // y=cosψ (down/tail at 0, up/nose at 180) places it correctly.
+      HLD.dot(ctx, cxC + rC * Math.sin(psi), cyC + rC * Math.cos(psi), 4,
+        Vt < 0 ? col.bad : col.good);
+
+      // ---- readout -----------------------------------------------------------
+      const side = psiDeg > 180 && psiDeg < 360 ? 'retreating' : (psiDeg > 0 && psiDeg < 180 ? 'advancing' : (psiDeg === 0 ? 'over tail' : 'over nose'));
+      ui.readout.innerHTML = kv([
+        ['Azimuth ψ', psiDeg.toFixed(0) + '°  (' + side + ')', 'var(--hl-ink)'],
+        ['V_rot = Ω·r', VrotMS.toFixed(0) + ' m/s', 'var(--hl-lift)'],
+        ['V_T = μ·sinψ', (VtMS >= 0 ? '+' : '') + VtMS.toFixed(0) + ' m/s', Vt < 0 ? 'var(--hl-bad)' : 'var(--hl-accent)'],
+        ['U_T (net in-plane)', UTMS.toFixed(0) + ' m/s', reverse ? 'var(--hl-bad)' : 'var(--hl-ink)'],
+        ['U_P (perp. flow)', UPMS.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+        ['V_rel', VrelMS.toFixed(0) + ' m/s', 'var(--hl-wind)'],
+        ['θ pitch', (theta * R2D).toFixed(1) + '°', 'var(--hl-chord)'],
+        ['φ inflow angle', (phi * R2D).toFixed(1) + '°', 'var(--hl-wind)'],
+        ['α = θ − φ', reverse ? 'n/a (reverse)' : (aoa * R2D).toFixed(1) + '° / ' + stt.stallAoA.toFixed(0) + '°',
+          stalled ? 'var(--hl-bad)' : 'var(--hl-good)'],
+      ]) + `<p class="hl-note">On the <b>retreating</b> side (ψ=270°) the forward-flow
+        term <b style="color:var(--hl-bad)">V_T</b> points <b>backward</b>, so it is
+        <b>subtracted</b> from <b style="color:var(--hl-lift)">V_rot</b> — the net
+        <b>U_T</b> is short and the blade must fly at a high <b>α</b> to keep its
+        lift. On the advancing side V_T adds instead. Drag the azimuth to watch
+        V_T flip from adding to subtracting. The faint airfoils show the pitch
+        span from root to tip washout; toggle <b>twist off</b> to see the section
+        swing to full untwisted pitch. U_P is drawn ×${AMP} for visibility — its
+        direction and the resulting α are exact.</p>`;
+    };
+
+    segmented(ui.controls, {
+      label: 'Jump to azimuth', val: 'ret', options: [
+        { v: 'adv', t: 'ADV 90°' }, { v: 'ret', t: 'RET 270°' },
+        { v: 'nose', t: 'NOSE 180°' }, { v: 'tail', t: 'TAIL 0°' },
+      ], on: v => {
+        psiDeg = ({ adv: 90, ret: 270, nose: 180, tail: 0 })[v];
+        psiSl.set(psiDeg); draw();
+      },
+    });
+    const psiSl = slider(ui.controls, {
+      label: 'Azimuth ψ', min: 0, max: 360, step: 1, val: psiDeg, unit: '°',
+      on: v => { psiDeg = v; draw(); },
+    });
+    slider(ui.controls, {
+      label: 'Blade station r/R', min: 0.2, max: 1.0, step: 0.01, val: rBar, unit: '',
+      fmt: v => (+v).toFixed(2), on: v => { rBar = v; draw(); },
+    });
+    slider(ui.controls, {
+      label: 'Forward speed', min: 0, max: 160, step: 1, val: Vkt, unit: ' kt',
+      on: v => { Vkt = v; draw(); },
+    });
+    toggle(ui.controls, {
+      label: 'Blade twist on (−8° washout)', val: twistOn,
+      on: v => { twistOn = v; draw(); },
+    });
+    ui.onDraw(draw);
+  }
+
+  /* =========================================================================
      wCoriolis — lead/lag hunting from flapping (angular-momentum)
      top-view disc + in-plane lead/lag angle around azimuth
      ========================================================================= */
@@ -1767,7 +2011,7 @@ const HLW = (function () {
   return {
     wBigPicture, wBladeElement, wSpanwise, wHover, wVertical, wGroundEffect,
     wDissymmetry, wFlapping, wEnvelope, wCoriolis, wDynamicRollover, wLTE,
-    wAutorotation, wPerformance, wBetDiagram,
+    wAutorotation, wPerformance, wBetDiagram, wBetVelocity,
     wSandbox,
   };
 })();

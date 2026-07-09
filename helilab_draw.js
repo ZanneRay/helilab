@@ -449,5 +449,5 @@ const HLD = (function () {
   }
 
   return { css, COL, setup, clear, grid, arrow, dline, arc, text, dot, hatchRect, tick,
-           bladeSection, nacaProfile, lineChart, discPolar, discIso, polarToCanvas, fmt };
+           chipLabel, bladeSection, nacaProfile, lineChart, discPolar, discIso, polarToCanvas, fmt };
 })();

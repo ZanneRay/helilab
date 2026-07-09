@@ -369,6 +369,59 @@ const HL_LESSONS = [
   },
 
   {
+    id: 'bet-velocity', stage: 'Forward Flight', title: 'Retreating Stall — the BET Velocity Diagram',
+    subtitle: 'Why the retreating blade runs slow — vector by vector',
+    widget: 'wBetVelocity',
+    body: `
+      <p>The disc map on the previous page tells you <i>where</i> the blade stalls.
+      This page shows you <i>why</i>, with the exact velocity triangle you draw on
+      the exam. Pick any point on the blade — a blade station <b>r/R</b>, an
+      <b>azimuth ψ</b> and a <b>forward speed</b> — and read off every velocity the
+      blade element sees.</p>
+      <p>Build the in-plane speed head-to-tail, exactly as in the book:</p>
+      <ul>
+        <li><b>V<sub>rot</sub> = Ω·r</b> — the rotational speed. It always points
+            forward along the chord and grows from root to tip.</li>
+        <li><b>V<sub>T</sub> = μ·sinψ·ΩR</b> — the tangential component of the
+            aircraft's forward flow. It is drawn <b>on the tip of V<sub>rot</sub></b>.
+            On the <b>advancing</b> side (ψ=90°, sinψ=+1) it points forward and
+            <b>adds</b>. On the <b>retreating</b> side (ψ=270°, sinψ=−1) it points
+            <b>backward</b> and is <b>subtracted</b> — you can see it pull the tip
+            of the vector back toward the hub.</li>
+        <li><b>U<sub>T</sub> = V<sub>rot</sub> + V<sub>T</sub></b> — the net
+            in-plane speed. On the retreating side it is short, so the blade must
+            fly at a high <b>α</b> to make its share of lift.</li>
+      </ul>
+      <p>The perpendicular flow <b>U<sub>P</sub></b> (inflow λ plus the flapping
+      velocity) is drawn vertically at the tip of U<sub>T</sub>. The resultant
+      <b>V<sub>rel</sub></b> closes the triangle, and the angles fall straight out:
+      <b>θ</b> is the blade pitch, <b>φ</b> the inflow angle, and
+      <b>α = θ − φ</b> the angle of attack that decides whether the section
+      stalls.</p>
+      <p><b>Blade twist:</b> the two faint airfoils show the pitch span from the
+      root (most pitch) to the tip (least — the −8° washout unloads the tip). The
+      sharp section is your current blade station, sitting between them. Toggle
+      <b>twist off</b> and watch the whole section swing up to the full untwisted
+      pitch — the reason the untwisted exam blade stalls at the tip first.</p>`,
+    takeaways: [
+      'V_T (μ·sinψ) adds on the advancing side and subtracts on the retreating side.',
+      'On the retreating blade the net U_T is small, forcing a high α to hold lift.',
+      'α = θ − φ; when α exceeds the critical angle the section stalls.',
+      'Blade washout lowers tip pitch — turn it off and the tip goes to full pitch.',
+    ],
+    check: {
+      q: 'At ψ = 270° (retreating), the forward-flow term V_T = μ·sinψ…',
+      options: [
+        'Points backward and is subtracted from V_rot, so the net U_T is small',
+        'Points forward and adds to V_rot, giving the highest U_T',
+        'Is zero because the blade is over the nose',
+        'Only changes the perpendicular flow U_P, not U_T',
+      ], answer: 0,
+      explain: 'sin(270°) = −1, so V_T = μ·sinψ·ΩR is negative — it points backward and is subtracted from the rotational speed V_rot. The net in-plane speed U_T is therefore small, and the blade must fly at a high α to keep making lift. Push the speed up and that α reaches the stall angle at the retreating tip first.',
+    },
+  },
+
+  {
     id: 'coriolis', stage: 'Forward Flight', title: 'Coriolis Effect — Lead & Lag',
     subtitle: 'Why blades hunt fore-and-aft as they flap',
     widget: 'wCoriolis',
