@@ -1440,7 +1440,12 @@ const HLW = (function () {
       const tipX = W * 0.60, oy = H * 0.66;    // airfoil/tip; common head of the triangle
       const maxIn = Math.max(Math.abs(Vrot) + Math.abs(Vt), Math.abs(UT), 1.0);
       const sx = Math.min((W * 0.50) / maxIn, 300);   // px per unit (in-plane)
-      const AMP = 6;                           // exaggerate the tiny U_P for visibility
+      // U_P is small next to the in-plane base, so we still exaggerate its vertical
+      // leg for visibility — but only ×2 (was ×6). At ×6 the drawn V_rel slope was
+      // far steeper than the TRUE inflow angle φ (drawn ≈ atan(6·U_P/U_T) vs real
+      // atan(U_P/U_T)), so the triangle over-stated φ/α. ×2 keeps U_P readable while
+      // the drawn triangle stays much closer to the real φ — the α reads honestly.
+      const AMP = 2;                           // gently exaggerate the small U_P
       const sy = sx;
 
       // rotor-plane baseline (in-plane reference for the triangle)
@@ -1471,6 +1476,10 @@ const HLW = (function () {
         // it, well clear of V_i. On the ADVANCING side xBase is left of xRotTail so
         // a centred mid-span label is clear — place it toward the tip.
         if (Vt < 0) {
+          // RETREATING: anchor V_rot's label hard against the far-left tail, above
+          // the plane. The tiny V_i / V_n mini-labels near xBase are suppressed when
+          // the AMP=2 stack is too short to label cleanly (see below), so this label
+          // has the upper-left band to itself.
           HLD.chipLabel(ctx, 'V_rot = Ω·r', xRotTail + 6, oy - 14,
             col.lift, '11px IBM Plex Sans, sans-serif', 'left');
         } else {
@@ -1531,15 +1540,26 @@ const HLW = (function () {
       // free for the V_flap offset arrow + its label, so nothing collides.
       const viLx = xBase - 8;
       const viAlign = 'right';
+      // With AMP = 2 the V_i and V_n segments are genuinely tiny (a handful of px),
+      // so their mid-points fall almost ON the rotor plane / V_rot line. Labelling
+      // such short segments always collides. So we only draw a mini-label when the
+      // segment is tall enough to carry one cleanly (>= LBL_MIN px); otherwise the
+      // colour-coded arrow speaks for itself and the exact value is in the readout
+      // table below (V_i, V_n and V_flap are all listed there in m/s).
+      const LBL_MIN = 13;
       // V_i segment (bottom): from yVi down to the plane
       HLD.arrow(ctx, xBase, yVi, xBase, oy, col.wind, 2.5, 8);
-      HLD.chipLabel(ctx, 'V_i', viLx, (yVi + oy) / 2, col.wind,
-        '10px IBM Plex Sans, sans-serif', viAlign);
+      if ((oy - yVi) >= LBL_MIN) {
+        HLD.chipLabel(ctx, 'V_i', viLx, (yVi + oy) / 2, col.wind,
+          '10px IBM Plex Sans, sans-serif', viAlign);
+      }
       // V_n segment (middle): from yVn up to yVi
       if (v_n > 1e-4) {
         HLD.arrow(ctx, xBase, yVn, xBase, yVi, col.accent, 2.5, 7);
-        HLD.chipLabel(ctx, 'V_n', viLx, (yVn + yVi) / 2, col.accent,
-          '10px IBM Plex Sans, sans-serif', viAlign);
+        if ((yVi - yVn) >= LBL_MIN) {
+          HLD.chipLabel(ctx, 'V_n', viLx, (yVn + yVi) / 2, col.accent,
+            '10px IBM Plex Sans, sans-serif', viAlign);
+        }
       }
       // V_flap segment: the flapping-velocity term. Its ARROW shows the PHYSICAL
       // airflow direction the flapping induces, and its sign tells the stack what to do:
@@ -1554,15 +1574,13 @@ const HLW = (function () {
       if (Math.abs(v_flap) > 1e-4) {
         const flCol = v_flap > 0 ? col.good : col.warn;
         if (v_flap > 0) {
-          // adds: in-stack, head DOWN (toward the plane), matching the V_i and V_n
-          // arrows — the up-flapping section sees MORE downward-relative flow. yTop
-          // is ABOVE yVn (stack grew), so tail=yTop → head=yVn points DOWN. Drawn as
-          // its OWN arrow just to the RIGHT of the stack (+6px offset, faint ticks),
-          // exactly like the subtract case, so V_i/V_n labels stay clear on the LEFT.
-          const flDx = 6;
-          HLD.arrow(ctx, xBase + flDx, yTop, xBase + flDx, yVn, flCol, 2.5, 7);
-          HLD.dline(ctx, xBase, yVn, xBase + flDx, yVn, col.grid, 1, [2, 3]);
-          HLD.dline(ctx, xBase, yTop, xBase + flDx, yTop, col.grid, 1, [2, 3]);
+          // adds (ADVANCING side): the up-flapping section sees MORE downward-relative
+          // flow, so V_flap ADDS to U_P — it is part of the SAME downward through-disc
+          // stack as V_i and V_n. So we draw it COLLINEAR, right ON the stack line
+          // (no offset), tip-to-tail above V_n, head DOWN toward the plane — exactly
+          // like V_i and V_n. yTop is ABOVE yVn (the stack grew), so tail=yTop →
+          // head=yVn points DOWN. No offset ticks are needed since it sits on the line.
+          HLD.arrow(ctx, xBase, yTop, xBase, yVn, flCol, 2.5, 7);
           // Label placement for the ADD case is constrained on BOTH sides: the V_rel
           // resultant runs DOWN-RIGHT from the stack top (xBase,yTop) to the tip, so
           // the RIGHT of the V_flap span is crossed by V_rel; and on the ADVANCING
@@ -1600,10 +1618,21 @@ const HLW = (function () {
             '10px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0.5)');
         }
       }
-      // U_P total bracket label at the very top of the stack
+      // U_P total bracket label. In the normal (down-flow) case yTop is ABOVE the
+      // plane so the label sits at the very top of the stack. But in the net-up-flow
+      // (RETREATING) case yTop is BELOW the plane, right where the V_T-subtracts,
+      // U_T-bracket and α_i labels cluster — so a label at yTop-10 collides with them.
+      // For that case, lift the U_P label ABOVE the plane on the LEFT (free space —
+      // only the far-left V_rot label lives up there) so it never overprints the
+      // below-plane cluster.
       const viRight = xBase < 110;
-      HLD.chipLabel(ctx, 'U_P = V_i+V_n+V_flap (×' + AMP + ')', xBase + (viRight ? 8 : -8), yTop - 10,
-        col.wind, '11px IBM Plex Sans, sans-serif', viRight ? 'left' : 'right');
+      if (netUpflow) {
+        HLD.chipLabel(ctx, 'U_P = V_i+V_n+V_flap (×' + AMP + ')', xBase - 10, oy - 30,
+          col.wind, '11px IBM Plex Sans, sans-serif', 'right', 'rgba(0,0,0,0.5)');
+      } else {
+        HLD.chipLabel(ctx, 'U_P = V_i+V_n+V_flap (×' + AMP + ')', xBase + (viRight ? 8 : -8), yTop - 10,
+          col.wind, '11px IBM Plex Sans, sans-serif', viRight ? 'left' : 'right');
+      }
 
       // ---- V_rel resultant: from the TOP of V_i (upper-left) DOWN to the airfoil
       // (tip, right). It lies just below V_rot, meeting it at the tip where α_i is.
