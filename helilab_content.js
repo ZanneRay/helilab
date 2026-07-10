@@ -372,6 +372,51 @@ const HL_LESSONS = [
   },
 
   {
+    id: 'bet-guided', stage: 'Forward Flight', title: 'Guided BET — How a Rotor Really Works',
+    subtitle: 'Build the velocity triangle layer by layer, watch flapping happen',
+    widget: 'wGuidedBET',
+    body: `
+      <p>Most students meet the BET velocity triangle as one frozen diagram with
+      five labels and memorise "advancing flaps up" as a fact. This page builds
+      it <b>one layer at a time</b>, so you see the cause-and-effect chain that
+      makes a rotor work — and that ends in retreating blade stall.</p>
+      <p>Work top to bottom through the five layers. Each layer switches on one
+      physics effect, and the disc + velocity triangle rebuild live:</p>
+      <ul>
+        <li><b>1 · Hover</b> — the symmetric baseline. U_T = r·Ω is the same
+            everywhere; no flapping is needed.</li>
+        <li><b>2 · Forward, rigid blade</b> — add speed but LOCK the blade. U_T
+            grows on the advancing side and shrinks on the retreating side, so
+            with fixed pitch the lift demand (≈ U_T²·α) explodes asymmetrically.
+            This is <i>the problem</i> flapping exists to solve.</li>
+        <li><b>3 · Flapping on</b> — free the blade (still no cyclic). It flaps up
+            on the advancing side → flapping rate raises U_P → φ grows →
+            <b>α shrinks</b> there. Retreating: α grows. Lift partly equalises
+            (flapping-to-equality) but the disc tilts back — blowback.</li>
+        <li><b>4 · Cyclic (trim)</b> — the pilot pre-distorts the pitch (θ₁c, θ₁s)
+            so flapping nearly vanishes and the disc stays level. Lift is
+            equalised <i>and</i> thrust stays forward. Peak α now sits on the
+            retreating side.</li>
+        <li><b>5 · High speed</b> — push toward V_NE. The retreating blade's U_T
+            is small, so it needs ever-higher α to carry its share — until it
+            exceeds the critical angle and stalls. That is retreating blade
+            stall.</li>
+      </ul>
+      <p><b>Play with it.</b> Hit <b>Play azimuth sweep</b> and watch the blade go
+      round; the pointer on the disc and the triangle below move in lockstep.
+      <b>Click any cell</b> on the disc to load that station and azimuth into the
+      triangle. Switch the disc between <b>U_T</b>, <b>α</b> and <b>Lift demand</b>
+      — seeing all three makes the lesson click: lift ∝ U_T²·α, so where U_T is
+      small the blade must fly at high α, and that is exactly where it stalls.</p>`,
+    takeaways: [
+      'Flapping is not decoration — it is the mechanism that restores lift symmetry.',
+      'Advancing flaps up → U_P grows → α shrinks; retreating drops → α grows.',
+      'Retreating blade stall happens where U_T is small, forcing high α.',
+      'Cyclic (trim) holds the disc level against blowback; speed sets the stall limit.',
+    ],
+  },
+
+  {
     id: 'bet-velocity', stage: 'Forward Flight', title: 'The BET Velocity Triangle',
     subtitle: 'Why the retreating blade runs slow — vector by vector',
     widget: 'wBetVelocity',

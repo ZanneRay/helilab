@@ -2843,10 +2843,420 @@ const HLW = (function () {
     figs.forEach(f => ro.observe(f.cv.parentElement));
   }
 
+  /* ===== GUIDED BET: 5-layer build-up =====
+     Each layer is a self-consistent physics PRESET so the student never sees a
+     mixed (trimmed-pitch + natural-flap) state.
+       hover    — V=0, symmetric baseline (trimmed, no cyclic needed)
+       rigid    — forward flight, blade CANNOT flap: v_flap=0, β=0, no cyclic
+                  → asymmetry of U_T explodes the lift demand (the PROBLEM)
+       freeflap — natural flapping response, still NO cyclic
+                  → flapping-to-equality + blowback (the MECHANISM)
+       trimmed  — trim cyclic applied, verified localAoA() path
+                  → disc level, thrust forward (the PILOT'S SOLUTION)
+       highsp   — same as trimmed, speed pushed → retreating α → stall (the LIMIT)
+  */
+  function wGuidedBET(host) {
+    const RIGID_COEFFS = { a0: 0, a1c: 0, a1s: 0 };   // β=0, β̇=0 → rigid blade
+
+    // state
+    let layer = 'rigid';          // hover | rigid | freeflap | trimmed | highsp
+    let Vkt = 60;                 // forward speed (kt); forced 0 in 'hover'
+    let psiDeg = 90;              // azimuth (0 TAIL, 90 ADV, 180 NOSE, 270 RET)
+    let rBar = 0.75;
+    let envMode = 'aoa';          // ut | aoa | lift
+    let showComp = { vi: false, vn: false, vflap: false };
+    let playing = false, sweepDir = 1, sweepTimer = null;
+
+    const LAYERS = [
+      { v: 'hover',   t: '1 · Hover',            sub: 'symmetric baseline' },
+      { v: 'rigid',   t: '2 · Forward, rigid',   sub: 'the problem' },
+      { v: 'freeflap',t: '3 · Flapping on',      sub: 'the mechanism' },
+      { v: 'trimmed', t: '4 · Cyclic (trim)',    sub: 'the pilot’s solution' },
+      { v: 'highsp',  t: '5 · High speed',       sub: 'the limit — stall' },
+    ];
+    const LAYER_NOTE = {
+      hover:   'V=0. No forward speed, so U_T = r·Ω is the same on every azimuth. Uniform inflow, uniform α. The disc is a flat, even ring — no flapping needed.',
+      rigid:   'Forward speed but the blade is RIGID (cannot flap, no cyclic). U_T = r·Ω + V·sinψ grows on the advancing side and shrinks on the retreating side. With fixed pitch, lift ∝ U_T²·α blows up advancing and collapses retreating — the rotor would roll over. This is the PROBLEM flapping exists to solve.',
+      freeflap: 'UNTRIMMED / natural blowback. The blade is now free to flap (still no cyclic). Advancing lifts up → flapping rate raises U_P → φ grows → α SHRINKS on the advancing side. Retreating drops → α GROWS. Lift partly equalises (flapping-to-equality), but the disc tilts back — blowback. Watch the advancing α go strongly negative: that is real, it is not steady trimmed flight.',
+      trimmed: 'Trim cyclic applied (θ₁c, θ₁s) so the flapping response is nearly zero (β̇≈0 → v_flap≈0). Pitch is pre-distorted to hold the disc level. Lift is equalised AND the thrust stays forward. This is the pilot’s solution to blowback. Peak α now sits on the RETREATING side — where RBS will eventually live.',
+      highsp:  'Same trimmed state, speed pushed toward V_NE. The retreating blade’s U_T is small, so to carry its share of lift it needs ever-higher α. Past the critical angle the section stalls — retreating blade stall. Watch the retreating sector go red and the lift-demand map collapse there.',
+    };
+
+    // ── consistent per-layer physics ─────────────────────────────────
+    // returns velocities in m/s, angles in rad.
+    function cellAt(mode, stIn, rb, psi) {
+      const Vms = mode === 'hover' ? 0 : stIn.V;
+      let st = { ...stIn, V: Vms };
+      let coeffs;
+      if (mode === 'hover')   { st = { ...st, theta1c: 0, theta1s: 0 }; coeffs = flappingCoeffs(st); }
+      else if (mode === 'rigid')    { st = { ...st, theta1c: 0, theta1s: 0 }; coeffs = RIGID_COEFFS; }
+      else if (mode === 'freeflap') { st = { ...st, theta1c: 0, theta1s: 0 }; coeffs = flappingCoeffs(st); }
+      else /* trimmed | highsp */    { st = trimmed(st); coeffs = flappingCoeffs(st); }
+      const Om = omega(st), OmR = tipSpeed(st);
+      const mu = advanceRatio(st);
+      const muTan = throughflowRatio(st);
+      const lam_i = inducedInflowRatio(st);
+      const lam_loc = muTan + localInflow(lam_i, rb, psi, mu);
+      const betaDot = flappingRate(coeffs, psi, Om);
+      const beta = flappingAngle(coeffs, psi);
+      const p_r = st.p * D2R, q_r = st.q * D2R;
+      const UT = rb + mu * Math.sin(psi);                 // normalised by OmR
+      const vflap_n = (betaDot / Om) * rb;               // normalised by OmR
+      const UP = lam_loc + vflap_n
+        - (q_r * Math.cos(psi) + p_r * Math.sin(psi)) * rb / OmR
+        + mu * Math.cos(psi) * beta;
+      const theta = bladePitch(st, rb, psi);
+      const phi = UT < 0 ? 0 : Math.atan2(UP, UT);
+      const aoa = theta - phi;
+      const reverseFlow = UT < 0;
+      return {
+        UT: UT * OmR, UP: UP * OmR,                 // m/s (for the triangle + readout)
+        UTn: UT, UPn: UP,                            // dimensionless (for airload/stall)
+        vi: lam_i * OmR, vn: muTan * OmR, vflap: vflap_n * OmR,
+        theta, phi, aoa, reverseFlow, mu, OmR, Om, coeffs, st,
+      };
+    }
+    // Mach-adjusted critical α (deg), shared rule with the rest of the app
+    const stallEffAt = (st, UT) => {
+      const Mloc = HL.omR(st) * Math.max(0, UT) / sosAtAltFt(st.alt);
+      return Math.max(5, st.stallAoA - 18 * Math.max(0, Mloc - 0.30));
+    };
+
+    const ui = scaffold(host, {
+      topStage: 'hl-w-stage hl-w-stage-map',
+      mainStage: 'hl-w-stage hl-w-stage-vec',
+    });
+    const { canvas, topCanvas, controls, readout } = ui;
+
+    // ── controls ─────────────────────────────────────────────────────
+    segmented(controls, {
+      label: 'Lesson layer', val: layer,
+      options: LAYERS.map(l => ({ v: l.v, t: l.t })),
+      on: v => { layer = v; if (layer === 'hover') { Vkt = 0; spd.set(0); } else if (Vkt === 0) { Vkt = 60; spd.set(60); } draw(); },
+    });
+    const spd = slider(controls, { label: 'Forward speed', min: 0, max: 150, step: 1, val: Vkt, unit: ' kt',
+      on: v => { Vkt = v; if (v === 0 && layer !== 'hover') { layer = 'hover'; } else if (v > 0 && layer === 'hover') { layer = 'rigid'; } draw(); } });
+    const az = slider(controls, { label: 'Azimuth ψ', min: 0, max: 355, step: 5, val: psiDeg, unit: '°',
+      on: v => { psiDeg = v; if (playing) togglePlay(); draw(); } });
+    // play/pause sweep
+    const playRow = el('div', 'hl-ctl');
+    const playBtn = el('button', 'hl-seg-btn' + (playing ? ' on' : ''), playing ? '❚❚ Pause sweep' : '▶ Play azimuth sweep');
+    playBtn.setAttribute('aria-label', 'Play or pause azimuth sweep');
+    playBtn.onclick = () => togglePlay();
+    playRow.appendChild(playBtn); controls.appendChild(playRow);
+    function togglePlay() {
+      playing = !playing;
+      playBtn.textContent = playing ? '❚❚ Pause sweep' : '▶ Play azimuth sweep';
+      playBtn.classList.toggle('on', playing);
+      if (playing) { sweepTimer = setInterval(() => {
+        psiDeg = (psiDeg + 5 * sweepDir + 360) % 360; az.set(psiDeg); draw();
+      }, 220); }
+      else clearInterval(sweepTimer);
+    }
+    slider(controls, { label: 'Blade station r/R', min: 0.20, max: 0.97, step: 0.01, val: rBar, fmt: v => v.toFixed(2),
+      on: v => { rBar = v; draw(); } });
+    segmented(controls, {
+      label: 'Disc shows', val: envMode,
+      options: [{ v: 'ut', t: 'U_T speed' }, { v: 'aoa', t: 'Angle of attack α' }, { v: 'lift', t: 'Lift demand' }],
+      on: v => { envMode = v; draw(); },
+    });
+    toggle(controls, { label: 'Show U_P breakdown (V_i · V_n · v_flap)', val: showComp.vi,
+      on: v => { showComp.vi = v; showComp.vn = v; showComp.vflap = v; draw(); } });
+
+    // ── click the disc to pick (r, ψ) ──────────────────────────────────
+    topCanvas.style.cursor = 'crosshair';
+    function pickFromEvent(e) {
+      const r = topCanvas.getBoundingClientRect();
+      const x = e.clientX - r.left, y = e.clientY - r.top;
+      const d = discGeom(r.width, r.height);
+      const dx = x - d.cx, dy = y - d.cy;
+      const rad = Math.hypot(dx, dy);
+      if (rad > d.R * 1.02) return;
+      const rb = Math.max(0.20, Math.min(0.97, rad / d.R));
+      const canAng = Math.atan2(dy, dx);                 // canvas angle
+      const psi = (Math.PI / 2 - canAng + 2 * Math.PI) % (2 * Math.PI);
+      rBar = rb; psiDeg = Math.round(psi * R2D / 5) * 5 % 360;
+      if (playing) togglePlay();
+      az.set(psiDeg); rbarCtrl && rbarCtrl.set(rBar); draw();
+    }
+    topCanvas.addEventListener('click', pickFromEvent);
+    let rbarCtrl = null;  // (filled after rBar slider creation below if needed)
+
+    function discGeom(W, H) {
+      const GUT = 58;
+      const cx = W * 0.5, cy = H * 0.50;
+      // cap R so cardinal labels (R + 16 offset, ~6px glyph half-height) stay
+      // inside the stage on short/wide mobile discs (4:3) without clipping.
+      const R = Math.max(36, Math.min(cx - GUT, W - cx - GUT, H * 0.36));
+      return { cx, cy, R };
+    }
+
+    // ── DRAW: disc ────────────────────────────────────────────────────
+    function drawDisc(ctx, W, H, col) {
+      HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
+      const st = HL.defaultState(); st.V = (layer === 'hover' ? 0 : Vkt) * 0.5144;
+      const mu = advanceRatio({ ...st, V: st.V });
+      const { cx, cy, R } = discGeom(W, H);
+      const nr = 12, np = 60;
+      // scale for colour ramps
+      let maxUT = 1e-6, maxLift = 1e-6;
+      for (let ir = 0; ir < nr; ir++) {
+        const rm = 0.2 + 0.8 * (ir + 0.5) / nr;
+        for (let ip = 0; ip < np; ip++) {
+          const pm = ((ip + 0.5) / np) * 2 * Math.PI;
+          const d = cellAt(layer, st, rm, pm);
+          maxUT = Math.max(maxUT, Math.max(0, d.UT));
+          const se = stallEffAt(st, d.UTn);
+          const Cl = Math.abs(d.aoa) < se * D2R ? st.clAlpha * d.aoa : 0;
+          maxLift = Math.max(maxLift, Math.max(0, d.UT) * Math.max(0, d.UT) * Cl);
+        }
+      }
+      const QFLOOR = 0.25;
+      for (let ir = 0; ir < nr; ir++) {
+        const r0 = 0.2 + 0.8 * ir / nr, r1 = 0.2 + 0.8 * (ir + 1) / nr;
+        for (let ip = 0; ip < np; ip++) {
+          const p0 = (ip / np) * 2 * Math.PI, p1 = ((ip + 1) / np) * 2 * Math.PI;
+          const pm = (p0 + p1) / 2, rm = (r0 + r1) / 2;
+          const d = cellAt(layer, st, rm, pm);
+          const aoaDeg = d.aoa * R2D;
+          const stallEff = stallEffAt(st, d.UTn);
+          const AL = airloadConf(d.UTn, mu);
+          const trulyStalled = !d.reverseFlow && aoaDeg >= stallEff && AL.qShare >= QFLOOR;
+          if (d.reverseFlow) { ctx.fillStyle = 'rgba(180,60,200,0.5)'; }
+          else if (envMode === 'ut') {
+            ctx.fillStyle = ramp(Math.max(0, d.UT) / maxUT);
+          } else if (envMode === 'aoa') {
+            const fade = Math.pow(AL.qShare, 0.7);
+            ctx.globalAlpha = 0.30 + 0.70 * Math.sqrt(AL.qShare);
+            ctx.fillStyle = fadeToNeutral(aoaColor(aoaDeg, stallEff), fade);
+          } else { // lift demand
+            const se = stallEffAt(st, d.UTn);
+            const Cl = Math.abs(d.aoa) < se * D2R ? st.clAlpha * d.aoa : 0;
+            const dL = Math.max(0, d.UT) * Math.max(0, d.UT) * Cl;
+            ctx.fillStyle = trulyStalled ? 'rgb(150,40,110)' : ramp(Math.max(0, dL) / maxLift);
+          }
+          ctx.beginPath();
+          ctx.arc(cx, cy, R * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
+          ctx.arc(cx, cy, R * r0, HLD.polarToCanvas(p1), HLD.polarToCanvas(p0), false);
+          ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+          if (trulyStalled || d.reverseFlow) {
+            const ang = HLD.polarToCanvas(pm);
+            const ux = cx + R * rm * Math.cos(ang), uy = cy + R * rm * Math.sin(ang);
+            const len = R * (r1 - r0) * 0.9;
+            HLD.tick(ctx, ux, uy, len, trulyStalled ? Math.PI / 4 : -Math.PI / 4,
+              trulyStalled ? 'rgba(255,63,160,0.95)' : 'rgba(150,60,220,0.9)', 1.6);
+          }
+        }
+      }
+      // disc outline + hub
+      ctx.strokeStyle = col.dim; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
+      HLD.dot(ctx, cx, cy, 3, col.dim);
+      // cardinal labels (ψ=0 TAIL/bottom, 90 ADV/right, 180 NOSE/top, 270 RET/left)
+      const lblFont = (W < 480 ? 'bold 11px ' : 'bold 12px ') + 'ui-sans-serif';
+      const lbl = (txt, ang) => {
+        let lx = cx + (R + 16) * Math.cos(ang), ly = cy + (R + 16) * Math.sin(ang);
+        // clamp inside the stage so labels never clip on short mobile discs
+        lx = Math.max(28, Math.min(W - 28, lx));
+        ly = Math.max(14, Math.min(H - 14, ly));
+        HLD.text(ctx, txt, lx, ly, col.ink, lblFont, 'center', 'middle');
+      };
+      lbl('TAIL 0°',  HLD.polarToCanvas(0));
+      lbl('ADV 90°',  HLD.polarToCanvas(Math.PI / 2));
+      lbl('NOSE 180°',HLD.polarToCanvas(Math.PI));
+      lbl('RET 270°', HLD.polarToCanvas(3 * Math.PI / 2));
+      // azimuth pointer + selected station dot
+      const psi = psiDeg * D2R;
+      const ang = HLD.polarToCanvas(psi);
+      const px = cx + R * rBar * Math.cos(ang), py = cy + R * rBar * Math.sin(ang);
+      ctx.strokeStyle = col.ink; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + R * 1.02 * Math.cos(ang), cy + R * 1.02 * Math.sin(ang)); ctx.stroke();
+      HLD.dot(ctx, px, py, 5, col.accent);
+      ctx.strokeStyle = col.accent; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(px, py, 7, 0, 2 * Math.PI); ctx.stroke();
+      // title strip
+      HLD.text(ctx, LAYERS.find(l => l.v === layer).t + ' · ' +
+        ({ ut: 'U_T (in-plane speed)', aoa: 'angle of attack α', lift: 'lift demand ∝ U_T²·α' }[envMode]),
+        12, 16, col.dim, '12px ui-sans-serif', 'left', 'top');
+    }
+
+    // ── DRAW: velocity triangle ───────────────────────────────────────
+    function drawTriangle(ctx, W, H, col) {
+      HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
+      const st = HL.defaultState(); st.V = (layer === 'hover' ? 0 : Vkt) * 0.5144;
+      const psi = psiDeg * D2R;
+      const d = cellAt(layer, st, rBar, psi);
+      const OmR = d.OmR;
+      const vrot = rBar * OmR;                         // Ω·r (m/s)
+      const vT = d.mu * Math.sin(psi) * OmR;           // μ·sinψ·ΩR (m/s)
+      const UT = d.UT;                                 // net in-plane (m/s)
+      const UP = d.UP;                                 // perpendicular (m/s)
+
+      const compact = W < 560;
+      const mL = Math.min(W * 0.46, H * 0.42, 170);     // pixels per 100 m/s
+      const sc = mL / 100;
+      // chord line origin (left-centre); airfoil drawn along +x
+      const ox = Math.max(70, W * 0.16), oy = H * 0.54;
+      const foilLen = Math.min(W * 0.30, 150);
+
+      // airfoil (NACA 0012) along the chord, pointing +x
+      const prof = HLD.nacaProfile(0.12, 48);
+      ctx.save();
+      ctx.translate(ox, oy);
+      ctx.beginPath();
+      prof.forEach((p, i) => i ? ctx.lineTo(p[0] * foilLen, -p[1] * foilLen) : ctx.moveTo(p[0] * foilLen, -p[1] * foilLen));
+      ctx.closePath(); ctx.fillStyle = col.bg; ctx.fill();
+      ctx.strokeStyle = col.dim; ctx.lineWidth = 1.4; ctx.stroke();
+      ctx.restore();
+      // chord reference line (long dashed, extends for arcs)
+      const chordX1 = ox - 18, chordX2 = ox + foilLen + Math.max(60, 0.5 * vrot * sc + 40);
+      HLD.dline(ctx, chordX1, oy, chordX2, oy, col.dim, 1, [2, 4]);
+
+      // V_rot = Ω·r along chord (forward, +x)
+      const vrotTipX = ox + vrot * sc;
+      HLD.arrow(ctx, ox, oy, vrotTipX, oy, col.ink, 2.2, 9);
+      HLD.chipLabel(ctx, compact ? 'V_rot' : 'V_rot=Ωr', vrotTipX - 4, oy - 12, col.ink, '11px ui-sans-serif', 'right');
+      // V_T = μ·sinψ·ΩR head-to-tail on V_rot tip
+      const vTipX = vrotTipX + vT * sc;
+      if (Math.abs(vT) > 1) {
+        HLD.arrow(ctx, vrotTipX, oy, vTipX, oy, col.wind, 2.0, 8);
+        HLD.chipLabel(ctx, compact ? 'V_T' : 'V_T=μsinψ·ΩR', (vrotTipX + vTipX) / 2, oy + 16, col.wind, '11px ui-sans-serif', 'center');
+      }
+      // U_T net (from origin to combined tip)
+      HLD.arrow(ctx, ox, oy, vTipX, oy, col.chord, 2.6, 10);
+      HLD.chipLabel(ctx, 'U_T', Math.min(vTipX, ox + 4), oy - 26, col.chord, '12px ui-sans-serif', 'left');
+
+      // U_P vertical at U_T tip (screen up = +UP, i.e. flow into the blade from above)
+      const upY = oy - UP * sc;            // negative UP (net upflow) draws DOWNWARD here
+      const upBaseX = Math.min(vTipX, ox + 2);  // keep bracket left of vectors
+      const upLeftX = Math.min(upBaseX, vrotTipX, ox) - 12;
+      if (Math.abs(UP) > 1) {
+        HLD.arrow(ctx, upBaseX, oy, upBaseX, upY, col.lift, 2.2, 9);
+        // U_P breakdown as ONE stacked bar just left of the arrow: V_i (bottom)
+        // + V_n + v_flap stack to the same total as U_P. Negative v_flap (advancing)
+        // draws its segment downward, showing how flap trims U_P down.
+        if (showComp.vi) {
+          const bx = upLeftX, bw = 7;
+          const seg = (y0, dy, color, lab) => {
+            if (Math.abs(dy) < 1.2) return;
+            ctx.fillStyle = color;
+            ctx.fillRect(bx - bw / 2, Math.min(y0, y0 + dy), bw, Math.abs(dy));
+            HLD.text(ctx, lab, bx - bw / 2 - 5, y0 + dy * 0.5, color, '10px ui-sans-serif', 'right', 'middle');
+          };
+          seg(oy, -d.vi * sc, col.dim, 'V_i');
+          seg(oy - d.vi * sc, -d.vn * sc, col.warn, 'V_n');
+          if (layer !== 'rigid' && layer !== 'hover')
+            seg(oy - (d.vi + d.vn) * sc, -d.vflap * sc, col.accent, 'v_flap');
+        }
+        // U_P label sits at the arrow tip, to the right, clear of the left-side bar
+        HLD.chipLabel(ctx, 'U_P', upBaseX + 10, upY, col.lift, '11px ui-sans-serif', 'left');
+      }
+
+      // V_rel closes the triangle: origin → (upBaseX, upY)
+      HLD.arrow(ctx, ox, oy, upBaseX, upY, col.accent, 2.4, 9);
+      HLD.chipLabel(ctx, 'V_rel', (ox + upBaseX) / 2, upY - 12, col.accent, '12px ui-sans-serif', 'center');
+
+      // blade reference line at pitch θ (rotate chord by +θ about LE)
+      const theta = d.theta;
+      const refLen = Math.max(foilLen, Math.abs(upBaseX - ox) + 60);
+      const refX = ox + refLen * Math.cos(theta), refY = oy - refLen * Math.sin(theta);
+      HLD.dline(ctx, ox - 18, oy - 18 * Math.sin(theta) / Math.cos(theta), refX, refY, col.chord, 1.6, [6, 3]);
+
+      // arcs (left side): θ (chord→ref), φ (V_rel→chord), α (V_rel→ref) — only for positive AoA
+      function arc(r, fromAng, toAng, color, lab) {
+        ctx.strokeStyle = color; ctx.lineWidth = 1.8;
+        ctx.beginPath();
+        ctx.arc(ox, oy, r, fromAng, toAng, toAng < fromAng); ctx.stroke();
+        const mid = (fromAng + toAng) / 2;
+        HLD.text(ctx, lab, ox + (r + 13) * Math.cos(mid), oy + (r + 13) * Math.sin(mid), color, 'bold 12px ui-sans-serif', 'center', 'middle');
+      }
+      // chord direction = +x (angle 0). V_rel direction = atan2(upY-oy, upBaseX-ox)
+      const vrAng = Math.atan2(upY - oy, upBaseX - ox);   // screen angle of V_rel
+      const refAng = -theta;                                // screen angle of ref line
+      const Rarc = 30;
+      const thDegAbs = Math.abs(theta * R2D), phDegAbs = Math.abs(vrAng * R2D);
+      const aoaDeg = d.aoa * R2D;
+      // stagger radii so θ / φ / α labels never sit on top of each other
+      if (thDegAbs > 2) arc(Rarc, 0, refAng, col.chord, 'θ');
+      if (phDegAbs > 2 && UT > 0) arc(Rarc + 24, vrAng, 0, col.dim, 'φ');
+      if (aoaDeg > 1) arc(Rarc + 48, vrAng, refAng, col.bad, 'α');
+
+      // title
+      const cardinal = psiDeg < 45 || psiDeg > 315 ? 'TAIL' : psiDeg < 135 ? 'ADVANCING' : psiDeg < 225 ? 'NOSE' : 'RETREATING';
+      HLD.text(ctx, `${cardinal} ψ=${psiDeg}° · r/R=${rBar.toFixed(2)} · ${layer === 'hover' ? 'HOVER' : Vkt + ' kt'}`,
+        12, 16, col.dim, '12px ui-sans-serif', 'left', 'top');
+      // verdict chip (top-right) so the OK/STALL/REVERSE call is always on-canvas
+      const d2 = cellAt(layer, st, rBar, psiDeg * D2R);
+      const se2 = stallEffAt(d2.st, d2.UTn), AL2 = airloadConf(d2.UTn, d2.mu);
+      const stalled2 = !d2.reverseFlow && d2.aoa * R2D >= se2 && AL2.qShare >= 0.25;
+      const vTxt = d2.reverseFlow ? 'REVERSE FLOW' : stalled2 ? 'STALLED' : (d2.aoa * R2D >= se2 - 3 ? 'NEAR STALL' : 'OK');
+      const vCol2 = d2.reverseFlow ? '#b24' : stalled2 ? col.bad : (d2.aoa * R2D >= se2 - 3 ? col.warn : col.good);
+      const cw = compact ? 104 : 132, ch = compact ? 20 : 24;
+      ctx.fillStyle = col.bg;
+      ctx.fillRect(W - cw - 6, 6, cw + 6, ch + 4);
+      ctx.globalAlpha = 0.85; ctx.fillStyle = vCol2;
+      ctx.fillRect(W - cw - 6, 6, cw + 6, ch + 4); ctx.globalAlpha = 1;
+      ctx.strokeStyle = vCol2; ctx.lineWidth = 1.4;
+      ctx.strokeRect(W - cw - 6, 6, cw + 6, ch + 4);
+      HLD.text(ctx, vTxt, W - 6 - (cw + 6) / 2, 6 + (ch + 4) / 2, '#fff', (compact ? 'bold 11px ' : 'bold 12px ') + 'ui-sans-serif', 'center', 'middle');
+      if (compact) HLD.text(ctx, 'tap disc to pick a station', 12, H - 8, col.dim, '10px ui-sans-serif', 'left', 'bottom');
+    }
+
+    // ── readout ──────────────────────────────────────────────────────
+    function drawReadout() {
+      const st = HL.defaultState(); st.V = (layer === 'hover' ? 0 : Vkt) * 0.5144;
+      const psi = psiDeg * D2R;
+      const d = cellAt(layer, st, rBar, psi);
+      const aoaDeg = d.aoa * R2D, thDeg = d.theta * R2D, phDeg = d.phi * R2D;
+      const stallEff = stallEffAt(st, d.UTn);
+      const AL = airloadConf(d.UTn, d.mu);
+      const trulyStalled = !d.reverseFlow && aoaDeg >= stallEff && AL.qShare >= 0.25;
+      const L = LAYERS.find(l => l.v === layer);
+      let verdict = 'OK'; let vcol = col_good;
+      if (d.reverseFlow) { verdict = 'REVERSE FLOW (U_T<0)'; vcol = '#b24'; }
+      else if (trulyStalled) { verdict = 'STALLED — retreating blade stall'; vcol = col_bad; }
+      else if (aoaDeg >= stallEff - 3) { verdict = 'near stall'; vcol = col_warn; }
+      readout.innerHTML =
+        `<div class="hl-kv-banner" style="border-color:${vcol};color:${vcol}">${verdict}</div>` +
+        `<div class="hl-lesson-stage">${L.t} — ${L.sub}</div>` +
+        `<p class="hl-lesson-note">${LAYER_NOTE[layer]}</p>` +
+        kv([
+          ['U_T', d.UT.toFixed(1) + ' m/s', col.chord],
+          ['U_P', d.UP.toFixed(1) + ' m/s', col.lift],
+          ['v_flap', d.vflap.toFixed(1) + ' m/s', col.accent],
+          ['pitch θ', thDeg.toFixed(1) + '°', col.chord],
+          ['inflow φ', phDeg.toFixed(1) + '°', col.dim],
+          ['AoA α', aoaDeg.toFixed(1) + '°', trulyStalled ? col_bad : col.ink],
+        ]) +
+        `<div class="hl-kv"><span>critical α</span><b>${stallEff.toFixed(1)}°</b></div>`;
+    }
+    // colour handles (theme-safe)
+    let col = HLD.COL(); const col_good = col.good, col_bad = col.bad, col_warn = col.warn;
+
+    const draw = () => {
+      col = HLD.COL();
+      const a = HLD.setup(topCanvas); drawDisc(a.ctx, a.W, a.H, col);
+      const b = HLD.setup(canvas);   drawTriangle(b.ctx, b.W, b.H, col);
+      drawReadout();
+    };
+    ui.onDraw(draw);
+    return { draw };
+  }
+
   return {
     wBigPicture, wBladeElement, wSpanwise, wHover, wVertical, wGroundEffect,
     wDissymmetry, wFlapping, wEnvelope, wCoriolis, wDynamicRollover, wLTE,
     wAutorotation, wPerformance, wBetDiagram, wBetVelocity, wBetModel,
     wSandbox,
+
+    /* ───────────────────────────────────────────────────────────────
+       GUIDED BET — a 5-layer build-up that teaches flapping & retreating
+       blade stall by layering complexity. Each layer is a PHYSICS PRESET
+       (never free-combined — that is exactly the trimmed-θ + natural-flap
+       bug the rest of the app once had). The disc colours by one of
+       U_T / α / Lift-demand; the velocity triangle morphs live as the
+       azimuth sweeps. See guidedBETCell() for the per-layer consistency.
+       ─────────────────────────────────────────────────────────────── */
+    wGuidedBET,
   };
 })();
