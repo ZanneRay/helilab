@@ -22,11 +22,28 @@ const HLW = (function () {
   }
 
   /* standard widget scaffold: stage canvas + side controls/readout.
-     returns { canvas, controls, readout, onDraw(fn) } and wires a ResizeObserver. */
-  function scaffold(host) {
+     returns { canvas, controls, readout, onDraw(fn) } and wires a ResizeObserver.
+     opts.topStage: if set, inserts a SECOND full-width canvas ABOVE the main one
+     (its CSS class = opts.topStage, e.g. 'hl-w-stage hl-w-stage-map'); returned as
+     `topCanvas`. Used by the BET widget to give the rotor-map its own wide strip
+     stacked over the vector triangle instead of cramming it into one canvas. */
+  function scaffold(host, opts) {
+    opts = opts || {};
     host.innerHTML = '';
     const wrap = el('div', 'hl-w');
-    const stage = el('div', 'hl-w-stage');
+
+    // optional TOP stage (own canvas), full width, stacked above the main stage
+    let topCanvas = null, topStage = null;
+    if (opts.topStage) {
+      topStage = el('div', opts.topStage);
+      topCanvas = el('canvas');
+      topCanvas.setAttribute('role', 'img');
+      topCanvas.setAttribute('aria-label', 'Rotor map — click a cell to pick azimuth and blade station');
+      topStage.appendChild(topCanvas);
+      wrap.appendChild(topStage);
+    }
+
+    const stage = el('div', opts.mainStage || 'hl-w-stage');
     const canvas = el('canvas');
     // a11y: the canvas is a decorative diagram; the live text readout beside it
     // carries the actual values, so mark the canvas as an image and point
@@ -47,8 +64,9 @@ const HLW = (function () {
     let drawFn = null;
     const ro = new ResizeObserver(() => { if (drawFn) drawFn(); });
     ro.observe(stage);
+    if (topStage) ro.observe(topStage);
     return {
-      canvas, controls, readout,
+      canvas, topCanvas, controls, readout,
       onDraw(fn) { drawFn = fn; requestAnimationFrame(fn); },
     };
   }
@@ -1303,7 +1321,13 @@ const HLW = (function () {
      All numbers come straight from localVelocities()/bladePitch() — nothing is
      faked; this is the same physics as the disc map, just drawn as one triangle. */
   function wBetVelocity(host) {
-    const ui = scaffold(host);
+    // Two stacked canvases: a wide ROTOR-MAP strip on top (own canvas) + the
+    // full-width VECTOR triangle below. Splitting them lets the triangle use the
+    // whole panel width and keeps both readable on mobile.
+    const ui = scaffold(host, {
+      topStage: 'hl-w-stage hl-w-stage-map',
+      mainStage: 'hl-w-stage hl-w-stage-vec',
+    });
     let Vkt = 120, psiDeg = 270, rBar = 0.75, twistOn = true, discModel = 'exam';
     // Mach-adjusted critical α (NACA-0012 trend) — identical rule to wEnvelope so
     // the BET stall verdict matches the disc map cell-for-cell.
@@ -1437,20 +1461,55 @@ const HLW = (function () {
       // on BOTH sides — the base can stretch left AND the airfoil/wedge (which
       // fan out to the RIGHT of the tip, ~150px) stay on-canvas. On the retreating
       // side U_T is short, so at 0.86 everything used to bunch against the right edge.
-      const tipX = W * 0.60, oy = H * 0.66;    // airfoil/tip; common head of the triangle
+      // Tip a touch left of centre (airfoil fan extends ~90px RIGHT of it) and the
+      // rotor-plane baseline raised toward the vertical middle: with the θ/φ/α legend
+      // and disclaimer now moved OFF-canvas, the triangle can use the whole panel
+      // instead of hugging the lower-right. The U_P stack grows UPWARD from oy (short
+      // at AMP=2, ~40px) so it clears the top chip (y=20) and the envelope disc.
+      // ── SCALE THE TRIANGLE TO FILL THE STAGE ─────────────────────────────────
+      // Old bug: sx used a fixed px-per-unit with a 300 cap, tuned for the tiny old
+      // canvas. On the new full-width stage that left the triangle as a small clump
+      // in the middle. Now we size the IN-PLANE base to a target fraction of the
+      // canvas width and ALSO clamp by height so the airfoil fan + U_P stack stay
+      // on-canvas. maxIn is the longest in-plane extent (base V_rot±V_T or |U_T|).
       const maxIn = Math.max(Math.abs(Vrot) + Math.abs(Vt), Math.abs(UT), 1.0);
-      const sx = Math.min((W * 0.50) / maxIn, 300);   // px per unit (in-plane)
+      const AMP = 2;                           // gently exaggerate the small U_P (see below)
+      // Budget: base should span ~62% of width; keep ~120px right of the tip for the
+      // airfoil fan + α label, and a left margin. Height budget: the U_P stack rises
+      // ~AMP·U_P·sy above the plane and the airfoil dips ~80px below — fit both.
+      const rightPad = Math.max(96, W * 0.14);   // room for airfoil fan right of tip
+      const leftPad  = Math.max(60, W * 0.06);
+      const sxW = (W - rightPad - leftPad) / maxIn;                 // width-limited
+      const upMax = Math.max(Math.abs(v_i) + Math.abs(v_n) + Math.abs(v_flap), 0.05);
+      const sxH = (H * 0.34) / (AMP * upMax + 0.001);              // height-limited (U_P leg)
+      const sx = Math.max(60, Math.min(sxW, sxH, 900));            // px per unit (in-plane)
       // U_P is small next to the in-plane base, so we still exaggerate its vertical
-      // leg for visibility — but only ×2 (was ×6). At ×6 the drawn V_rel slope was
-      // far steeper than the TRUE inflow angle φ (drawn ≈ atan(6·U_P/U_T) vs real
-      // atan(U_P/U_T)), so the triangle over-stated φ/α. ×2 keeps U_P readable while
-      // the drawn triangle stays much closer to the real φ — the α reads honestly.
-      const AMP = 2;                           // gently exaggerate the small U_P
+      // leg for visibility — but only ×2. At ×6 the drawn V_rel slope was far steeper
+      // than the TRUE inflow angle φ, over-stating φ/α. ×2 keeps U_P readable while
+      // the drawn triangle stays close to the real φ — the α reads honestly.
       const sy = sx;
+      // Tip placed so the base (length maxIn·sx, growing LEFT) starts after leftPad
+      // and the airfoil fan clears the right edge. Vertically centred, biased down a
+      // little to leave room for the U_P stack + labels above the plane.
+      const tipX = leftPad + maxIn * sx;
+      const oy   = H * 0.56;                   // rotor-plane baseline (triangle head height)
+
+      // ── RESPONSIVE LABEL SIZING ──────────────────────────────────────────────
+      // Every label is a bitmap drawn at an absolute px position, so on a narrow
+      // (mobile) canvas fixed-size text overlaps. We scale the label font with the
+      // canvas width and expose short font strings that all labels reuse. Labels
+      // themselves are now PURE VECTOR NAMES (V_T, V_rot, …) — the formulae and the
+      // θ/φ/α values live in the text readout beside the canvas, not on the plot.
+      const fs   = Math.max(9, Math.min(12, W / 95));          // base label px
+      const FV   = fs.toFixed(1) + 'px IBM Plex Sans, sans-serif';        // vector names
+      const FSM  = Math.max(8, fs - 1).toFixed(1) + 'px IBM Plex Sans, sans-serif'; // small
+      const FVrel = Math.max(10, fs + 1).toFixed(1) + 'px IBM Plex Sans, sans-serif'; // V_rel
 
       // rotor-plane baseline (in-plane reference for the triangle)
       HLD.dline(ctx, 20, oy, W - 10, oy, col.grid, 1, [5, 4]);
-      HLD.text(ctx, 'rotor plane', W - 12, oy - 6, col.dim, '11px IBM Plex Sans, sans-serif', 'right');
+      // 'rotor plane' label anchored to the LEFT of the plane (free margin) so it
+      // can never be clipped by / collide with the envelope disc on the right.
+      HLD.text(ctx, 'rotor plane', 24, oy - 6, col.dim, FSM, 'left');
 
       // ---- IN-PLANE construction (heads point RIGHT toward the airfoil) -------
       // V_rot: tail at xRotTail, head at the tip (right).
@@ -1480,13 +1539,13 @@ const HLW = (function () {
           // the plane. The tiny V_i / V_n mini-labels near xBase are suppressed when
           // the AMP=2 stack is too short to label cleanly (see below), so this label
           // has the upper-left band to itself.
-          HLD.chipLabel(ctx, 'V_rot = Ω·r', xRotTail + 6, oy - 14,
-            col.lift, '11px IBM Plex Sans, sans-serif', 'left');
+          HLD.chipLabel(ctx, 'V_rot', xRotTail + 6, oy - 14,
+            col.lift, FV, 'left');
         } else {
           // advancing: centre over V_rot's own span but keep it off the tip so it
           // never runs into the α_i arc / V_rel label bunched at the tip.
-          HLD.chipLabel(ctx, 'V_rot = Ω·r', xRotTail + (tipX - xRotTail) * 0.44, oy - 14,
-            col.lift, '11px IBM Plex Sans, sans-serif', 'center');
+          HLD.chipLabel(ctx, 'V_rot', xRotTail + (tipX - xRotTail) * 0.44, oy - 14,
+            col.lift, FV, 'center');
         }
       }
 
@@ -1507,8 +1566,7 @@ const HLW = (function () {
         // the plane (the space is free) — clear of the V_i arrow/label above-left.
         // Retreating: V_T sits below the plane, so the label goes further below it.
         const vtLy = collinear ? oy + 13 : yVt + 13;
-        HLD.chipLabel(ctx, (Vt < 0 ? 'V_T = μ·sinψ  (subtracts)' : 'V_T = μ·sinψ  (adds)'),
-          (xRotTail + xBase) / 2, vtLy, vtCol, '11px IBM Plex Sans, sans-serif', 'center');
+        HLD.chipLabel(ctx, 'V_T', (xRotTail + xBase) / 2, vtLy, vtCol, FV, 'center');
       }
 
       // net U_T bracket BELOW the plane. Drop it clear of the offset V_T + its
@@ -1518,8 +1576,8 @@ const HLW = (function () {
       HLD.dline(ctx, xBase, yBr, tipX, yBr, col.ink, 1.5, [2, 3]);
       HLD.tick(ctx, xBase, yBr, 8, Math.PI / 2, col.ink, 1.5);
       HLD.tick(ctx, tipX, yBr, 8, Math.PI / 2, col.ink, 1.5);
-      HLD.chipLabel(ctx, 'U_T (net) = ' + UTMS.toFixed(0) + ' m/s', (xBase + tipX) / 2, yBr + 12,
-        col.ink, '11px IBM Plex Sans, sans-serif', 'center');
+      HLD.chipLabel(ctx, 'U_T', (xBase + tipX) / 2, yBr + 12,
+        col.ink, FV, 'center');
 
       // ---- U_P = V_i + V_n + V_flap : the perpendicular through-disc flow, drawn
       // as THREE stacked segments at the base tail (above the plane). From the
@@ -1550,15 +1608,13 @@ const HLW = (function () {
       // V_i segment (bottom): from yVi down to the plane
       HLD.arrow(ctx, xBase, yVi, xBase, oy, col.wind, 2.5, 8);
       if ((oy - yVi) >= LBL_MIN) {
-        HLD.chipLabel(ctx, 'V_i', viLx, (yVi + oy) / 2, col.wind,
-          '10px IBM Plex Sans, sans-serif', viAlign);
+        HLD.chipLabel(ctx, 'V_i', viLx, (yVi + oy) / 2, col.wind, FSM, viAlign);
       }
       // V_n segment (middle): from yVn up to yVi
       if (v_n > 1e-4) {
         HLD.arrow(ctx, xBase, yVn, xBase, yVi, col.accent, 2.5, 7);
         if ((yVi - yVn) >= LBL_MIN) {
-          HLD.chipLabel(ctx, 'V_n', viLx, (yVn + yVi) / 2, col.accent,
-            '10px IBM Plex Sans, sans-serif', viAlign);
+          HLD.chipLabel(ctx, 'V_n', viLx, (yVn + yVi) / 2, col.accent, FSM, viAlign);
         }
       }
       // V_flap segment: the flapping-velocity term. Its ARROW shows the PHYSICAL
@@ -1590,13 +1646,13 @@ const HLW = (function () {
           // of the lower V_i/V_n mini-labels). Otherwise (advancing, tight left) place
           // it just ABOVE the stack top by the U_P label, left-aligned, where V_rel
           // has not yet diverged from xBase.
-          const flTxt = 'V_flap ↓ adds (α↓)';
+          const flTxt = 'V_flap';
           if (xBase > 150) {
             HLD.chipLabel(ctx, flTxt, xBase - 8, (yVn + yTop) / 2, flCol,
-              '10px IBM Plex Sans, sans-serif', 'right', 'rgba(0,0,0,0.5)');
+              FSM, 'right', 'rgba(0,0,0,0.5)');
           } else {
             HLD.chipLabel(ctx, flTxt, xBase + 8, yTop + 12, flCol,
-              '10px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0.5)');
+              FSM, 'left', 'rgba(0,0,0,0.5)');
           }
         } else {
           // subtracts: the down-flapping blade sees UPWARD induced flow, so the
@@ -1613,9 +1669,9 @@ const HLW = (function () {
           HLD.dline(ctx, xBase, yTop, xBase + flDx, yTop, col.grid, 1, [2, 3]);
           // Label near the TOP (head) of the up-arrow, well ABOVE the rotor plane so
           // it never touches the plane, V_rel, or the tip clustered near oy.
-          const flTxt = 'V_flap ↑ subtracts (α↑)';
+          const flTxt = 'V_flap';
           HLD.chipLabel(ctx, flTxt, xBase + flDx + 6, yVn + 8, flCol,
-            '10px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0.5)');
+            FSM, 'left', 'rgba(0,0,0,0.5)');
         }
       }
       // U_P total bracket label. In the normal (down-flow) case yTop is ABOVE the
@@ -1627,11 +1683,11 @@ const HLW = (function () {
       // below-plane cluster.
       const viRight = xBase < 110;
       if (netUpflow) {
-        HLD.chipLabel(ctx, 'U_P = V_i+V_n+V_flap (×' + AMP + ')', xBase - 10, oy - 30,
-          col.wind, '11px IBM Plex Sans, sans-serif', 'right', 'rgba(0,0,0,0.5)');
+        HLD.chipLabel(ctx, 'U_P', xBase - 10, oy - 30,
+          col.wind, FV, 'right', 'rgba(0,0,0,0.5)');
       } else {
-        HLD.chipLabel(ctx, 'U_P = V_i+V_n+V_flap (×' + AMP + ')', xBase + (viRight ? 8 : -8), yTop - 10,
-          col.wind, '11px IBM Plex Sans, sans-serif', viRight ? 'left' : 'right');
+        HLD.chipLabel(ctx, 'U_P', xBase + (viRight ? 8 : -8), yTop - 10,
+          col.wind, FV, viRight ? 'left' : 'right');
       }
 
       // ---- V_rel resultant: from the TOP of V_i (upper-left) DOWN to the airfoil
@@ -1647,7 +1703,7 @@ const HLW = (function () {
       const vrFrac = netUpflow ? 0.70 : 0.5;
       const vrx = xBase + (tipX - xBase) * vrFrac, vry = yTop + (oy - yTop) * vrFrac;
       HLD.chipLabel(ctx, 'V_rel', vrx + (netUpflow ? 4 : -6), vry - 12, col.wind,
-        '12px IBM Plex Sans, sans-serif', 'center');
+        FVrel, 'center');
 
       // α_i (=φ) arc at the TIP, between V_rot (along the plane, canvas angle π) and
       // V_rel. Signed: φ>0 → V_rel BELOW the plane (wedge from π−φ to π, opening
@@ -1670,12 +1726,10 @@ const HLW = (function () {
         // (xBase−10, right-aligned) at the tail's own height, where nothing else
         // sits. For φ>0 keep the original just-above-plane spot at the tip.
         if (phi < 0) {
-          HLD.chipLabel(ctx, 'α_i = φ = ' + (phi * R2D).toFixed(1) + '°',
-            xBase - 10, yTop + 4, col.warn,
-            '10px IBM Plex Sans, sans-serif', 'right', 'rgba(0,0,0,0.6)');
+          HLD.chipLabel(ctx, 'φ', xBase - 10, yTop + 4, col.warn,
+            FSM, 'right', 'rgba(0,0,0,0.6)');
         } else {
-          HLD.chipLabel(ctx, 'α_i = φ = ' + (phi * R2D).toFixed(1) + '°',
-            tipX - 8, oy + 15, col.wind, '10px IBM Plex Sans, sans-serif', 'right');
+          HLD.chipLabel(ctx, 'φ', tipX - 8, oy + 15, col.wind, FSM, 'right');
         }
       }
       HLD.dot(ctx, tipX, oy, 3.5, col.ink);
@@ -1693,7 +1747,9 @@ const HLW = (function () {
       // True angles are only a few degrees, so we EXAGGERATE for readability while
       // every LABEL shows the TRUE value — identical policy to the old inset.
       if (!reverse) {
-        const foilLen = 78;                        // drawn chord length at the tip (px)
+        // Airfoil chord scales with the stage so it stays proportional to the now
+        // full-width triangle (was a fixed 78px, tiny on the big canvas).
+        const foilLen = Math.max(78, Math.min(rightPad * 0.8, 150));   // drawn chord length (px)
         // DISPLAY scale: map true pitch° → drawn°, clamped so the fan is legible.
         const pitchDisp = (thetaDeg) => Math.sign(thetaDeg || 1) *
           Math.max(4, Math.min(30, Math.abs(thetaDeg) * 2.0)) * D2R;
@@ -1729,7 +1785,7 @@ const HLW = (function () {
         HLD.dline(ctx, lex, ley, lex + foilLen * 1.02 * uCh.x, ley + foilLen * 1.02 * uCh.y,
           '#d8d8dc', 1.5, [4, 3]);
         HLD.chipLabel(ctx, 'chord', lex + foilLen * 1.04 * uCh.x + 4,
-          ley + foilLen * 1.04 * uCh.y - 6, '#d8d8dc', '9px IBM Plex Sans, sans-serif',
+          ley + foilLen * 1.04 * uCh.y - 6, '#d8d8dc', FSM,
           'left', 'rgba(0,0,0,0)');
 
         // ---- α wedge between V_rel (φ) and the chord (θ), at the tip vertex -------
@@ -1750,97 +1806,36 @@ const HLW = (function () {
         ctx.arc(lex, ley, foilLen * 0.66, Math.min(phD, pitchDisp(theta * R2D)),
           Math.max(phD, pitchDisp(theta * R2D)), false);
         ctx.closePath(); ctx.fill(); ctx.restore();
-        HLD.chipLabel(ctx, 'α = ' + (aoa * R2D).toFixed(1) + '°',
-          lex + foilLen * 0.5, ley + foilLen * 0.30, aCol,
-          '11px IBM Plex Sans, sans-serif', 'left', 'rgba(13,17,23,0.82)');
-
-        // ---- θ / φ / α mini-legend in the now-free LOWER-LEFT of the panel -------
-        const lgx = 30, lgy = H - 66;
-        HLD.chipLabel(ctx, 'θ (pitch) = ' + (theta * R2D).toFixed(1) + '°', lgx, lgy,
-          '#d8d8dc', '10px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
-        HLD.chipLabel(ctx, 'φ (inflow) = ' + (phi * R2D).toFixed(1) + '°', lgx, lgy + 16,
-          col.wind, '10px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
-        HLD.chipLabel(ctx, 'α = θ−φ = ' + (aoa * R2D).toFixed(1) + '°', lgx, lgy + 32,
-          (stalled ? col.bad : col.good), '11px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
-        // Didactic modelling caveat, always visible on the diagram: this is a
-        // UNIFORM-inflow BET. Real tip vortices add downwash at the tip, so the
-        // U_P<0 (flow-from-below-TPP) reversal shown here comes earlier/stronger
-        // than in reality. Muted, small, sits below the θ/φ/α legend in free space.
-        HLD.chipLabel(ctx, 'Model: uniform inflow — real tip vortices add tip downwash,',
-          lgx, lgy + 46, col.dim, '8px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
-        HLD.chipLabel(ctx, 'so U_P<0 (flow from below TPP) comes later/less in reality.',
-          lgx, lgy + 57, col.dim, '8px IBM Plex Sans, sans-serif', 'left', 'rgba(0,0,0,0)');
+        HLD.chipLabel(ctx, 'α', lex + foilLen * 0.5, ley + foilLen * 0.30, aCol,
+          FV, 'left', 'rgba(13,17,23,0.82)');
+        // NOTE: the θ/φ/α numeric legend and the uniform-inflow disclaimer that used
+        // to sit here have MOVED to the text readout beside the canvas (see the
+        // "Angles" block + "Model note" there). Keeping the plot to pure vector names
+        // makes it readable on every screen size and lowers cognitive load.
       } else {
         HLD.chipLabel(ctx, 'reverse flow — α undefined', tipX - 140, oy - 40,
-          col.bad, '11px IBM Plex Sans, sans-serif', 'left', 'rgba(248,113,113,0.15)');
+          col.bad, FV, 'left', 'rgba(248,113,113,0.15)');
       }
 
 
       // reverse-flow flag
       if (reverse) {
-        HLD.chipLabel(ctx, '⚠ reverse flow (U_T < 0)', 40, oy - 70, col.bad,
-          '12px IBM Plex Sans, sans-serif', 'left', 'rgba(248,113,113,0.15)');
+        HLD.chipLabel(ctx, '⚠ reverse flow (U_T < 0)', 24, 20, col.bad,
+          FV, 'left', 'rgba(248,113,113,0.15)');
       } else if (netUpflow) {
         // Net UP-flow through the disc: the down-flapping retreating blade's V_flap
         // has overwhelmed V_i+V_n, so V_rel now arrives FROM BELOW the TPP (φ<0,
         // α grows). Flag it so the student sees WHY α deepens on the retreating side.
-        HLD.chipLabel(ctx, '↑ net up-flow (U_P < 0) — V_rel from below TPP, α grows',
-          40, oy - 70, col.warn,
-          '11px IBM Plex Sans, sans-serif', 'left', 'rgba(214,158,46,0.15)');
+        // Short chip pinned TOP-LEFT (out of the triangle's way); the full sentence
+        // is in the readout "Model note".
+        HLD.chipLabel(ctx, '↑ net up-flow (U_P < 0)', 24, 20, col.warn,
+          FV, 'left', 'rgba(214,158,46,0.15)');
       }
 
-      // ===== INTERACTIVE ENVELOPE MINI-DISC (top-right) =======================
-      // A LIVE, CLICKABLE copy of the disc map from the previous page. It is
-      // coloured by % of the local critical α with the SAME model + airload gate
-      // as wEnvelope, so the student can pick any cell and watch the triangle
-      // below rebuild for it — the BET explains the envelope. A crosshair marks
-      // the currently-selected (ψ, r/R) cell. Click or drag anywhere on the disc.
-      const cxC = W - 84, cyC = 78, rC = 56;
-      discHit = { cx: cxC, cy: cyC, r: rC };            // hand the hit-box to the click handler
-      // title RIGHT-anchored to the disc's right edge so it can never overflow the
-      // canvas, and shortened to fit.
-      HLD.text(ctx, 'ENVELOPE — click to pick', cxC + rC, cyC - rC - 12, col.dim,
-        '9px IBM Plex Sans, sans-serif', 'right');
-      const nrD = 8, npD = 48, rMinD = 0.2;
-      for (let ir = 0; ir < nrD; ir++) {
-        const r0 = rMinD + (1 - rMinD) * ir / nrD, r1 = rMinD + (1 - rMinD) * (ir + 1) / nrD;
-        for (let ip = 0; ip < npD; ip++) {
-          const p0 = (ip / npD) * 2 * Math.PI, p1 = ((ip + 1) / npD) * 2 * Math.PI;
-          const pmD = (p0 + p1) / 2, rmD = (r0 + r1) / 2;
-          const dd = localAoAmodel(stt, c, rmD, pmD, discModel);
-          const se = stallEffAt(st, dd.UT);
-          const qs = airloadConf(dd.UT, mu).qShare;
-          if (dd.reverseFlow) { ctx.fillStyle = 'rgba(180,60,200,0.55)'; }
-          else {
-            const conf = Math.min(1, qs / Q_MIN);
-            const pct = (dd.aoa * R2D / se) * conf;        // honest %-crit (airload-gated)
-            ctx.globalAlpha = 0.35 + 0.55 * qs;
-            ctx.fillStyle = aoaColor(pct * st.stallAoA, st.stallAoA);
-          }
-          ctx.beginPath();
-          ctx.arc(cxC, cyC, rC * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
-          ctx.arc(cxC, cyC, rC * r0, HLD.polarToCanvas(p1), HLD.polarToCanvas(p0), false);
-          ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
-        }
-      }
-      ctx.strokeStyle = col.dim; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(cxC, cyC, rC, 0, 2 * Math.PI); ctx.stroke();
-      HLD.dot(ctx, cxC, cyC, 2.5, col.dim);
-      HLD.text(ctx, 'N', cxC - 3, cyC - rC - 3, col.dim, '9px sans-serif');
-      HLD.text(ctx, 'A', cxC + rC + 2, cyC + 3, col.dim, '9px sans-serif');
-      HLD.text(ctx, 'R', cxC - rC - 8, cyC + 3, col.dim, '9px sans-serif');
-      HLD.text(ctx, 'T', cxC - 3, cyC + rC + 9, col.dim, '9px sans-serif');
-      // crosshair marker at the selected cell. convention: ψ=0 TAIL(bottom),
-      // 90 ADV(right), 180 NOSE(top), 270 RET(left). x=sinψ, y=cosψ (canvas +y down).
-      const bx = Math.sin(psi), by = Math.cos(psi);
-      const mrx = cxC + rC * rBar * bx, mry = cyC + rC * rBar * by;
-      ctx.strokeStyle = col.ink; ctx.lineWidth = 1.4;
-      ctx.beginPath(); ctx.moveTo(cxC, cyC); ctx.lineTo(cxC + rC * bx, cyC + rC * by); ctx.stroke();
-      HLD.dot(ctx, mrx, mry, 6, cellReverse ? col.bad : (cellStalled ? col.bad : col.chord));
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.arc(mrx, mry, 6, 0, 2 * Math.PI); ctx.stroke();
-      HLD.chipLabel(ctx, 'ψ=' + psiDeg.toFixed(0) + '°  r/R=' + rBar.toFixed(2), cxC, cyC + rC + 20,
-        col.chord, '9px IBM Plex Sans, sans-serif', 'center');
+      // NOTE: the interactive ENVELOPE rotor-map used to live in this canvas's
+      // top-right corner. It now has its OWN wide canvas stacked ABOVE this one
+      // (see drawMap() below) so the vector triangle can use the full panel width
+      // and both stay readable on mobile. The map is still live + clickable.
 
       // ---- readout -----------------------------------------------------------
       const side = psiDeg > 180 && psiDeg < 360 ? 'retreating' : (psiDeg > 0 && psiDeg < 180 ? 'advancing' : (psiDeg === 0 ? 'over tail' : 'over nose'));
@@ -1926,7 +1921,85 @@ const HLW = (function () {
         delays and softens it. The large retreating-tip <b>α</b> itself is still
         correct (retreating-blade stall does begin at the tip); it is specifically
         the <b>U_P &lt; 0 reversal</b> that a uniform-inflow model over-drives.</p>`;
+
+      // ---- ROTOR-MAP (own top canvas) ---------------------------------------
+      // Draw the live, clickable envelope disc on its OWN wide canvas above the
+      // triangle. Uses the SAME model + airload gate as wEnvelope so it matches
+      // the previous page cell-for-cell. Centred; radius scales with the strip.
+      drawMap();
     };
+
+    // Separate draw pass for the top rotor-map canvas. Shares draw()'s locals via
+    // closure is NOT possible (drawMap is called from inside draw, so we recompute
+    // the few state values it needs here to stay self-contained and correct).
+    function drawMap() {
+      const mc = ui.topCanvas; if (!mc) return;
+      const { ctx, W, H, col } = HLD.setup(mc);
+      HLD.clear(ctx, W, H, col);
+      const st = HL.defaultState();
+      if (!twistOn) st.twist = 0;
+      st.V = Vkt * 0.5144;
+      const stt = trimmed(st);
+      const c   = flappingCoeffs(stt);
+      const psi = psiDeg * D2R;
+      const mu  = advanceRatio(stt);
+      const Q_MIN = discModel === 'exam' ? 0.40 : 0.25;
+      // Disc centred vertically; radius from the smaller of (h/2) and a share of
+      // width, so it never overflows the strip on any aspect ratio.
+      // Nudge the disc centre DOWN a touch so the title above + N label have room,
+      // and keep the ring clear of the strip edges.
+      const cxC = W / 2, cyC = H / 2 + 6;
+      const rC  = Math.max(38, Math.min(H / 2 - 34, W * 0.24));
+      discHit = { cx: cxC, cy: cyC, r: rC };            // hit-box for the click handler
+      const fs = Math.max(9, Math.min(12, W / 70));
+      const FL = fs.toFixed(1) + 'px IBM Plex Sans, sans-serif';
+      // Title pinned to the very top-left (out of the disc's way); the live ψ/rR
+      // reading pinned top-right — neither can collide with the N label or the ring.
+      HLD.text(ctx, 'ENVELOPE MAP — click / drag to pick a blade section',
+        12, 15, col.dim, FL, 'left');
+      const nrD = 8, npD = 48, rMinD = 0.2;
+      for (let ir = 0; ir < nrD; ir++) {
+        const r0 = rMinD + (1 - rMinD) * ir / nrD, r1 = rMinD + (1 - rMinD) * (ir + 1) / nrD;
+        for (let ip = 0; ip < npD; ip++) {
+          const p0 = (ip / npD) * 2 * Math.PI, p1 = ((ip + 1) / npD) * 2 * Math.PI;
+          const pmD = (p0 + p1) / 2, rmD = (r0 + r1) / 2;
+          const dd = localAoAmodel(stt, c, rmD, pmD, discModel);
+          const se = stallEffAt(st, dd.UT);
+          const qs = airloadConf(dd.UT, mu).qShare;
+          if (dd.reverseFlow) { ctx.fillStyle = 'rgba(180,60,200,0.55)'; }
+          else {
+            const conf = Math.min(1, qs / Q_MIN);
+            const pct = (dd.aoa * R2D / se) * conf;
+            ctx.globalAlpha = 0.35 + 0.55 * qs;
+            ctx.fillStyle = aoaColor(pct * st.stallAoA, st.stallAoA);
+          }
+          ctx.beginPath();
+          ctx.arc(cxC, cyC, rC * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
+          ctx.arc(cxC, cyC, rC * r0, HLD.polarToCanvas(p1), HLD.polarToCanvas(p0), false);
+          ctx.closePath(); ctx.fill(); ctx.globalAlpha = 1;
+        }
+      }
+      ctx.strokeStyle = col.dim; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cxC, cyC, rC, 0, 2 * Math.PI); ctx.stroke();
+      HLD.dot(ctx, cxC, cyC, 2.5, col.dim);
+      HLD.text(ctx, 'N (nose)', cxC, cyC - rC - 6, col.dim, FL, 'center');
+      HLD.text(ctx, 'A (adv)', cxC + rC + 8, cyC + 3, col.dim, FL, 'left');
+      HLD.text(ctx, 'R (ret)', cxC - rC - 8, cyC + 3, col.dim, FL, 'right');
+      HLD.text(ctx, 'T (tail)', cxC, cyC + rC + 14, col.dim, FL, 'center');
+      // crosshair at the selected cell: x=sinψ, y=cosψ (canvas +y down).
+      const bx = Math.sin(psi), by = Math.cos(psi);
+      const mrx = cxC + rC * rBar * bx, mry = cyC + rC * rBar * by;
+      const dCellM = localAoAmodel(stt, c, rBar, psi, discModel);
+      const cellRev = dCellM.reverseFlow;
+      const cellStl = (dCellM.aoa * R2D) >= stallEffAt(st, dCellM.UT);
+      ctx.strokeStyle = col.ink; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(cxC, cyC); ctx.lineTo(cxC + rC * bx, cyC + rC * by); ctx.stroke();
+      HLD.dot(ctx, mrx, mry, 6, (cellRev || cellStl) ? col.bad : col.chord);
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(mrx, mry, 6, 0, 2 * Math.PI); ctx.stroke();
+      HLD.chipLabel(ctx, 'ψ=' + psiDeg.toFixed(0) + '°   r/R=' + rBar.toFixed(2),
+        W - 12, 15, col.chord, FL, 'right');
+    }
 
     segmented(ui.controls, {
       label: 'Jump to azimuth', val: 'ret', options: [
@@ -1963,11 +2036,12 @@ const HLW = (function () {
     // Maps a canvas point inside the disc hit-box back to (ψ, r/R) using the same
     // convention as the crosshair: ψ=0 TAIL(bottom), 90 ADV(right), 180 NOSE(top),
     // 270 RET(left); x=sinψ, y=cosψ with canvas +y down.
+    const mapCanvas = ui.topCanvas || ui.canvas;    // rotor-map lives on the top canvas now
     const pickFromEvent = (ev) => {
       if (!discHit) return false;
-      const rect = ui.canvas.getBoundingClientRect();
+      const rect = mapCanvas.getBoundingClientRect();
       // canvas backing store may be scaled vs CSS pixels — convert to canvas coords
-      const scaleX = ui.canvas.width / rect.width, scaleY = ui.canvas.height / rect.height;
+      const scaleX = mapCanvas.width / rect.width, scaleY = mapCanvas.height / rect.height;
       const px = (ev.clientX - rect.left) * scaleX / (window.devicePixelRatio || 1);
       const py = (ev.clientY - rect.top) * scaleY / (window.devicePixelRatio || 1);
       const dx = px - discHit.cx, dy = py - discHit.cy;
@@ -1983,13 +2057,13 @@ const HLW = (function () {
       return true;
     };
     let dragging = false;
-    ui.canvas.style.cursor = 'crosshair';
-    ui.canvas.addEventListener('pointerdown', (ev) => {
-      if (pickFromEvent(ev)) { dragging = true; ui.canvas.setPointerCapture?.(ev.pointerId); ev.preventDefault(); }
+    mapCanvas.style.cursor = 'crosshair';
+    mapCanvas.addEventListener('pointerdown', (ev) => {
+      if (pickFromEvent(ev)) { dragging = true; mapCanvas.setPointerCapture?.(ev.pointerId); ev.preventDefault(); }
     });
-    ui.canvas.addEventListener('pointermove', (ev) => { if (dragging) { pickFromEvent(ev); ev.preventDefault(); } });
-    ui.canvas.addEventListener('pointerup', () => { dragging = false; });
-    ui.canvas.addEventListener('pointercancel', () => { dragging = false; });
+    mapCanvas.addEventListener('pointermove', (ev) => { if (dragging) { pickFromEvent(ev); ev.preventDefault(); } });
+    mapCanvas.addEventListener('pointerup', () => { dragging = false; });
+    mapCanvas.addEventListener('pointercancel', () => { dragging = false; });
 
     ui.onDraw(draw);
   }
