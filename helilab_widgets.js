@@ -1467,18 +1467,15 @@ const HLW = (function () {
       // instead of hugging the lower-right. The U_P stack grows UPWARD from oy (short
       // at AMP=2, ~40px) so it clears the top chip (y=20) and the envelope disc.
       // ── SCALE THE TRIANGLE TO FILL THE STAGE ─────────────────────────────────
-      // Old bug: sx used a fixed px-per-unit with a 300 cap, tuned for the tiny old
-      // canvas. On the new full-width stage that left the triangle as a small clump
-      // in the middle. Now we size the IN-PLANE base to a target fraction of the
-      // canvas width and ALSO clamp by height so the airfoil fan + U_P stack stay
-      // on-canvas. maxIn is the longest in-plane extent (base V_rot±V_T or |U_T|).
+      // The diagram has a RESERVED LEFT ANNOTATION LANE (the textbook convention the
+      // students learn): the U_P dimension bracket lives there, plus a translated
+      // angle callout (θ, α, φ) whose rays run parallel to the real TPP/chord/V_rel.
+      // So the vector cluster must start RIGHT of that lane — leftPad is widened to
+      // make room for both the bracket (~28px) and the arcs (~70px) + their labels.
       const maxIn = Math.max(Math.abs(Vrot) + Math.abs(Vt), Math.abs(UT), 1.0);
       const AMP = 2;                           // gently exaggerate the small U_P (see below)
-      // Budget: base should span ~62% of width; keep ~120px right of the tip for the
-      // airfoil fan + α label, and a left margin. Height budget: the U_P stack rises
-      // ~AMP·U_P·sy above the plane and the airfoil dips ~80px below — fit both.
-      const rightPad = Math.max(96, W * 0.14);   // room for airfoil fan right of tip
-      const leftPad  = Math.max(60, W * 0.06);
+      const rightPad = Math.max(112, W * 0.16);   // room for airfoil fan + 'c' label right of tip (fixes mobile right-clip)
+      const leftPad  = Math.max(150, W * 0.16);  // reserved left annotation lane (U_P + arcs)
       const sxW = (W - rightPad - leftPad) / maxIn;                 // width-limited
       const upMax = Math.max(Math.abs(v_i) + Math.abs(v_n) + Math.abs(v_flap), 0.05);
       const sxH = (H * 0.34) / (AMP * upMax + 0.001);              // height-limited (U_P leg)
@@ -1504,6 +1501,12 @@ const HLW = (function () {
       const FV   = fs.toFixed(1) + 'px IBM Plex Sans, sans-serif';        // vector names
       const FSM  = Math.max(8, fs - 1).toFixed(1) + 'px IBM Plex Sans, sans-serif'; // small
       const FVrel = Math.max(10, fs + 1).toFixed(1) + 'px IBM Plex Sans, sans-serif'; // V_rel
+      // On narrow (mobile) canvases the small component labels (V_i, V_n, V_flap, V_rel)
+      // collide with the vectors and each other. They are already listed in the readout
+      // table below, so suppress their on-canvas text when the stage is compact; the
+      // arrows themselves stay. The key labels (θ, α, U_P, V_rot, V_T) always show.
+      const compact = W < 560;
+      const showDetailLabels = !compact;
 
       // rotor-plane baseline = the Tip-Path-Plane (TPP) reference. Labelled 'TPP'
       // at the left margin so it reads like the exam plate (the sketch convention).
@@ -1607,13 +1610,13 @@ const HLW = (function () {
       const LBL_MIN = 13;
       // V_i segment (bottom): from yVi down to the plane
       HLD.arrow(ctx, xBase, yVi, xBase, oy, col.wind, 2.5, 8);
-      if ((oy - yVi) >= LBL_MIN) {
+      if (showDetailLabels && (oy - yVi) >= LBL_MIN) {
         HLD.chipLabel(ctx, 'V_i', viLx, (yVi + oy) / 2, col.wind, FSM, viAlign);
       }
       // V_n segment (middle): from yVn up to yVi
       if (v_n > 1e-4) {
         HLD.arrow(ctx, xBase, yVn, xBase, yVi, col.accent, 2.5, 7);
-        if ((yVi - yVn) >= LBL_MIN) {
+        if (showDetailLabels && (yVi - yVn) >= LBL_MIN) {
           HLD.chipLabel(ctx, 'V_n', viLx, (yVn + yVi) / 2, col.accent, FSM, viAlign);
         }
       }
@@ -1651,7 +1654,7 @@ const HLW = (function () {
           // one clear spot for the add-case V_flap label is directly ABOVE the stack
           // top — above where V_rel starts, clear of the bracket and the shaft.
           const flTxt = 'V_flap';
-          HLD.chipLabel(ctx, flTxt, xBase, yTop - 11, flCol,
+          if (showDetailLabels) HLD.chipLabel(ctx, flTxt, xBase, yTop - 11, flCol,
             FSM, 'center', 'rgba(0,0,0,0.5)');
         } else {
           // subtracts: the down-flapping blade sees UPWARD induced flow, so the
@@ -1672,29 +1675,36 @@ const HLW = (function () {
           // roughly xBase−12..xBase+24 — clear of the bracket and above the plane
           // (yVn is above the plane in the subtract case, outside the bracket span).
           const flTxt = 'V_flap';
-          HLD.chipLabel(ctx, flTxt, xBase + flDx, yVn - 8, flCol,
+          if (showDetailLabels) HLD.chipLabel(ctx, flTxt, xBase + flDx, yVn - 8, flCol,
             FSM, 'center', 'rgba(0,0,0,0.5)');
         }
       }
-      // ---- U_P total bracket (mirrors the U_T bracket below the plane) ----------
-      // A vertical dashed dimension line alongside the U_P stack, spanning the plane
-      // (oy) to the stack top (yTop), with end ticks + an 'U_P' label. Drawn BEFORE
-      // V_rel so the resultant arrow stays visually dominant. Placed on the LEFT rail
-      // (xBase−40, clamped to the left margin) so U_P reads as a left annotation and
-      // stays visible on every azimuth — the component labels (V_i/V_n) use the right
-      // lane, the angle arcs use the incoming-flow region left of the airfoil.
+      // ---- U_P total bracket — JUST LEFT of all vectors, never crossing them --------
+      // The bracket sits clear-left of the vector tail (xBase). Its vertical dashed
+      // line and its end-ticks point LEFTWARD only, so nothing reaches toward V_rot /
+      // V_T. Height = true |U_P| (oy→yTop). Far enough left that the ticks clear the
+      // arrowheads of the in-plane vectors.
       {
-        const bx = Math.max(28, xBase - 40);
+        // Place the bracket LEFT of the leftmost in-plane vector point so NO
+        // horizontal vector crosses it. "Just left of ALL vectors."
+        const xVecLeft = Math.min(xRotTail, xBase, tipX);
+        const upGap = compact ? 14 : 20;
+        const upBx = xVecLeft - upGap;
         const yA = Math.min(oy, yTop), yB = Math.max(oy, yTop);
-        HLD.dline(ctx, bx, yA, bx, yB, col.ink, 1.5, [2, 3]);
-        HLD.tick(ctx, bx, yA, 8, 0, col.ink, 1.5);
-        HLD.tick(ctx, bx, yB, 8, 0, col.ink, 1.5);
-        HLD.chipLabel(ctx, 'U_P', bx - 6, (yA + yB) / 2, col.wind, FV,
+        HLD.dline(ctx, upBx, yA, upBx, yB, col.ink, 1.5, [2, 3]);
+        // explicit one-sided ticks pointing LEFT (never extend rightward into vectors)
+        const tickLen = compact ? 6 : 8;
+        HLD.dline(ctx, upBx - tickLen, yA, upBx, yA, col.ink, 1.5);
+        HLD.dline(ctx, upBx - tickLen, yB, upBx, yB, col.ink, 1.5);
+        const upLabelY = compact ? Math.min(H - 12, oy + 12) : (yA + yB) / 2;
+        HLD.chipLabel(ctx, 'U_P', upBx - 10, upLabelY, col.wind, FSM,
           'right', 'rgba(13,17,23,0.7)');
       }
 
-      // ---- V_rel resultant: from the TOP of V_i (upper-left) DOWN to the airfoil
-      // (tip, right). It lies just below V_rot, meeting it at the tip where α_i is.
+      // ---- V_rel resultant: tail at (xBase,yTop) → head at the airfoil tip (tipX,oy).
+      // For net up-flow (φ<0, RET) yTop sits BELOW the plane; for down-flow it's above.
+      // The exact V_rel slope is vrelAng = atan2(oy-yTop, tipX-xBase); the left-margin
+      // angle callout uses rays PARALLEL to this slope (see angle-callout block below).
       HLD.arrow(ctx, xBase, yTop, tipX, oy, col.wind, 3, 10);
       // label on the V_rel shaft toward the TIP end (60% from tail) and lifted
       // above the line, clear of V_rot / V_i.
@@ -1703,16 +1713,16 @@ const HLW = (function () {
       // shaft midpoint is. So for that case push the V_rel label UP toward the tip
       // (70% from tail, near the plane) and to the right, well clear of the U_T
       // bracket. Normal case keeps the mid-shaft spot.
-      const vrFrac = netUpflow ? 0.70 : 0.5;
+      const vrFrac = netUpflow ? 0.40 : 0.45;
       const vrx = xBase + (tipX - xBase) * vrFrac, vry = yTop + (oy - yTop) * vrFrac;
-      HLD.chipLabel(ctx, 'V_rel', vrx + (netUpflow ? 4 : -6), vry - 12, col.wind,
-        FVrel, 'center');
+      if (!compact) {
+        HLD.chipLabel(ctx, 'V_rel', vrx + (netUpflow ? 4 : -6), vry - 12, col.wind,
+          FVrel, 'center');
+      }
 
-      // The φ arc that used to live here (referenced to the backward plane, canvas
-      // angle π) is GONE. Angles are now all drawn at the AIRFOIL LEADING EDGE,
-      // referenced to the forward-horizontal (TPP-parallel), exactly like the JAATO
-      // exam sketch: θ (horizontal→chord), φ (horizontal→V_rel), α (V_rel→chord).
-      // See the nested-arc block inside the airfoil section below.
+      // The angle arcs (θ, α, φ) are drawn as a TRANSLATED CALLOUT in the reserved
+      // LEFT ANNOTATION LANE — rays PARALLEL to the real TPP / chord / V_rel — NOT at
+      // the airfoil leading edge (see angle-callout block in the airfoil section below).
       HLD.dot(ctx, tipX, oy, 3.5, col.ink);
 
       // ================= AIRFOIL AT THE TIP (integrated in the triangle) =========
@@ -1765,135 +1775,100 @@ const HLW = (function () {
         // chord line through the active section (dim white) + label
         HLD.dline(ctx, lex, ley, lex + foilLen * 1.02 * uCh.x, ley + foilLen * 1.02 * uCh.y,
           '#d8d8dc', 1.5, [4, 3]);
-        HLD.chipLabel(ctx, 'chord', lex + foilLen * 1.04 * uCh.x + 4,
-          ley + foilLen * 1.04 * uCh.y - 6, '#d8d8dc', FSM,
-          'left', 'rgba(0,0,0,0)');
+        // (the 'chord' text label is intentionally omitted — the dashed line through
+        // the airfoil is self-evident, and the label kept clipping the right edge.)
         // Chord line EXTENDED LEFT from the LE (incoming side) — the textbook
         // convention the students learn: the chord is one long reference line, drawn
         // THROUGH the airfoil and extended back into the incoming-flow region so the
         // angle arcs (θ, α) read on the LEFT of the airfoil. Direction = backward along
         // the chord (−uCh = up-left for a nose-up section).
-        const extLen = Math.max(foilLen * 1.7, 120);
+        // extLen must be long enough that the θ/α arcs (centred at the LE, opening
+        // left) can reach their target stations without clamping back to the LE.
+        const extLen = Math.max(foilLen * 2.4, 180, (lex - 24) / Math.max(0.25, uCh.x));
         HLD.dline(ctx, lex, ley,
           lex - extLen * uCh.x, ley - extLen * uCh.y,
           '#d8d8dc', 1.5, [4, 3]);
 
-        // ---- NESTED ANGLE ARCS at the LEADING EDGE — LEFT / INCOMING side ----------
-        // All three angles share the airfoil-LE vertex (lex,ley) — the ONLY point where
-        // the TPP, the chord, and V_rel all meet (V_rel's tip is the LE; the chord runs
-        // through it). They are drawn on the LEFT/incoming side of the LE by using the
-        // BACKWARD rays (canvas angle + π): TPP-left = π, chord-left = pitchD+π,
-        // V_rel-incoming = vrelAng+π. This is the textbook convention the students learn:
-        // the angle arcs read on the incoming-flow side, where the relative wind comes
-        // FROM. Adding π to every endpoint rotates the whole fan 180° onto the left side;
-        // the schematic preserves the displayed ray relationship (true ° in labels/readout).
-        //   • θ : TPP-left(π) → chord-left(pitchD+π)        [LARGE arc, labelled "θ=…°"]
-        //   • α : V_rel-in(vrelAng+π) → chord-left(pitchD+π) [MEDIUM wedge, hatched + "α=…°"]
-        //   • φ : TPP-left(π) → V_rel-in(vrelAng+π)         [small thin arc, "φ=…°"]
-        // vrelAng is the ACTUAL drawn V_rel shaft angle (tail→head, down-right), so
-        // vrelAng+π is the incoming ray back along the visible arrow — arcs sit flush on
-        // the shaft. φ<0 (net up-flow) → vrelAng<0 → vrelAng+π dips below π; the α wedge
-        // opens PAST the TPP-left and visibly grows beyond θ, exactly as α=θ−φ should.
-        // The hatched α wedge is only drawn for POSITIVE AoA so a negative α never looks
-        // like a positive sector; near-zero/θ≈0 cases fall back to a compact label stack.
-        const MIN_ARC = 0.02;   // rad ≈ 1.1° — below this an arc is just a dot
+        // ---- ANGLE ARCS — both centred on the REAL airfoil LE/chord anchor ---------
+        // Per the instructor's sketch: the arcs use the REAL chord line (the long dashed
+        // line through the airfoil), NOT separate little reference rays. Both arcs are
+        // centred at the airfoil LE (lex,ley) — the true point where chord & V_rel meet —
+        // with a radius chosen so the VISIBLE arc lands where the sketch wants it:
+        //   - theta  arc visible far-LEFT (around the U_P bracket), spanning TPP-parallel to chord.
+        //   - alpha  arc visible at ~50% of U_T (mid-base), spanning V_rel-parallel to chord.
+        // Because the arcs are centred at the LE and use the real chord direction, they
+        // read along the actual chord line; the radius only slides the visible arc along
+        // it. True deg values in the labels/readout. (phi stays in the readout only.)
+        const MIN_ARC = 0.02;
         const pitchD = pitchDisp(theta * R2D);
-        const vrelAng = Math.atan2(oy - yTop, tipX - xBase);
+        const vrelAng = Math.atan2(oy - yTop, tipX - xBase);   // drawn V_rel shaft slope
         const aCol = stalled ? col.bad : col.good;
-        const phR = foilLen * 0.15, aR = foilLen * 0.30, thR = foilLen * 0.50;
-        // TRUE degree values (whole degrees on the canvas, like the JAATO plate;
-        // decimals stay in the readout). Arcs are a schematic — exaggerated for
-        // legibility — but every label shows the real physics value.
         const thetaDeg = theta * R2D, phiDeg = phi * R2D, aoaDeg = aoa * R2D;
-        const deg = (v) => (v >= 0 ? '' : '−') + Math.abs(v).toFixed(0) + '°';
-        // Left-side ray angles (forward angles + π).
+        const deg = (v) => (v >= 0 ? '' : '\u2212') + Math.abs(v).toFixed(0) + '\u00b0';
+        // Backward ray angles (open to the left / incoming side, +pi).
         const tppL = Math.PI, chordL = pitchD + Math.PI, vrelL = vrelAng + Math.PI;
-        // Degenerate fan: θ≈0 (advancing side) OR any non-positive α makes the arcs
-        // collapse / misread. Every non-positive α (α≤0.5°) routes to the compact stack
-        // so its value is always shown — a dashed arc alone would carry no label, and a
-        // filled wedge would misread a negative α as a positive sector.
-        const fanDegenerate = aoaDeg <= 0.5 || Math.abs(thetaDeg) < 3;
+        // θ is "too small to arc" only when the drawn pitch is near zero. NOTE: this
+        // does NOT suppress α — α has its own arc+label below, drawn whenever its span
+        // is big enough, independent of θ. (Previously a single fanDegenerate flag
+        // killed the α label on TAIL/ADV, dumping α into the far-left text stack.)
+        const thetaTooSmall = Math.abs(pitchD) < MIN_ARC;
 
-        // φ — small thin arc (TPP-left → V_rel-incoming) with a dim degree label.
-        if (Math.abs(vrelAng) >= MIN_ARC) {
-          ctx.save();
-          ctx.strokeStyle = col.dim; ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.arc(lex, ley, phR,
-            Math.min(tppL, vrelL), Math.max(tppL, vrelL), false);
-          ctx.stroke(); ctx.restore();
-          if (!fanDegenerate) {
-            const phMid = (tppL + vrelL) / 2;
-            HLD.chipLabel(ctx, 'φ=' + deg(phiDeg),
-              lex + (phR + 8) * Math.cos(phMid),
-              ley + (phR + 8) * Math.sin(phMid),
-              col.dim, FV, 'center', 'rgba(13,17,23,0.75)');
-          }
-        }
+        // Arc centre = the real airfoil LE (where chord & V_rel actually meet).
+        const aCx = lex, aCy = ley;
+        // Pick a radius so the arc's mid-angle point lands at a target x (slides the
+        // visible arc along the real chord/V_rel directions to the wanted station).
+        const radiusToX = (targetX, midAng, minR, maxR) => {
+          const c = Math.cos(midAng);
+          if (Math.abs(c) < 1e-3) return minR;
+          const r = (targetX - aCx) / c;
+          return Math.max(minR, Math.min(maxR, Number.isFinite(r) && r > 0 ? r : minR));
+        };
 
-        // α — MEDIUM wedge (V_rel-incoming → chord-left): hatched fill + label, ONLY for
-        // positive AoA so the wedge never misreads as a positive sector for a negative α.
-        const a0 = Math.min(vrelL, chordL), a1 = Math.max(vrelL, chordL);
-        const posAlpha = aoaDeg > 0.5;
-        if ((a1 - a0) >= MIN_ARC && posAlpha) {
-          ctx.save();
-          ctx.beginPath(); ctx.moveTo(lex, ley);
-          ctx.arc(lex, ley, aR, a0, a1, false); ctx.closePath(); ctx.clip();
-          ctx.fillStyle = stalled ? 'rgba(248,113,113,0.30)' : 'rgba(74,222,128,0.26)';
-          ctx.fillRect(lex - aR, ley - aR, aR * 2, aR * 2);
-          ctx.strokeStyle = stalled ? 'rgba(248,113,113,0.9)' : 'rgba(74,222,128,0.8)';
-          ctx.lineWidth = 1;
-          for (let hx = lex - aR; hx <= lex + aR; hx += 5) {
-            ctx.beginPath(); ctx.moveTo(hx, ley - aR); ctx.lineTo(hx, ley + aR); ctx.stroke();
-          }
-          ctx.restore();
-          ctx.strokeStyle = aCol; ctx.lineWidth = 1.5;
-          ctx.beginPath(); ctx.arc(lex, ley, aR, a0, a1, false); ctx.stroke();
-          if (!fanDegenerate) {
-            // α label placed OUTSIDE the arc (radius aR+10) along the bisector, so it
-            // sits in the gap before the θ arc and never overlaps the airfoil LE (a label
-            // centred INSIDE a wide wedge extends rightward into the airfoil).
-            const aMid = (a0 + a1) / 2;
-            HLD.chipLabel(ctx, 'α=' + deg(aoaDeg),
-              lex + (aR + 10) * Math.cos(aMid),
-              ley + (aR + 10) * Math.sin(aMid), aCol, FV, 'center',
-              'rgba(13,17,23,0.82)');
-          }
-        } else if ((a1 - a0) >= MIN_ARC) {
-          // Non-positive α: a thin dashed arc only (no filled wedge), labelled.
-          ctx.save();
-          ctx.strokeStyle = aCol; ctx.lineWidth = 1.2;
-          ctx.setLineDash([3, 3]);
-          ctx.beginPath(); ctx.arc(lex, ley, aR, a0, a1, false); ctx.stroke();
-          ctx.restore();
-        }
-
-        // θ — LARGE labelled arc (TPP-left → chord-left), drawn last so it frames the set.
+        // -- theta: visible far-left (just left of the U_P bracket). Arc TPP to chord. --
+        const upBx = Math.min(xRotTail, xBase, tipX) - (compact ? 14 : 20);
+        const thetaTargetX = Math.max(24, upBx - 16);
+        const thetaMid = tppL + (chordL - tppL) / 2;
+        const thR = radiusToX(thetaTargetX, thetaMid, 24, extLen - 8);
         if (Math.abs(pitchD) >= MIN_ARC) {
-          ctx.save();
-          ctx.strokeStyle = col.chord; ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.arc(lex, ley, thR,
+          ctx.save(); ctx.strokeStyle = col.chord; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(aCx, aCy, thR,
             Math.min(tppL, chordL), Math.max(tppL, chordL), false);
           ctx.stroke(); ctx.restore();
-          if (!fanDegenerate) {
-            const thMid = (tppL + chordL) / 2;
-            HLD.chipLabel(ctx, 'θ=' + deg(thetaDeg),
-              lex + (thR + 12) * Math.cos(thMid),
-              ley + (thR + 12) * Math.sin(thMid), col.chord, FV, 'center',
-              'rgba(13,17,23,0.6)');
-          }
+          const thLab = tppL + (chordL - tppL) * 0.70;
+          HLD.chipLabel(ctx, '\u03b8=' + deg(thetaDeg),
+            aCx + thR * Math.cos(thLab), aCy + thR * Math.sin(thLab),
+            col.chord, FV, 'center', 'rgba(13,17,23,0.6)');
         }
 
-        // Degenerate fallback: a tidy 3-line degree stack beside the LE, so ADV/NOSE
-        // (θ≈0, α≈−φ) still read clearly instead of three arcs piling on one ray.
-        if (fanDegenerate) {
-          const sx2 = Math.max(28, Math.min(lex - thR - 18, W - 96));
-          const sy2 = Math.max(16, Math.min(ley - 44, H - 60));
+        // -- alpha: visible at ~50% of U_T (midpoint of the in-plane base). Arc V_rel to chord. --
+        // Radius chosen so the arc's CHORD endpoint lands at mid-base. cos(chordL) is
+        // stable (pitch is clamped, never near-vertical), so this never clamps to the LE.
+        const alphaTargetX = xBase + 0.5 * (tipX - xBase);
+        const a0 = Math.min(vrelL, chordL), a1 = Math.max(vrelL, chordL);
+        const aR = radiusToX(alphaTargetX, chordL, compact ? 18 : 22, extLen - 8);
+        const posAlpha = aoaDeg > 0.5;
+        if ((a1 - a0) >= MIN_ARC) {
+          ctx.save(); ctx.strokeStyle = aCol; ctx.lineWidth = posAlpha ? 1.8 : 1.2;
+          if (!posAlpha) ctx.setLineDash([3, 3]);
+          ctx.beginPath(); ctx.arc(aCx, aCy, aR, a0, a1, false); ctx.stroke(); ctx.restore();
+        }
+        if ((a1 - a0) >= MIN_ARC) {
+          const aLab = a0 + (a1 - a0) * 0.55;
+          HLD.chipLabel(ctx, '\u03b1=' + deg(aoaDeg),
+            aCx + (aR + 12) * Math.cos(aLab), aCy + (aR + 12) * Math.sin(aLab),
+            aCol, FV, 'center', 'rgba(13,17,23,0.82)');
+        }
+
+        // θ-too-small fallback: when the pitch arc itself collapses (θ≈0, e.g. ADV),
+        // print θ and φ as a tidy 2-line stack at the far-left station. α is NOT
+        // duplicated here — it always renders as its own arc at mid-base above.
+        if (thetaTooSmall) {
+          const sx2 = Math.max(28, thetaTargetX - 30);
+          const sy2 = Math.max(16, Math.min(oy - 44, H - 60));
           const line = (s, y) => HLD.chipLabel(ctx, s, sx2, y, col.ink, FV,
             'left', 'rgba(13,17,23,0.7)');
-          line('θ=' + deg(thetaDeg), sy2);
-          line('φ=' + deg(phiDeg), sy2 + 16);
-          line('α=' + deg(aoaDeg), sy2 + 32);
+          line('\u03b8=' + deg(thetaDeg), sy2);
+          line('\u03c6=' + deg(phiDeg), sy2 + 16);
         }
       } else {
         HLD.chipLabel(ctx, 'reverse flow — α undefined', tipX - 140, oy - 40,
