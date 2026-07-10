@@ -1947,9 +1947,11 @@ const HLW = (function () {
       // Disc centred vertically; radius from the smaller of (h/2) and a share of
       // width, so it never overflows the strip on any aspect ratio.
       // Nudge the disc centre DOWN a touch so the title above + N label have room,
-      // and keep the ring clear of the strip edges.
+      // and keep the ring clear of the strip edges. The BET lesson now uses the
+      // standard (square-ish) canvas column, so size the disc from BOTH dims and
+      // let it grow toward the smaller half-dimension — not a small width fraction.
       const cxC = W / 2, cyC = H / 2 + 6;
-      const rC  = Math.max(38, Math.min(H / 2 - 34, W * 0.24));
+      const rC  = Math.max(38, Math.min(H / 2 - 40, W / 2 - 46));
       discHit = { cx: cxC, cy: cyC, r: rC };            // hit-box for the click handler
       const fs = Math.max(9, Math.min(12, W / 70));
       const FL = fs.toFixed(1) + 'px IBM Plex Sans, sans-serif';
