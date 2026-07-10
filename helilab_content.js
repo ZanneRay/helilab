@@ -317,12 +317,15 @@ const HL_LESSONS = [
     },
   },
   {
-    id: 'envelope', stage: 'Forward Flight', title: 'Retreating Stall & the Envelope',
+    id: 'envelope', stage: 'Forward Flight', title: 'Retreating Stall & the Speed Envelope',
     subtitle: 'The two walls of the speed envelope',
     widget: 'wEnvelope',
     body: `
-      <p>Two opposite problems close in as speed rises, and together they set the
-      never-exceed speed V<sub>NE</sub>:</p>
+      <p>The disc map below is the <b>overview</b>: the whole rotor at a glance,
+      coloured so you can see <i>where</i> the retreating side stalls (red) and
+      where the flow reverses (purple) as speed, weight, g and density altitude
+      climb. Two opposite problems close in as speed rises, and together they set
+      the never-exceed speed V<sub>NE</sub>:</p>
       <ul>
         <li><b>Retreating blade stall (the low-speed wall of the fast side):</b>
             the retreating blade is slow, so to make its share of lift it needs a
@@ -369,20 +372,26 @@ const HL_LESSONS = [
   },
 
   {
-    id: 'bet-velocity', stage: 'Forward Flight', title: 'Retreating Stall — the BET Velocity Diagram',
+    id: 'bet-velocity', stage: 'Forward Flight', title: 'The BET Velocity Triangle',
     subtitle: 'Why the retreating blade runs slow — vector by vector',
     widget: 'wBetVelocity',
     body: `
-      <p>The disc map on the previous page tells you <i>where</i> the blade stalls.
-      This page shows you <i>why</i>, with the exact velocity triangle you draw on
-      the exam. Pick any point on the blade — a blade station <b>r/R</b>, an
-      <b>azimuth ψ</b> and a <b>forward speed</b> — and read off every velocity the
-      blade element sees.</p>
-      <p><b>Read the envelope with the BET.</b> The small coloured disc in the top
-      right is the <i>same</i> retreating-stall map as the previous page. <b>Click
-      any cell</b> (or drag across it) to pick that cross-section — the crosshair
-      jumps there and the triangle below rebuilds for that exact <b>ψ</b> and
-      <b>r/R</b>. The banner over the read-out then gives the verdict using the
+      <p>This page shows you <i>why</i> the retreating blade runs slow, with the
+      exact velocity triangle you draw on the exam. Pick any point on the blade —
+      a blade station <b>r/R</b>, an <b>azimuth ψ</b> and a <b>forward speed</b>
+      — and read off every velocity the blade element sees.</p>
+      <p><b>Two maps, two jobs.</b> You meet the retreating-stall disc map on two
+      pages, and each time it does something different:</p>
+      <ul>
+        <li><b>On the Envelope page</b> it is the <i>overview</i> — the whole disc
+            at a glance, so you can see <i>where</i> stall lives (red) and where
+            the flow reverses (purple) as speed, weight and altitude climb.</li>
+        <li><b>Here, above the triangle</b> it is a <i>cell-picker</i> — a smaller
+            live copy of the same map. <b>Click any cell</b> (or drag across it) to
+            load that cross-section into the triangle below; the crosshair jumps
+            there and the triangle rebuilds for that exact <b>ψ</b> and <b>r/R</b>.</li>
+      </ul>
+      <p>The banner over the read-out then gives the verdict using the
       <i>identical</i> critical-α and airload model as the map, so a <b>red</b> cell
       always reads <b>STALLED</b> and a <b>purple</b> cell reads <b>REVERSE FLOW</b>
       here too. Use the <b>stall-model toggle</b> (Exam-plate / Realistic) to keep
@@ -419,7 +428,7 @@ const HL_LESSONS = [
       'On the retreating blade the net U_T is small, forcing a high α to hold lift.',
       'α = θ − φ; when α exceeds the critical angle the section stalls.',
       'Blade washout lowers tip pitch — turn it off and the tip goes to full pitch.',
-      'Click a cell on the mini-disc to see the exact BET triangle and stall verdict for that section — same model as the envelope map.',
+      'Click a cell on the disc map to see the exact BET triangle and stall verdict for that section — same model as the envelope overview.',
     ],
     check: {
       q: 'At ψ = 270° (retreating), the forward-flow term V_T = μ·sinψ…',
