@@ -1505,11 +1505,12 @@ const HLW = (function () {
       const FSM  = Math.max(8, fs - 1).toFixed(1) + 'px IBM Plex Sans, sans-serif'; // small
       const FVrel = Math.max(10, fs + 1).toFixed(1) + 'px IBM Plex Sans, sans-serif'; // V_rel
 
-      // rotor-plane baseline (in-plane reference for the triangle)
+      // rotor-plane baseline = the Tip-Path-Plane (TPP) reference. Labelled 'TPP'
+      // at the left margin so it reads like the exam plate (the sketch convention).
       HLD.dline(ctx, 20, oy, W - 10, oy, col.grid, 1, [5, 4]);
-      // 'rotor plane' label anchored to the LEFT of the plane (free margin) so it
-      // can never be clipped by / collide with the envelope disc on the right.
-      HLD.text(ctx, 'rotor plane', 24, oy - 6, col.dim, FSM, 'left');
+      // 'TPP' chip with a canvas-coloured backing so the dashed line doesn't run
+      // through the letters.
+      HLD.chipLabel(ctx, 'TPP', 24, oy, col.dim, FSM, 'left', col.canvas);
 
       // ---- IN-PLANE construction (heads point RIGHT toward the airfoil) -------
       // V_rot: tail at xRotTail, head at the tip (right).
@@ -1667,27 +1668,33 @@ const HLW = (function () {
           HLD.arrow(ctx, xBase + flDx, yTop, xBase + flDx, yVn, flCol, 2.5, 7);
           HLD.dline(ctx, xBase, yVn, xBase + flDx, yVn, col.grid, 1, [2, 3]);
           HLD.dline(ctx, xBase, yTop, xBase + flDx, yTop, col.grid, 1, [2, 3]);
-          // Label near the TOP (head) of the up-arrow, well ABOVE the rotor plane so
-          // it never touches the plane, V_rel, or the tip clustered near oy.
+          // Label ABOVE the arrow head, centred on the arrow's x. The U_P bracket
+          // now sits on the RIGHT at xBase+28, so a right-side label would collide
+          // with it; centring on the arrow (xBase+flDx) keeps the text spanning
+          // roughly xBase−12..xBase+24 — clear of the bracket and above the plane
+          // (yVn is above the plane in the subtract case, outside the bracket span).
           const flTxt = 'V_flap';
-          HLD.chipLabel(ctx, flTxt, xBase + flDx + 6, yVn + 8, flCol,
-            FSM, 'left', 'rgba(0,0,0,0.5)');
+          HLD.chipLabel(ctx, flTxt, xBase + flDx, yVn - 8, flCol,
+            FSM, 'center', 'rgba(0,0,0,0.5)');
         }
       }
-      // U_P total bracket label. In the normal (down-flow) case yTop is ABOVE the
-      // plane so the label sits at the very top of the stack. But in the net-up-flow
-      // (RETREATING) case yTop is BELOW the plane, right where the V_T-subtracts,
-      // U_T-bracket and α_i labels cluster — so a label at yTop-10 collides with them.
-      // For that case, lift the U_P label ABOVE the plane on the LEFT (free space —
-      // only the far-left V_rot label lives up there) so it never overprints the
-      // below-plane cluster.
-      const viRight = xBase < 110;
-      if (netUpflow) {
-        HLD.chipLabel(ctx, 'U_P', xBase - 10, oy - 30,
-          col.wind, FV, 'right', 'rgba(0,0,0,0.5)');
-      } else {
-        HLD.chipLabel(ctx, 'U_P', xBase + (viRight ? 8 : -8), yTop - 10,
-          col.wind, FV, viRight ? 'left' : 'right');
+      // ---- U_P total bracket (mirrors the U_T bracket below the plane) ----------
+      // A vertical dashed dimension line alongside the U_P stack, spanning the plane
+      // (oy) to the stack top (yTop), with end ticks + an 'U_P' label — the same
+      // convention as the U_T bracket, so the two perpendicular totals read alike.
+      // Drawn BEFORE V_rel so the resultant arrow stays visually dominant on top.
+      // Placed on the RIGHT of the stack (xBase+28): the LEFT side carries the
+      // V_i/V_n component labels, and the only thing on the right is V_rel, which is
+      // drawn next and covers any crossing cleanly. Clear of the V_flap offset arrow
+      // (xBase+6) and the stack itself.
+      {
+        const bx = xBase + 28;
+        const yA = Math.min(oy, yTop), yB = Math.max(oy, yTop);
+        HLD.dline(ctx, bx, yA, bx, yB, col.ink, 1.5, [2, 3]);
+        HLD.tick(ctx, bx, yA, 8, 0, col.ink, 1.5);
+        HLD.tick(ctx, bx, yB, 8, 0, col.ink, 1.5);
+        HLD.chipLabel(ctx, 'U_P', bx + 12, (yA + yB) / 2, col.wind, FV,
+          'left', 'rgba(13,17,23,0.7)');
       }
 
       // ---- V_rel resultant: from the TOP of V_i (upper-left) DOWN to the airfoil
@@ -1705,33 +1712,11 @@ const HLW = (function () {
       HLD.chipLabel(ctx, 'V_rel', vrx + (netUpflow ? 4 : -6), vry - 12, col.wind,
         FVrel, 'center');
 
-      // α_i (=φ) arc at the TIP, between V_rot (along the plane, canvas angle π) and
-      // V_rel. Signed: φ>0 → V_rel BELOW the plane (wedge from π−φ to π, opening
-      // upward); φ<0 → V_rel ABOVE the plane, i.e. arriving FROM BELOW the TPP
-      // (wedge from π to π−φ = π+|φ|, opening downward). Either way it is the angle
-      // between the rotor plane and V_rel at the tip.
-      if (!reverse) {
-        HLD.arc(ctx, tipX, oy, 40, Math.min(Math.PI, Math.PI - phi),
-          Math.max(Math.PI, Math.PI - phi), phi < 0 ? col.warn : col.wind, '');
-        // φ label just left of the tip. For φ>0 the V_rel shaft sits below the plane
-        // so the label goes just ABOVE the plane. For φ<0 the wedge opens DOWNWARD
-        // (V_rel from below the TPP), and the V_rot label runs along the plane just
-        // above it — so drop the φ label well BELOW the plane (oy+30) where the
-        // space is free, keep it SHORT (the full "from below TPP" story is already
-        // in the up-flow chip top-left), and give it a dark backing so it can never
-        // read as one line with the V_rot label.
-        // For φ<0 the V_rel shaft rises from its tail at (xBase, yTop) — which is
-        // BELOW the plane — up to the tip. That shaft sweeps the space just below
-        // and left of the tip, so anchor the φ label to the LEFT of the shaft tail
-        // (xBase−10, right-aligned) at the tail's own height, where nothing else
-        // sits. For φ>0 keep the original just-above-plane spot at the tip.
-        if (phi < 0) {
-          HLD.chipLabel(ctx, 'φ', xBase - 10, yTop + 4, col.warn,
-            FSM, 'right', 'rgba(0,0,0,0.6)');
-        } else {
-          HLD.chipLabel(ctx, 'φ', tipX - 8, oy + 15, col.wind, FSM, 'right');
-        }
-      }
+      // The φ arc that used to live here (referenced to the backward plane, canvas
+      // angle π) is GONE. Angles are now all drawn at the AIRFOIL LEADING EDGE,
+      // referenced to the forward-horizontal (TPP-parallel), exactly like the JAATO
+      // exam sketch: θ (horizontal→chord), φ (horizontal→V_rel), α (V_rel→chord).
+      // See the nested-arc block inside the airfoil section below.
       HLD.dot(ctx, tipX, oy, 3.5, col.ink);
 
       // ================= AIRFOIL AT THE TIP (integrated in the triangle) =========
@@ -1788,30 +1773,75 @@ const HLW = (function () {
           ley + foilLen * 1.04 * uCh.y - 6, '#d8d8dc', FSM,
           'left', 'rgba(0,0,0,0)');
 
-        // ---- α wedge between V_rel (φ) and the chord (θ), at the tip vertex -------
-        // Normal case (φ>0): V_rel sits BELOW the chord, wedge = θ..φ (φ<θ).
-        // Up-flow case (φ<0): V_rel arrives FROM BELOW the TPP, so on screen it
-        // swings PAST the rotor plane to the OTHER side of the chord. We map φ<0 to
-        // a negative drawn angle (same display scale as pitch) so the α wedge visibly
-        // OPENS WIDER than θ alone — the student sees α = θ−φ grow beyond θ. The
-        // label always prints the TRUE α.
-        const phD  = phi < 0
-          ? pitchDisp(phi * R2D)                       // negative → wedge grows past θ
-          : Math.min(pitchDisp(theta * R2D) - 3 * D2R,
-                     Math.atan2(UP, UT));           // keep V_rel visually below chord
+        // ---- NESTED ANGLE ARCS at the LEADING EDGE (JAATO sketch convention) ----
+        // All three angles measured at the airfoil LE (lex,ley), referenced to the
+        // FORWARD horizontal (TPP-parallel, canvas angle 0 = +x). Canvas +y is DOWN, so
+        // a positive angle sweeps clockwise (downward) — matching a nose-up chord and
+        // a V_rel arriving from above-left. Three nested arcs hugging the LE:
+        //   • θ : horizontal(0) → chord(pitchD)        [LARGE arc, labelled "θ"]
+        //   • α : V_rel(vrelAng) → chord(pitchD)        [MEDIUM wedge, hatched + "α"]
+        //   • φ : horizontal(0) → V_rel(vrelAng)        [small thin arc, UNLABELLED]
+        // vrelAng is the ACTUAL drawn V_rel shaft angle so the arcs sit flush on the
+        // visible arrow. φ<0 (net up-flow) → vrelAng<0 → the α wedge opens PAST the
+        // horizontal and visibly grows beyond θ, exactly as α = θ−φ should. Radii are
+        // kept SMALL so the arcs hug the LE and don't sprawl into the velocity vectors.
+        // Each arc is only drawn when its angular span is legible (≥ MIN_ARC), so a
+        // near-zero angle (e.g. θ≈0 on the advancing side) collapses cleanly instead
+        // of becoming a cluttered dot. Labels are NAMES ONLY (true ° in the readout).
+        const MIN_ARC = 0.02;   // rad ≈ 1.1° — below this an arc is just a dot
+        const pitchD = pitchDisp(theta * R2D);
+        const vrelAng = Math.atan2(oy - yTop, tipX - xBase);
         const aCol = stalled ? col.bad : col.good;
-        ctx.save();
-        ctx.fillStyle = stalled ? 'rgba(248,113,113,0.30)' : 'rgba(74,222,128,0.28)';
-        ctx.beginPath(); ctx.moveTo(lex, ley);
-        ctx.arc(lex, ley, foilLen * 0.66, Math.min(phD, pitchDisp(theta * R2D)),
-          Math.max(phD, pitchDisp(theta * R2D)), false);
-        ctx.closePath(); ctx.fill(); ctx.restore();
-        HLD.chipLabel(ctx, 'α', lex + foilLen * 0.5, ley + foilLen * 0.30, aCol,
-          FV, 'left', 'rgba(13,17,23,0.82)');
-        // NOTE: the θ/φ/α numeric legend and the uniform-inflow disclaimer that used
-        // to sit here have MOVED to the text readout beside the canvas (see the
-        // "Angles" block + "Model note" there). Keeping the plot to pure vector names
-        // makes it readable on every screen size and lowers cognitive load.
+        const phR = foilLen * 0.20, aR = foilLen * 0.30, thR = foilLen * 0.42;
+
+        // φ — small thin UNLABELLED arc (horizontal → V_rel)
+        if (Math.abs(vrelAng) >= MIN_ARC) {
+          ctx.save();
+          ctx.strokeStyle = col.dim; ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(lex, ley, phR,
+            Math.min(0, vrelAng), Math.max(0, vrelAng), false);
+          ctx.stroke(); ctx.restore();
+        }
+
+        // α — MEDIUM wedge (V_rel → chord): translucent fill + vertical hatch + label
+        const a0 = Math.min(vrelAng, pitchD), a1 = Math.max(vrelAng, pitchD);
+        if ((a1 - a0) >= MIN_ARC) {
+          ctx.save();
+          ctx.beginPath(); ctx.moveTo(lex, ley);
+          ctx.arc(lex, ley, aR, a0, a1, false); ctx.closePath(); ctx.clip();
+          ctx.fillStyle = stalled ? 'rgba(248,113,113,0.30)' : 'rgba(74,222,128,0.26)';
+          ctx.fillRect(lex - aR, ley - aR, aR * 2, aR * 2);
+          ctx.strokeStyle = stalled ? 'rgba(248,113,113,0.9)' : 'rgba(74,222,128,0.8)';
+          ctx.lineWidth = 1;
+          for (let hx = lex - aR; hx <= lex + aR; hx += 5) {
+            ctx.beginPath(); ctx.moveTo(hx, ley - aR); ctx.lineTo(hx, ley + aR); ctx.stroke();
+          }
+          ctx.restore();
+          // α arc outline + label centred in the wedge
+          ctx.strokeStyle = aCol; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(lex, ley, aR, a0, a1, false); ctx.stroke();
+          const aMid = (a0 + a1) / 2;
+          HLD.chipLabel(ctx, 'α', lex + (aR * 0.62) * Math.cos(aMid),
+            ley + (aR * 0.62) * Math.sin(aMid), aCol, FV, 'center',
+            'rgba(13,17,23,0.82)');
+        }
+
+        // θ — LARGE labelled arc (horizontal → chord), drawn last so it frames the set.
+        // Label sits just OUTSIDE the arc at its midpoint angle, in the open angular
+        // band between the TPP and the chord (clear of the α wedge, which is smaller).
+        if (Math.abs(pitchD) >= MIN_ARC) {
+          ctx.save();
+          ctx.strokeStyle = col.chord; ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(lex, ley, thR,
+            Math.min(0, pitchD), Math.max(0, pitchD), false);
+          ctx.stroke(); ctx.restore();
+          const thMid = pitchD / 2;
+          HLD.chipLabel(ctx, 'θ', lex + (thR + 8) * Math.cos(thMid),
+            ley + (thR + 8) * Math.sin(thMid), col.chord, FV, 'center',
+            'rgba(13,17,23,0.6)');
+        }
       } else {
         HLD.chipLabel(ctx, 'reverse flow — α undefined', tipX - 140, oy - 40,
           col.bad, FV, 'left', 'rgba(248,113,113,0.15)');
