@@ -2864,7 +2864,6 @@ const HLW = (function () {
     let psiDeg = 90;              // azimuth (0 TAIL, 90 ADV, 180 NOSE, 270 RET)
     let rBar = 0.75;
     let envMode = 'aoa';          // ut | aoa | lift
-    let showComp = { vi: false, vn: false, vflap: false };
     let playing = false, sweepDir = 1, sweepTimer = null;
 
     const LAYERS = [
@@ -2960,8 +2959,6 @@ const HLW = (function () {
       options: [{ v: 'ut', t: 'U_T speed' }, { v: 'aoa', t: 'Angle of attack α' }, { v: 'lift', t: 'Lift demand' }],
       on: v => { envMode = v; draw(); },
     });
-    toggle(controls, { label: 'Show U_P breakdown (V_i · V_n · v_flap)', val: showComp.vi,
-      on: v => { showComp.vi = v; showComp.vn = v; showComp.vflap = v; draw(); } });
 
     // ── click the disc to pick (r, ψ) ──────────────────────────────────
     topCanvas.style.cursor = 'crosshair';
@@ -3080,126 +3077,248 @@ const HLW = (function () {
         12, 16, col.dim, '12px ui-sans-serif', 'left', 'top');
     }
 
-    // ── DRAW: velocity triangle ───────────────────────────────────────
+    // ── DRAW: velocity triangle (ported from the wBetVelocity template) ──────
+    // Same layout the student already knows from 'The BET Velocity Triangle':
+    // airfoil/tip on the RIGHT, V_rot→V_T→U_T along the TPP, V_rel from the
+    // U_P stack top down to the tip, U_P bracket clear-LEFT of every vector,
+    // and the θ/α arcs centred on the real airfoil LE. Physics fed by cellAt
+    // (consistent per-layer), with UP = d.UPn so the drawn φ/α stay honest.
     function drawTriangle(ctx, W, H, col) {
       HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
       const st = HL.defaultState(); st.V = (layer === 'hover' ? 0 : Vkt) * 0.5144;
       const psi = psiDeg * D2R;
       const d = cellAt(layer, st, rBar, psi);
       const OmR = d.OmR;
-      const vrot = rBar * OmR;                         // Ω·r (m/s)
-      const vT = d.mu * Math.sin(psi) * OmR;           // μ·sinψ·ΩR (m/s)
-      const UT = d.UT;                                 // net in-plane (m/s)
-      const UP = d.UP;                                 // perpendicular (m/s)
 
+      // dimensionless components (for geometry; cellAt keeps physics honest)
+      const Vrot = rBar;                  // Ω·r / ΩR
+      const Vt   = d.UTn - rBar;         // μ·sinψ   (so UT = Vrot + Vt)
+      const UT   = d.UTn;                // net in-plane
+      const UP   = d.UPn;               // total perpendicular (honest)
+      const v_i   = d.vi / OmR, v_n = d.vn / OmR, v_flap = d.vflap / OmR;
+      const theta = d.theta, phi = d.phi, aoa = d.aoa;
+      const reverse = d.reverseFlow;
+      const netUpflow = UP < -1e-3;
+      const side = Vt >= 0;
+
+      // ---- verdict chip (top-right) — same model as the disc map ---------------
+      const se2 = stallEffAt(d.st, d.UTn), AL2 = airloadConf(d.UTn, d.mu);
+      const stalled2 = !reverse && aoa * R2D >= se2 && AL2.qShare >= 0.25;
+      const vTxt = reverse ? 'REVERSE FLOW' : stalled2 ? 'STALLED' : (aoa * R2D >= se2 - 3 ? 'NEAR STALL' : 'OK');
+      const vCol2 = reverse ? '#b24' : stalled2 ? col.bad : (aoa * R2D >= se2 - 3 ? col.warn : col.good);
+
+      // ================= LAYOUT ================================================
+      const maxIn = Math.max(Math.abs(Vrot) + Math.abs(Vt), Math.abs(UT), 1.0);
+      const AMP = 2;
+      const rightPad = Math.max(112, W * 0.16);
+      const leftPad  = Math.max(150, W * 0.16);
+      const sxW = (W - rightPad - leftPad) / maxIn;
+      const upMax = Math.max(Math.abs(UP), 0.05);
+      const sxH = (H * 0.34) / (AMP * upMax + 0.001);
+      const sx = Math.max(60, Math.min(sxW, sxH, 900));
+      const sy = sx;
+      const tipX = leftPad + maxIn * sx;
+      const oy   = H * 0.56;
+
+      const fs   = Math.max(9, Math.min(12, W / 95));
+      const FV   = fs.toFixed(1) + 'px IBM Plex Sans, sans-serif';
+      const FSM  = Math.max(8, fs - 1).toFixed(1) + 'px IBM Plex Sans, sans-serif';
+      const FVrel = Math.max(10, fs + 1).toFixed(1) + 'px IBM Plex Sans, sans-serif';
       const compact = W < 560;
-      const mL = Math.min(W * 0.46, H * 0.42, 170);     // pixels per 100 m/s
-      const sc = mL / 100;
-      // chord line origin (left-centre); airfoil drawn along +x
-      const ox = Math.max(70, W * 0.16), oy = H * 0.54;
-      const foilLen = Math.min(W * 0.30, 150);
+      const showDetailLabels = !compact;
 
-      // airfoil (NACA 0012) along the chord, pointing +x
-      const prof = HLD.nacaProfile(0.12, 48);
-      ctx.save();
-      ctx.translate(ox, oy);
-      ctx.beginPath();
-      prof.forEach((p, i) => i ? ctx.lineTo(p[0] * foilLen, -p[1] * foilLen) : ctx.moveTo(p[0] * foilLen, -p[1] * foilLen));
-      ctx.closePath(); ctx.fillStyle = col.bg; ctx.fill();
-      ctx.strokeStyle = col.dim; ctx.lineWidth = 1.4; ctx.stroke();
-      ctx.restore();
-      // chord reference line (long dashed, extends for arcs)
-      const chordX1 = ox - 18, chordX2 = ox + foilLen + Math.max(60, 0.5 * vrot * sc + 40);
-      HLD.dline(ctx, chordX1, oy, chordX2, oy, col.dim, 1, [2, 4]);
+      // rotor-plane baseline (TPP)
+      HLD.dline(ctx, 20, oy, W - 10, oy, col.grid, 1, [5, 4]);
+      HLD.chipLabel(ctx, 'TPP', 24, oy, col.dim, FSM, 'left', col.bg);
 
-      // V_rot = Ω·r along chord (forward, +x)
-      const vrotTipX = ox + vrot * sc;
-      HLD.arrow(ctx, ox, oy, vrotTipX, oy, col.ink, 2.2, 9);
-      HLD.chipLabel(ctx, compact ? 'V_rot' : 'V_rot=Ωr', vrotTipX - 4, oy - 12, col.ink, '11px ui-sans-serif', 'right');
-      // V_T = μ·sinψ·ΩR head-to-tail on V_rot tip
-      const vTipX = vrotTipX + vT * sc;
-      if (Math.abs(vT) > 1) {
-        HLD.arrow(ctx, vrotTipX, oy, vTipX, oy, col.wind, 2.0, 8);
-        HLD.chipLabel(ctx, compact ? 'V_T' : 'V_T=μsinψ·ΩR', (vrotTipX + vTipX) / 2, oy + 16, col.wind, '11px ui-sans-serif', 'center');
+      // ---- IN-PLANE construction (heads point RIGHT toward the airfoil) -------
+      const xRotTail = tipX - Vrot * sx;
+      const xBase = tipX - UT * sx;
+      const vtCol = Vt < 0 ? col.bad : col.accent;
+      const collinear = side;
+      const yVt = collinear ? oy : oy + 7;
+
+      HLD.arrow(ctx, xRotTail, oy, tipX, oy, col.lift, 3, 9);
+      if ((tipX - xRotTail) > 70) {
+        if (Vt < 0) HLD.chipLabel(ctx, 'V_rot', xRotTail + 6, oy - 14, col.lift, FV, 'left');
+        else HLD.chipLabel(ctx, 'V_rot', xRotTail + (tipX - xRotTail) * 0.44, oy - 14, col.lift, FV, 'center');
       }
-      // U_T net (from origin to combined tip)
-      HLD.arrow(ctx, ox, oy, vTipX, oy, col.chord, 2.6, 10);
-      HLD.chipLabel(ctx, 'U_T', Math.min(vTipX, ox + 4), oy - 26, col.chord, '12px ui-sans-serif', 'left');
 
-      // U_P vertical at U_T tip (screen up = +UP, i.e. flow into the blade from above)
-      const upY = oy - UP * sc;            // negative UP (net upflow) draws DOWNWARD here
-      const upBaseX = Math.min(vTipX, ox + 2);  // keep bracket left of vectors
-      const upLeftX = Math.min(upBaseX, vrotTipX, ox) - 12;
-      if (Math.abs(UP) > 1) {
-        HLD.arrow(ctx, upBaseX, oy, upBaseX, upY, col.lift, 2.2, 9);
-        // U_P breakdown as ONE stacked bar just left of the arrow: V_i (bottom)
-        // + V_n + v_flap stack to the same total as U_P. Negative v_flap (advancing)
-        // draws its segment downward, showing how flap trims U_P down.
-        if (showComp.vi) {
-          const bx = upLeftX, bw = 7;
-          const seg = (y0, dy, color, lab) => {
-            if (Math.abs(dy) < 1.2) return;
-            ctx.fillStyle = color;
-            ctx.fillRect(bx - bw / 2, Math.min(y0, y0 + dy), bw, Math.abs(dy));
-            HLD.text(ctx, lab, bx - bw / 2 - 5, y0 + dy * 0.5, color, '10px ui-sans-serif', 'right', 'middle');
-          };
-          seg(oy, -d.vi * sc, col.dim, 'V_i');
-          seg(oy - d.vi * sc, -d.vn * sc, col.warn, 'V_n');
-          if (layer !== 'rigid' && layer !== 'hover')
-            seg(oy - (d.vi + d.vn) * sc, -d.vflap * sc, col.accent, 'v_flap');
+      const xL = Math.min(xRotTail, xBase), xR = Math.max(xRotTail, xBase);
+      if (Vt < 0) HLD.arrow(ctx, xR, yVt, xL, yVt, vtCol, 3, 9);
+      else HLD.arrow(ctx, xL, yVt, xR, yVt, vtCol, 3, 9);
+      if (!collinear) {
+        HLD.dline(ctx, xRotTail, oy, xRotTail, yVt, col.grid, 1, [2, 3]);
+        HLD.dline(ctx, xBase, oy, xBase, yVt, col.grid, 1, [2, 3]);
+      }
+      if (Math.abs(xBase - xRotTail) > 60) {
+        const vtLy = collinear ? oy + 13 : yVt + 13;
+        HLD.chipLabel(ctx, 'V_T', (xRotTail + xBase) / 2, vtLy, vtCol, FV, 'center');
+      }
+
+      // net U_T bracket BELOW the plane
+      const yBr = collinear ? oy + 30 : oy + 34;
+      HLD.dline(ctx, xBase, yBr, tipX, yBr, col.ink, 1.5, [2, 3]);
+      HLD.tick(ctx, xBase, yBr, 8, Math.PI / 2, col.ink, 1.5);
+      HLD.tick(ctx, tipX, yBr, 8, Math.PI / 2, col.ink, 1.5);
+      HLD.chipLabel(ctx, 'U_T', (xBase + tipX) / 2, yBr + 12, col.ink, FV, 'center');
+
+      // ---- U_P stack (V_i + V_n + V_flap) above the plane at the base tail ----
+      // yTop uses the HONEST total UP so V_rel's slope (→φ→α) matches cellAt.
+      const yTop = oy - UP * AMP * sy;
+      const yVi  = oy - v_i * AMP * sy;
+      const yVn  = oy - (v_i + v_n) * AMP * sy;
+      const LBL_MIN = 13;
+      const viLx = xBase + 10;
+      // V_i (bottom)
+      HLD.arrow(ctx, xBase, yVi, xBase, oy, col.wind, 2.5, 8);
+      if (showDetailLabels && (oy - yVi) >= LBL_MIN) HLD.chipLabel(ctx, 'V_i', viLx, (yVi + oy) / 2, col.wind, FSM, 'left');
+      // V_n (middle)
+      if (v_n > 1e-4) {
+        HLD.arrow(ctx, xBase, yVn, xBase, yVi, col.accent, 2.5, 7);
+        if (showDetailLabels && (yVi - yVn) >= LBL_MIN) HLD.chipLabel(ctx, 'V_n', viLx, (yVn + yVi) / 2, col.accent, FSM, 'left');
+      }
+      // V_flap: ADVANCING (v_flap>0) ADDS to the stack (collinear, head down);
+      //         RETREATING (v_flap<0) SUBTRACTS — own up-arrow just right of stack.
+      if (Math.abs(v_flap) > 1e-4 && layer !== 'rigid' && layer !== 'hover') {
+        const flCol = v_flap > 0 ? col.good : col.warn;
+        if (v_flap > 0) {
+          HLD.arrow(ctx, xBase, yTop, xBase, yVn, flCol, 2.5, 7);
+          if (showDetailLabels) HLD.chipLabel(ctx, 'V_flap', xBase, yTop - 11, flCol, FSM, 'center', 'rgba(0,0,0,0.5)');
+        } else {
+          const flDx = 6;
+          HLD.arrow(ctx, xBase + flDx, yTop, xBase + flDx, yVn, flCol, 2.5, 7);
+          HLD.dline(ctx, xBase, yVn, xBase + flDx, yVn, col.grid, 1, [2, 3]);
+          HLD.dline(ctx, xBase, yTop, xBase + flDx, yTop, col.grid, 1, [2, 3]);
+          if (showDetailLabels) HLD.chipLabel(ctx, 'V_flap', xBase + flDx, yVn - 8, flCol, FSM, 'center', 'rgba(0,0,0,0.5)');
         }
-        // U_P label sits at the arrow tip, to the right, clear of the left-side bar
-        HLD.chipLabel(ctx, 'U_P', upBaseX + 10, upY, col.lift, '11px ui-sans-serif', 'left');
       }
 
-      // V_rel closes the triangle: origin → (upBaseX, upY)
-      HLD.arrow(ctx, ox, oy, upBaseX, upY, col.accent, 2.4, 9);
-      HLD.chipLabel(ctx, 'V_rel', (ox + upBaseX) / 2, upY - 12, col.accent, '12px ui-sans-serif', 'center');
-
-      // blade reference line at pitch θ (rotate chord by +θ about LE)
-      const theta = d.theta;
-      const refLen = Math.max(foilLen, Math.abs(upBaseX - ox) + 60);
-      const refX = ox + refLen * Math.cos(theta), refY = oy - refLen * Math.sin(theta);
-      HLD.dline(ctx, ox - 18, oy - 18 * Math.sin(theta) / Math.cos(theta), refX, refY, col.chord, 1.6, [6, 3]);
-
-      // arcs (left side): θ (chord→ref), φ (V_rel→chord), α (V_rel→ref) — only for positive AoA
-      function arc(r, fromAng, toAng, color, lab) {
-        ctx.strokeStyle = color; ctx.lineWidth = 1.8;
-        ctx.beginPath();
-        ctx.arc(ox, oy, r, fromAng, toAng, toAng < fromAng); ctx.stroke();
-        const mid = (fromAng + toAng) / 2;
-        HLD.text(ctx, lab, ox + (r + 13) * Math.cos(mid), oy + (r + 13) * Math.sin(mid), color, 'bold 12px ui-sans-serif', 'center', 'middle');
+      // ---- U_P total bracket — JUST LEFT of all vectors, never crossing --------
+      {
+        const xVecLeft = Math.min(xRotTail, xBase, tipX);
+        const upGap = compact ? 14 : 20;
+        const upBx = xVecLeft - upGap;
+        const yA = Math.min(oy, yTop), yB = Math.max(oy, yTop);
+        HLD.dline(ctx, upBx, yA, upBx, yB, col.ink, 1.5, [2, 3]);
+        const tickLen = compact ? 6 : 8;
+        HLD.dline(ctx, upBx - tickLen, yA, upBx, yA, col.ink, 1.5);
+        HLD.dline(ctx, upBx - tickLen, yB, upBx, yB, col.ink, 1.5);
+        const upLabelY = compact ? Math.min(H - 12, oy + 12) : (yA + yB) / 2;
+        HLD.chipLabel(ctx, 'U_P', upBx - 10, upLabelY, col.wind, FSM, 'right', 'rgba(13,17,23,0.7)');
       }
-      // chord direction = +x (angle 0). V_rel direction = atan2(upY-oy, upBaseX-ox)
-      const vrAng = Math.atan2(upY - oy, upBaseX - ox);   // screen angle of V_rel
-      const refAng = -theta;                                // screen angle of ref line
-      const Rarc = 30;
-      const thDegAbs = Math.abs(theta * R2D), phDegAbs = Math.abs(vrAng * R2D);
-      const aoaDeg = d.aoa * R2D;
-      // stagger radii so θ / φ / α labels never sit on top of each other
-      if (thDegAbs > 2) arc(Rarc, 0, refAng, col.chord, 'θ');
-      if (phDegAbs > 2 && UT > 0) arc(Rarc + 24, vrAng, 0, col.dim, 'φ');
-      if (aoaDeg > 1) arc(Rarc + 48, vrAng, refAng, col.bad, 'α');
 
-      // title
+      // ---- V_rel resultant: tail at (xBase,yTop) → head at the airfoil tip ----
+      HLD.arrow(ctx, xBase, yTop, tipX, oy, col.wind, 3, 10);
+      const vrFrac = netUpflow ? 0.40 : 0.45;
+      const vrx = xBase + (tipX - xBase) * vrFrac, vry = yTop + (oy - yTop) * vrFrac;
+      if (!compact) HLD.chipLabel(ctx, 'V_rel', vrx + (netUpflow ? 4 : -6), vry - 12, col.wind, FVrel, 'center');
+      HLD.dot(ctx, tipX, oy, 3.5, col.ink);
+
+      // ================= AIRFOIL AT THE TIP + θ/α ARCS =========================
+      const thetaDeg = theta * R2D, phiDeg = phi * R2D, aoaDeg = aoa * R2D;
+      const deg = (v) => (v >= 0 ? '' : '\u2212') + Math.abs(v).toFixed(0) + '\u00b0';
+      if (!reverse) {
+        const foilLen = Math.max(78, Math.min(rightPad * 0.8, 150));
+        const pitchDisp = (thetaDeg) => Math.sign(thetaDeg || 1) * Math.max(4, Math.min(30, Math.abs(thetaDeg) * 2.0)) * D2R;
+        const lex = tipX + 6, ley = oy - 2;
+        const naca = HLD.nacaProfile(0.12, 56);
+        const drawFoilAt = (leX, leY, len, drawnPitch, style) => {
+          const u = { x: Math.cos(drawnPitch), y: Math.sin(drawnPitch) };
+          const n = { x: -u.y, y: u.x };
+          ctx.save(); ctx.globalAlpha = style.alpha;
+          ctx.beginPath();
+          naca.forEach((p) => {
+            const along = p.x * len, thick = p.y * len;
+            const X = leX + along * u.x + thick * n.x;
+            const Y = leY + along * u.y + thick * n.y;
+            if (p === naca[0]) ctx.moveTo(X, Y); else ctx.lineTo(X, Y);
+          });
+          ctx.closePath();
+          if (style.fill) { ctx.fillStyle = style.fill; ctx.fill(); }
+          ctx.strokeStyle = style.stroke; ctx.lineWidth = style.w || 1.5; ctx.stroke();
+          ctx.restore();
+          return u;
+        };
+        const uCh = drawFoilAt(lex, ley, foilLen, pitchDisp(thetaDeg), {
+          stroke: stalled2 ? col.bad : '#ffffff',
+          fill: stalled2 ? 'rgba(248,113,113,0.16)' : 'rgba(255,255,255,0.10)',
+          alpha: 1, w: 2.2,
+        });
+        HLD.dline(ctx, lex, ley, lex + foilLen * 1.02 * uCh.x, ley + foilLen * 1.02 * uCh.y, '#d8d8dc', 1.5, [4, 3]);
+        const extLen = Math.max(foilLen * 2.4, 180, (lex - 24) / Math.max(0.25, uCh.x));
+        HLD.dline(ctx, lex, ley, lex - extLen * uCh.x, ley - extLen * uCh.y, '#d8d8dc', 1.5, [4, 3]);
+
+        // ---- θ / α arcs centred on the real airfoil LE ----
+        const MIN_ARC = 0.02;
+        const pitchD = pitchDisp(thetaDeg);
+        const vrelAng = Math.atan2(oy - yTop, tipX - xBase);
+        const aCol = stalled2 ? col.bad : col.good;
+        const tppL = Math.PI, chordL = pitchD + Math.PI, vrelL = vrelAng + Math.PI;
+        const thetaTooSmall = Math.abs(pitchD) < MIN_ARC;
+        const aCx = lex, aCy = ley;
+        const radiusToX = (targetX, midAng, minR, maxR) => {
+          const c = Math.cos(midAng);
+          if (Math.abs(c) < 1e-3) return minR;
+          const r = (targetX - aCx) / c;
+          return Math.max(minR, Math.min(maxR, Number.isFinite(r) && r > 0 ? r : minR));
+        };
+        const upBx = Math.min(xRotTail, xBase, tipX) - (compact ? 14 : 20);
+        const thetaTargetX = Math.max(24, upBx - 16);
+        const thetaMid = tppL + (chordL - tppL) / 2;
+        const thR = radiusToX(thetaTargetX, thetaMid, 24, extLen - 8);
+        if (Math.abs(pitchD) >= MIN_ARC) {
+          ctx.save(); ctx.strokeStyle = col.chord; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(aCx, aCy, thR, Math.min(tppL, chordL), Math.max(tppL, chordL), false);
+          ctx.stroke(); ctx.restore();
+          const thLab = tppL + (chordL - tppL) * 0.70;
+          HLD.chipLabel(ctx, '\u03b8=' + deg(thetaDeg), aCx + thR * Math.cos(thLab), aCy + thR * Math.sin(thLab), col.chord, FV, 'center', 'rgba(13,17,23,0.6)');
+        }
+        const alphaTargetX = xBase + 0.5 * (tipX - xBase);
+        const a0 = Math.min(vrelL, chordL), a1 = Math.max(vrelL, chordL);
+        const aR = radiusToX(alphaTargetX, chordL, compact ? 18 : 22, extLen - 8);
+        const posAlpha = aoaDeg > 0.5;
+        if ((a1 - a0) >= MIN_ARC) {
+          ctx.save(); ctx.strokeStyle = aCol; ctx.lineWidth = posAlpha ? 1.8 : 1.2;
+          if (!posAlpha) ctx.setLineDash([3, 3]);
+          ctx.beginPath(); ctx.arc(aCx, aCy, aR, a0, a1, false); ctx.stroke(); ctx.restore();
+        }
+        if ((a1 - a0) >= MIN_ARC) {
+          const aLab = a0 + (a1 - a0) * 0.55;
+          HLD.chipLabel(ctx, '\u03b1=' + deg(aoaDeg), aCx + (aR + 12) * Math.cos(aLab), aCy + (aR + 12) * Math.sin(aLab), aCol, FV, 'center', 'rgba(13,17,23,0.82)');
+        }
+        if (thetaTooSmall) {
+          const sx2 = Math.max(28, thetaTargetX - 30);
+          const sy2 = Math.max(16, Math.min(oy - 44, H - 60));
+          HLD.chipLabel(ctx, '\u03b8=' + deg(thetaDeg), sx2, sy2, col.ink, FV, 'left', 'rgba(13,17,23,0.7)');
+          HLD.chipLabel(ctx, '\u03c6=' + deg(phiDeg), sx2, sy2 + 16, col.ink, FV, 'left', 'rgba(13,17,23,0.7)');
+        }
+      } else {
+        HLD.chipLabel(ctx, 'reverse flow — α undefined', tipX - 140, oy - 40, col.bad, FV, 'left', 'rgba(248,113,113,0.15)');
+      }
+
+      // reverse / net-upflow flags (below the title so they never collide)
+      const flagY = compact ? 38 : 34;
+      if (reverse) HLD.chipLabel(ctx, '⚠ reverse flow (U_T < 0)', 24, flagY, col.bad, FV, 'left', 'rgba(248,113,113,0.15)');
+      else if (netUpflow) HLD.chipLabel(ctx, '↑ net up-flow (U_P < 0)', 24, flagY, col.warn, FV, 'left', 'rgba(214,158,46,0.15)');
+
+      // title (top-left)
       const cardinal = psiDeg < 45 || psiDeg > 315 ? 'TAIL' : psiDeg < 135 ? 'ADVANCING' : psiDeg < 225 ? 'NOSE' : 'RETREATING';
-      HLD.text(ctx, `${cardinal} ψ=${psiDeg}° · r/R=${rBar.toFixed(2)} · ${layer === 'hover' ? 'HOVER' : Vkt + ' kt'}`,
-        12, 16, col.dim, '12px ui-sans-serif', 'left', 'top');
-      // verdict chip (top-right) so the OK/STALL/REVERSE call is always on-canvas
-      const d2 = cellAt(layer, st, rBar, psiDeg * D2R);
-      const se2 = stallEffAt(d2.st, d2.UTn), AL2 = airloadConf(d2.UTn, d2.mu);
-      const stalled2 = !d2.reverseFlow && d2.aoa * R2D >= se2 && AL2.qShare >= 0.25;
-      const vTxt = d2.reverseFlow ? 'REVERSE FLOW' : stalled2 ? 'STALLED' : (d2.aoa * R2D >= se2 - 3 ? 'NEAR STALL' : 'OK');
-      const vCol2 = d2.reverseFlow ? '#b24' : stalled2 ? col.bad : (d2.aoa * R2D >= se2 - 3 ? col.warn : col.good);
-      const cw = compact ? 104 : 132, ch = compact ? 20 : 24;
-      ctx.fillStyle = col.bg;
-      ctx.fillRect(W - cw - 6, 6, cw + 6, ch + 4);
-      ctx.globalAlpha = 0.85; ctx.fillStyle = vCol2;
-      ctx.fillRect(W - cw - 6, 6, cw + 6, ch + 4); ctx.globalAlpha = 1;
+      const cardAbbr = psiDeg < 45 || psiDeg > 315 ? 'TAIL' : psiDeg < 135 ? 'ADV' : psiDeg < 225 ? 'NOSE' : 'RET';
+      const titleStr = compact
+        ? `${cardAbbr} ψ${psiDeg}° · ${Vkt}kt`
+        : `${cardinal} ψ=${psiDeg}° · r/R=${rBar.toFixed(2)} · ${layer === 'hover' ? 'HOVER' : Vkt + ' kt'}`;
+      HLD.chipLabel(ctx, titleStr,
+        12, 16, col.dim, '12px IBM Plex Sans, sans-serif', 'left', col.bg);
+
+      // verdict chip (top-right)
+      const cw = compact ? 104 : 132, chh = compact ? 20 : 24;
+      ctx.globalAlpha = 0.88; ctx.fillStyle = vCol2;
+      ctx.fillRect(W - cw - 6, 6, cw + 6, chh + 4); ctx.globalAlpha = 1;
       ctx.strokeStyle = vCol2; ctx.lineWidth = 1.4;
-      ctx.strokeRect(W - cw - 6, 6, cw + 6, ch + 4);
-      HLD.text(ctx, vTxt, W - 6 - (cw + 6) / 2, 6 + (ch + 4) / 2, '#fff', (compact ? 'bold 11px ' : 'bold 12px ') + 'ui-sans-serif', 'center', 'middle');
-      if (compact) HLD.text(ctx, 'tap disc to pick a station', 12, H - 8, col.dim, '10px ui-sans-serif', 'left', 'bottom');
+      ctx.strokeRect(W - cw - 6, 6, cw + 6, chh + 4);
+      HLD.text(ctx, vTxt, W - 6 - (cw + 6) / 2, 6 + (chh + 4) / 2, '#fff', (compact ? 'bold 11px ' : 'bold 12px ') + 'IBM Plex Sans, sans-serif', 'center', 'middle');
+      if (compact) HLD.chipLabel(ctx, 'tap disc to pick a station', 12, H - 8, col.dim, '10px IBM Plex Sans, sans-serif', 'left', col.bg);
     }
 
     // ── readout ──────────────────────────────────────────────────────
