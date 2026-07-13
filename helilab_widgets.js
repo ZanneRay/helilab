@@ -586,11 +586,17 @@ const HLW = (function () {
       : (phase.indexOf('STEADY') === 0 || phase === 'HOVER') ? 'var(--hl-good)'
       : phase.indexOf('ACCEL') === 0 ? 'var(--hl-warn)' : 'var(--hl-ink)';
 
+    const VRS_LOW = -1.8, VRS_HIGH = -0.25;   // VRS band in V_c/v_h (matches engine branch boundary)
     const draw = () => {
       const { ctx, W, H, col } = HLD.setup(canvas);
       HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
       const sol = solveAt(theta, Vc), T = sol.thrust, twr = T / Wt;
-      const tcol = twr >= 0.99 ? col.lift : col.warn;
+      const OmR = HL.omR(st);
+      const vh = sol.vih || 8;
+      const vi = sol.vi, VcMs = Vc, UP = vi + VcMs;          // net axial inflow (m/s), down-positive
+      const phi = Math.max(-0.28, Math.min(0.5, Math.atan2(sol.lam, 0.75)));  // = atan2(U_P, U_T)
+      const aoaDeg = (theta * D2R - phi) * 180 / Math.PI;
+      const a = (T - Wt) / mass;
       const phCol = phase.indexOf('VRS') >= 0 ? col.bad
         : (phase.indexOf('STEADY') === 0 || phase === 'HOVER') ? col.good
         : phase.indexOf('ACCEL') === 0 ? col.warn : col.ink;
@@ -598,59 +604,92 @@ const HLW = (function () {
       // phase banner
       HLD.text(ctx, phase, W * 0.22, 15, phCol, 'bold 12px IBM Plex Sans', 'center');
 
-      // ── left-top: helicopter with T / W / ROC vectors ──
-      const hx = W * 0.22, hy = H * 0.32, dr = W * 0.12, refL = H * 0.19;
-      ctx.strokeStyle = col.accent; ctx.lineWidth = 4; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(hx - dr, hy); ctx.lineTo(hx + dr, hy); ctx.stroke(); ctx.lineCap = 'butt';
-      HLD.dot(ctx, hx, hy, 3, col.accent);
-      ctx.fillStyle = col.dim; ctx.globalAlpha = 0.8;
-      ctx.beginPath(); ctx.ellipse(hx, hy + 20, 20, 9, 0, 0, 2 * Math.PI); ctx.fill(); ctx.globalAlpha = 1;
-      HLD.arrow(ctx, hx, hy, hx, hy - Math.min(1.7, twr) * refL, tcol, 4, 11);
-      HLD.text(ctx, 'T', hx + 6, hy - Math.min(1.7, twr) * refL + 7, tcol, 'bold 12px IBM Plex Sans');
-      HLD.arrow(ctx, hx, hy + 30, hx, hy + 30 + refL, col.drag, 3, 9);
-      HLD.text(ctx, 'W', hx + 6, hy + 30 + refL, col.drag, '11px IBM Plex Sans');
-      if (Math.abs(Vc) > 0.15) {
-        const up = Vc > 0, rl = Math.min(H * 0.2, Math.abs(Vc) * 3.5 + 6), rx = hx + dr + 24;
-        HLD.arrow(ctx, rx, hy + (up ? 14 : -14), rx, hy + (up ? 14 - rl : -14 + rl), col.wind, 2.5, 8);
-        HLD.text(ctx, (up ? 'ROC ' : 'ROD ') + Math.abs(Vc).toFixed(1), rx + 4, hy, col.wind, '9px IBM Plex Sans');
+      // ── left-top: disc side-view inflow diagram  v_i + V_c = U_P ──
+      // momentum view: how climb / descent velocity grows the net through-flow.
+      const compact = W < 560;
+      const cx = W * 0.22, cy = H * 0.27, dw = W * 0.082;
+      const vrsNow = sol.vrs;
+      HLD.text(ctx, vrsNow ? (compact ? '⚠ VRS — recirculation' : '⚠ VRS — recirculation (momentum theory invalid)') : 'rotor disc — side view',
+        cx, H * 0.045, vrsNow ? col.bad : col.dim, '9px IBM Plex Sans', 'center', 'top');
+      ctx.strokeStyle = col.accent; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(cx - dw, cy); ctx.lineTo(cx + dw, cy); ctx.stroke();
+      ctx.fillStyle = col.dim; ctx.globalAlpha = 0.45;
+      ctx.beginPath(); ctx.ellipse(cx, cy, dw, H * 0.011, 0, 0, 2 * Math.PI); ctx.fill(); ctx.globalAlpha = 1;
+      HLD.dot(ctx, cx, cy, 2.5, col.accent);
+      const refL = H * 0.13, sc = refL / vh;                  // px per (m/s), v_h → refL
+      const arrLen = v => Math.sign(v) * Math.min(refL, Math.abs(v) * sc);
+      const upCol = vrsNow ? col.bad : (UP >= 0 ? col.ink : col.bad);
+      const valTxt = v => (v >= 0 ? '+' : '') + v.toFixed(1);
+      if (compact) {
+        // narrow screens: one bold net arrow through the disc + the equation as text
+        const L = arrLen(UP);
+        HLD.arrow(ctx, cx, cy - L / 2, cx, cy + L / 2, upCol, 4.5, 11);
+        HLD.text(ctx, 'U_P ' + valTxt(UP) + ' m/s', cx, cy + refL * 0.55, upCol, 'bold 10px IBM Plex Sans', 'center', 'top');
+        HLD.text(ctx, 'v_i ' + valTxt(vi) + '  +  V_c ' + valTxt(VcMs) + '  =  U_P ' + valTxt(UP),
+          cx, cy + refL * 0.55 + 14, col.dim, '9px IBM Plex Sans', 'center', 'top');
+      } else {
+        const sp = W * 0.075, xVi = cx - sp, xVc = cx, xUp = cx + sp, yLbl = cy + refL * 0.55;
+        HLD.arrow(ctx, xVi, cy - arrLen(vi) / 2, xVi, cy + arrLen(vi) / 2, col.lift, 3, 9);
+        HLD.text(ctx, 'v_i', xVi, yLbl, col.lift, 'bold 10px IBM Plex Sans', 'center', 'top');
+        HLD.text(ctx, vi.toFixed(1) + ' m/s', xVi, yLbl + 11, col.dim, '8px IBM Plex Sans', 'center', 'top');
+        const vcCol = VcMs >= 0 ? col.good : col.wind;
+        const vcLbl = Math.abs(VcMs) < 0.15 ? 'V_c' : (VcMs > 0 ? 'climb V_c' : 'descent V_c');
+        HLD.arrow(ctx, xVc, cy - arrLen(VcMs) / 2, xVc, cy + arrLen(VcMs) / 2, vcCol, 3, 9);
+        HLD.text(ctx, vcLbl, xVc, yLbl, vcCol, 'bold 10px IBM Plex Sans', 'center', 'top');
+        HLD.text(ctx, valTxt(VcMs) + ' m/s', xVc, yLbl + 11, col.dim, '8px IBM Plex Sans', 'center', 'top');
+        HLD.text(ctx, '+', (xVi + xVc) / 2, cy, col.ink, 'bold 14px IBM Plex Sans', 'center', 'middle');
+        HLD.text(ctx, '=', (xVc + xUp) / 2, cy, col.ink, 'bold 14px IBM Plex Sans', 'center', 'middle');
+        HLD.arrow(ctx, xUp, cy - arrLen(UP) / 2, xUp, cy + arrLen(UP) / 2, upCol, 4.5, 11);
+        HLD.text(ctx, 'U_P', xUp, yLbl, upCol, 'bold 11px IBM Plex Sans', 'center', 'top');
+        HLD.text(ctx, valTxt(UP) + ' m/s', xUp, yLbl + 11, col.dim, '8px IBM Plex Sans', 'center', 'top');
+      }
+      HLD.text(ctx, 'positive = down through disc', cx, H * 0.495, col.dim, '8px IBM Plex Sans', 'center', 'bottom');
+      if (vrsNow) {
+        ctx.strokeStyle = col.bad; ctx.lineWidth = 2;
+        for (const tx of [cx - dw, cx + dw]) { ctx.beginPath(); ctx.arc(tx, cy, W * 0.02, -0.4, Math.PI * 1.3); ctx.stroke(); }
       }
 
-      // ── left-bottom: blade element AoA at 0.75R ──
-      // φ from the net inflow (negative in descent = up-flow → α rises).
-      // Display-only clamp at [−16°, +29°]: keeps the schematic readable at the
-      // V_c extremes; the readout numbers are never clamped.
-      const phi = Math.max(-0.28, Math.min(0.5, Math.atan2(sol.lam, 0.75)));
-      HLD.text(ctx, 'blade element (0.75R)', W * 0.04, H * 0.56, col.dim, '9px IBM Plex Sans');
+      // ── left-bottom: blade element at 0.75R (BET consequence of U_P) ──
+      // U_P (from the disc diagram above) meets U_T = Ω·0.75R → φ = atan2(U_P,U_T), α = θ − φ.
+      HLD.text(ctx, 'blade element (0.75R) — U_P → φ → α', W * 0.04, H * 0.56, col.dim, '9px IBM Plex Sans');
       HLD.bladeSection(ctx, W * 0.07, H * 0.86, Math.min(W * 0.34, 175),
         { theta: theta * D2R, phi, ampl: 3.2, showForces: false, aoa: theta * D2R - phi, stall: false }, col);
 
-      // ── right: T–V_c curve with W line, VRS band, moving operating point ──
-      ctx.save(); ctx.translate(W * 0.45, 0);
-      const cW = W * 0.55, cH = H * 0.9;
-      const pts = [];
-      for (let i = 0; i <= 60; i++) { const v = (-3 + 4 * i / 60) * vih; pts.push({ x: v / vih, y: solveAt(theta, v).thrust / 1000 }); }
-      const ymax = Math.max(Wt / 1000, ...pts.map(p => p.y)) * 1.15;
-      const ch = HLD.lineChart(ctx, cW, cH, [{ pts, color: col.accent, width: 2.2 }],
-        { xmin: -3, xmax: 1, ymin: 0, ymax, xlab: 'descent ← V_c/v_h → climb', ylab: 'Thrust (kN)' }, col,
+      // ── right: phase map  U_P/v_h  vs  V_c/v_h ──
+      // the climb/descent velocity is read straight off the horizontal axis;
+      // U_P grows to the right (climb), shrinks and reverses to the left (descent → windmill).
+      ctx.save(); ctx.translate(W * 0.46, H * 0.02);
+      const cW = W * 0.52, cH = H * 0.92;
+      const clean = [], vrsSeg = [];
+      for (let i = 0; i <= 80; i++) {
+        const ratio = -3 + 4 * i / 80, v = ratio * vh, s = solveAt(theta, v);
+        (s.vrs ? vrsSeg : clean).push({ x: ratio, y: (s.vi + v) / vh });
+      }
+      const ch = HLD.lineChart(ctx, cW, cH,
+        [{ pts: clean, color: col.accent, width: 2.2 }, { pts: vrsSeg, color: col.bad, width: 2.2, dash: [5, 4] }],
+        { xmin: -3, xmax: 1, ymin: -2.2, ymax: 2.2, xlab: 'descent ←  V_c / v_h  → climb', ylab: 'U_P / v_h' }, col,
         [{ x: 0, color: col.dim, label: 'hover' }]);
-      const xa = ch.sx(-1.6), xb = ch.sx(-0.25);
-      ctx.fillStyle = 'rgba(248,113,113,0.13)'; ctx.fillRect(xa, ch.y1, xb - xa, ch.y0 - ch.y1);
-      HLD.hatchRect(ctx, xa, ch.y1, xb - xa, ch.y0 - ch.y1, 'rgba(248,113,113,0.26)', 7);
+      const xa = ch.sx(VRS_LOW), xb = ch.sx(VRS_HIGH);
+      ctx.fillStyle = 'rgba(248,113,113,0.12)'; ctx.fillRect(xa, ch.y1, xb - xa, ch.y0 - ch.y1);
+      HLD.hatchRect(ctx, xa, ch.y1, xb - xa, ch.y0 - ch.y1, 'rgba(248,113,113,0.22)', 7);
       HLD.text(ctx, 'VRS', (xa + xb) / 2, ch.y1 + 8, col.bad, 'bold 9px IBM Plex Sans', 'center', 'top');
-      const wY = ch.sy(Wt / 1000);
-      HLD.dline(ctx, ch.x0, wY, ch.x1, wY, col.drag, 1.4, [5, 4]);
-      HLD.text(ctx, 'W', ch.x1 - 3, wY - 4, col.drag, '9px IBM Plex Sans', 'right');
-      const px = ch.sx(Math.max(-3, Math.min(1, Vc / vih))), py = ch.sy(Math.min(ymax, T / 1000));
+      HLD.dline(ctx, ch.x0, ch.sy(0), ch.x1, ch.sy(0), col.ink, 1.2, [4, 4]);
+      HLD.text(ctx, 'flow reverses (upflow)', ch.x1 - 2, ch.sy(0) + 10, col.dim, '8px IBM Plex Sans', 'right', 'top');
+      HLD.text(ctx, 'WINDMILL / autorotation', ch.sx(-2.45), ch.sy(-1.55), col.wind, 'bold 9px IBM Plex Sans', 'center');
+      HLD.text(ctx, 'CLIMB', ch.sx(0.55), ch.sy(1.75), col.good, 'bold 9px IBM Plex Sans', 'center');
+      const px = ch.sx(Math.max(-3, Math.min(1, VcMs / vh))), py = ch.sy(Math.max(-2.2, Math.min(2.2, UP / vh)));
       HLD.dline(ctx, px, ch.y0, px, py, col.ink, 1, [3, 3]);
-      HLD.dot(ctx, px, py, 5, sol.vrs ? col.bad : tcol);
+      HLD.dot(ctx, px, py, 5, sol.vrs ? col.bad : (VcMs >= 0 ? col.good : col.wind));
       ctx.restore();
 
-      const a = (T - Wt) / mass, aoaDeg = (theta * D2R - phi) * 180 / Math.PI;
       readout.innerHTML = kv([
         ['Phase', phase, phVar()],
         ['Vertical speed', (Vc >= 0 ? '+' : '') + Vc.toFixed(1) + ' m/s  (' + (Vc / vih).toFixed(2) + ' v_h)', 'var(--hl-ink)'],
+        ['Induced v_i', vi.toFixed(1) + ' m/s', 'var(--hl-lift)'],
+        ['Net U_P = v_i+V_c', (UP >= 0 ? '+' : '') + UP.toFixed(1) + ' m/s', sol.vrs ? 'var(--hl-bad)' : 'var(--hl-ink)'],
         ['Accel.', a.toFixed(2) + ' m/s²', Math.abs(a) < 0.05 ? 'var(--hl-good)' : 'var(--hl-warn)'],
         ['T / W', twr.toFixed(2), twr >= 0.99 && twr <= 1.01 ? 'var(--hl-good)' : 'var(--hl-warn)'],
+        ['Blade φ', (phi * 180 / Math.PI).toFixed(1) + '°', 'var(--hl-chord)'],
         ['Blade α (0.75R)', aoaDeg.toFixed(1) + '°', 'var(--hl-lift)'],
         ['Collective θ₀', theta.toFixed(1) + '°', 'var(--hl-chord)'],
       ]) + '<p class="hl-note">' + phaseNote() + '</p>';
@@ -659,12 +698,12 @@ const HLW = (function () {
     const phaseNote = () => {
       if (phase.indexOf('in VRS band') >= 0) return '⚠ Transiting the <b>vortex-ring band</b> on the way down — thrust is erratic in here (the model holds an approximate value). A real descent should not linger in this band.';
       if (phase.indexOf('VRS') >= 0) return '⚠ The descent settled in the <b>vortex ring</b> band — momentum theory breaks down here and thrust gets erratic. This is exactly why a slow vertical descent is dangerous; recover with forward speed.';
-      if (phase === 'ACCELERATING ↑') return 'Collective raised → <b>T &gt; W</b> → accelerating up. The growing climb raises the inflow, which trims the blade α down and pulls T back toward W.';
-      if (phase === 'ACCELERATING ↓') return 'Collective lowered → <b>T &lt; W</b> → accelerating down. The descent reduces the inflow, raising α and pushing T back up toward W.';
-      if (phase === 'STEADY CLIMB') return '✔ <b>T = W</b> again at a steady rate of climb. Notice α is back near its hover value — the extra collective went into beating the higher inflow, not into more AoA. That is why climbing costs collective/power.';
-      if (phase === 'STEADY DESCENT') return '✔ <b>T = W</b> at a steady rate of descent, now <b>below the VRS band</b> in the clean windmill / autorotative state — the rotor had to pass <i>through</i> VRS to get here. (Engine-off autorotation lives in this regime — Lesson 15.)';
-      if (phase.indexOf('manual') >= 0) return 'Manual scrub. Press <b>Climb</b> or <b>Descent entry</b> to watch the transient: T momentarily ≠ W, the aircraft accelerates, and the changing inflow trims it back to T = W.';
-      return 'Hover: thrust exactly balances weight. Press <b>Climb entry</b> or <b>Descent entry</b> to see how the rotor settles into a steady rate of climb/descent.';
+      if (phase === 'ACCELERATING ↑') return 'Collective raised → <b>T &gt; W</b> → accelerating up. As the climb builds, <b>U_P = v_i + V_c grows</b> → φ grows → α shrinks, pulling T back toward W.';
+      if (phase === 'ACCELERATING ↓') return 'Collective lowered → <b>T &lt; W</b> → accelerating down. The descent <b>shrinks U_P</b> (v_i + V_c ↓) → φ shrinks → α grows, pushing T back up toward W.';
+      if (phase === 'STEADY CLIMB') return '✔ <b>T = W</b> again at a steady rate of climb. U_P sits above its hover value, so α is back near hover — the extra collective went into beating the higher inflow, not into more AoA. That is why climbing costs collective/power.';
+      if (phase === 'STEADY DESCENT') return '✔ <b>T = W</b> at a steady rate of descent. In a fast/steep descent <b>U_P reverses</b> (upflow through the disc) — the clean windmill / autorotative state the rotor must reach by passing <i>through</i> VRS. (Engine-off autorotation lives in this regime — Lesson 15.)';
+      if (phase.indexOf('manual') >= 0) return 'Manual scrub. Press <b>Climb</b> or <b>Descent</b> to watch the transient: T momentarily ≠ W, the aircraft accelerates, and the changing inflow trims it back to T = W.';
+      return 'Hover: thrust exactly balances weight. Press <b>Climb</b> or <b>Descent</b> to see how the rotor settles into a steady rate of climb/descent.';
     };
 
     const loop = (now) => {
@@ -695,7 +734,7 @@ const HLW = (function () {
     const mkBtn = (label, fn) => { const b = el('button', 'hl-seg-btn', label); b.onclick = fn; btns.appendChild(b); };
     mkBtn('▶ Climb', () => startAnim(+2, 'ACCELERATING ↑'));
     mkBtn('▶ Descent', () => startAnim(-2, 'ACCELERATING ↓'));
-    mkBtn('▶ Steep descent', () => startAnim(2 - thHover, 'ACCELERATING ↓'));
+    mkBtn('▶ Steep', () => startAnim(2 - thHover, 'ACCELERATING ↓'));
     mkBtn('↺ Hover', () => { animating = false; if (raf) { cancelAnimationFrame(raf); raf = null; } theta = thHover; Vc = 0; t = 0; phase = 'HOVER'; if (sl) sl.set(0); draw(); });
     controls.appendChild(btns);
     sl = slider(controls, { label: 'Manual vertical speed V_c', min: -16, max: 8, step: 0.5, val: 0, unit: ' m/s',
