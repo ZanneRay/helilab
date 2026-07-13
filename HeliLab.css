@@ -257,6 +257,12 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
 .hl-seg-btn.on { background: color-mix(in srgb, var(--brand) 18%, transparent);
   border-color: var(--brand); color: var(--text); font-weight: 600; }
 
+.hl-related { margin: 22px 0 6px; padding-top: 14px; border-top: 1px solid var(--border); }
+.hl-related-h { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase;
+  letter-spacing: .05em; margin-bottom: 8px; }
+.hl-related-chips { flex-wrap: wrap; }
+.hl-related-chips .hl-seg-btn { flex: 0 0 auto; min-width: 0; font-size: 12px; }
+
 .hl-kv { display: flex; justify-content: space-between; align-items: baseline;
   font-size: 13px; padding: 2px 0; gap: 10px; }
 .hl-kv span { color: var(--text2); }

@@ -44,6 +44,29 @@
   const saveProgress = () => { try { HLS.setItem(LS_PROGRESS, JSON.stringify(progress)); } catch (e) {} };
 
   let current = HL_LESSONS[0].id;
+
+  /* Cross-references between related lessons (coherence A→Z). Each value is a
+     list of lesson ids; the reader renders them as a "Related lessons" chip-row
+     that jumps via the normal nav path (current = id; render()). */
+  const HL_RELATED = {
+    bigpicture:      ['bladeelement', 'hover', 'dissymmetry'],
+    bladeelement:    ['spanwise', 'bet-velocity', 'betdiagram'],
+    spanwise:        ['bladeelement', 'bet-velocity'],
+    hover:           ['bladeelement', 'groundeffect', 'verticalflight', 'performance'],
+    verticalflight:  ['hover', 'autorotation', 'performance'],
+    groundeffect:    ['hover', 'performance'],
+    dissymmetry:     ['flapping', 'envelope', 'bet-velocity'],
+    flapping:        ['dissymmetry', 'envelope', 'coriolis'],
+    envelope:        ['dissymmetry', 'flapping', 'bet-velocity'],
+    'bet-guided':    ['bet-velocity', 'betdiagram', 'flapping'],
+    'bet-velocity':  ['bladeelement', 'bet-guided', 'betdiagram', 'dissymmetry'],
+    coriolis:        ['flapping', 'bet-guided'],
+    dynamicrollover: ['hover', 'lte'],
+    lte:             ['bigpicture', 'autorotation', 'dynamicrollover'],
+    autorotation:    ['verticalflight', 'bet-velocity', 'betdiagram'],
+    performance:     ['hover', 'groundeffect', 'verticalflight'],
+    betdiagram:      ['bladeelement', 'bet-velocity', 'bet-guided', 'autorotation'],
+  };
   let inSandbox = false;
   let inMaths = false;
 
@@ -166,6 +189,25 @@
       ap.querySelector('.hl-appendix-toggle').onclick = openIt;
       ap.querySelector('.hl-appendix-toggle').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openIt(); } };
       main.appendChild(ap);
+    }
+
+    // related-lessons cross-references (coherence A→Z)
+    const relIds = HL_RELATED[lesson.id] || [];
+    if (relIds.length) {
+      const rel = el('div', 'hl-related');
+      rel.appendChild(el('div', 'hl-related-h', 'Related lessons'));
+      const chips = el('div', 'hl-seg hl-related-chips');
+      relIds.forEach(rid => {
+        const r = HL_LESSONS.find(l => l.id === rid);
+        if (!r) return;
+        const ci = HL_LESSONS.indexOf(r) + 1;
+        const b = el('button', 'hl-seg-btn', ci + '. ' + r.title);
+        b.title = r.stage + ' — ' + r.subtitle;
+        b.onclick = () => { current = rid; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+        chips.appendChild(b);
+      });
+      rel.appendChild(chips);
+      main.appendChild(rel);
     }
 
     // footer nav
