@@ -227,15 +227,16 @@ const HLD = (function () {
     // label biased down toward the wind. α (=θ−φ) is the exam angle: draw its
     // wedge between the two vectors and place the chip straight up into the clear
     // space above the origin so it never lands on V_rel or the airfoil.
-    arcLbl(40, 0, -thV, col.chord, 'θ ' + (th * 180 / Math.PI).toFixed(1) + '°', null, -6);
-    arcLbl(64, 0, -phV, col.wind, 'φ ' + (ph * 180 / Math.PI).toFixed(1) + '°', null, 12);
+    const aScale = len < 140 ? len / 140 : 1;          // shrink arcs on a small airfoil / inset (mobile)
+    arcLbl(40 * aScale, 0, -thV, col.chord, 'θ ' + (th * 180 / Math.PI).toFixed(1) + '°', null, len < 140 ? -12 : -6);
+    arcLbl(64 * aScale, 0, -phV, col.wind, 'φ ' + (ph * 180 / Math.PI).toFixed(1) + '°', null, 12);
     // α wedge drawn between the wind and chord vectors; its chip is anchored in
     // the clear headroom above the origin with a thin leader line back to the
     // wedge, so it stays readable even when θ and φ are both nearly horizontal.
     const aMid = (thV + phV) / 2;
     ctx.strokeStyle = aCol; ctx.lineWidth = 2.4;
-    ctx.beginPath(); ctx.arc(ox, oy, 88, -phV, -thV, -thV < -phV); ctx.stroke();
-    const wedgeX = ox + 88 * Math.cos(aMid), wedgeY = oy - 88 * Math.sin(aMid);
+    ctx.beginPath(); ctx.arc(ox, oy, 88 * aScale, -phV, -thV, -thV < -phV); ctx.stroke();
+    const wedgeX = ox + 88 * aScale * Math.cos(aMid), wedgeY = oy - 88 * aScale * Math.sin(aMid);
     const aLblX = ox + len * 0.30, aLblY = oy - len * 0.42;   // up-right, into empty space
     dline(ctx, wedgeX, wedgeY, aLblX, aLblY + 6, aCol, 1, [2, 3]);
     chipLabel(ctx, 'α ' + ((th - ph) * 180 / Math.PI).toFixed(1) + '° (AoA)',
@@ -250,7 +251,10 @@ const HLD = (function () {
       const Dx = -fD * Math.cos(phV), Dy =  fD * Math.sin(phV);   // drag ∥ wind (downstream)
       if (opts.showForces) {
         arrow(ctx, ox, oy, ox + Lx, oy + Ly, col.lift, 2.4, 9);
-        chipLabel(ctx, 'L', ox + Lx, oy + Ly - 10, col.lift, 'bold 11px IBM Plex Sans', 'center');
+        // L label on the LEFT-perpendicular side of lift (opposite the TAF label,
+        // which sits on the right-perp) — keeps the two near-collinear labels apart.
+        const lmag = Math.hypot(Lx, Ly) || 1;
+        chipLabel(ctx, 'L', ox + Lx - (Ly / lmag) * 16, oy + Ly + (Lx / lmag) * 16, col.lift, 'bold 11px IBM Plex Sans', 'center');
         arrow(ctx, ox, oy, ox + Dx, oy + Dy, col.drag, 2.0, 8);
         chipLabel(ctx, 'D', ox + Dx - 10, oy + Dy + 8, col.drag, '10px IBM Plex Sans', 'center');
       }
@@ -271,15 +275,18 @@ const HLD = (function () {
         dline(ctx, ox + Tx, oy, ox + Tx, oy + Ty, col.dim, 1, [3, 3]);
         dline(ctx, ox, oy, ox, oy + Ty, col.dim, 1, [3, 3]);          // vertical
         dline(ctx, ox, oy + Ty, ox + Tx, oy + Ty, col.dim, 1, [3, 3]);
+        // TAF direction + right-perpendicular (screen y-down: right-perp of (a,b) = (b,-a))
+        const tmag = Math.hypot(Tx, Ty) || 1;
+        const tpx = Ty / tmag, tpy = -Tx / tmag;
         // thrust (vertical) and F_H (horizontal) vectors
         arrow(ctx, ox, oy, ox, oy + Ty, col.good, 2.4, 9);
-        chipLabel(ctx, 'Thrust', ox - 26, oy + Ty + (Ty < 0 ? -2 : 4), col.good, 'bold 10px IBM Plex Sans', 'center');
+        chipLabel(ctx, 'Thrust', ox - 44, oy + Ty + (Ty < 0 ? 4 : -12), col.good, 'bold 10px IBM Plex Sans', 'right');
         const fhCol = Tx > 0 ? col.good : col.warn;
         arrow(ctx, ox, oy, ox + Tx, oy, fhCol, 2.4, 9);
-        chipLabel(ctx, 'F_H ×6', ox + Tx + (Tx < 0 ? -24 : 24), oy + 15, fhCol, 'bold 10px IBM Plex Sans', 'center');
-        // TAF resultant — label biased right, opposite the Thrust label on the left
+        chipLabel(ctx, 'F_H ×6', ox + Tx + (Tx < 0 ? -20 : 20), oy + 16, fhCol, 'bold 10px IBM Plex Sans', Tx < 0 ? 'right' : 'left');
+        // TAF resultant — label on the right-perpendicular side, away from L
         arrow(ctx, ox, oy, ox + Tx, oy + Ty, tafCol, 2.6, 10);
-        chipLabel(ctx, 'TAF', ox + Tx + 22, oy + Ty + 2, tafCol, 'bold 11px IBM Plex Sans', 'center');
+        chipLabel(ctx, 'TAF', ox + Tx + tpx * 18, oy + Ty + tpy * 18, tafCol, 'bold 11px IBM Plex Sans', 'center');
       }
     }
     if (opts.stall) {
@@ -318,7 +325,7 @@ const HLD = (function () {
     (markers || []).forEach(m => {
       const x = sx(m.x);
       dline(ctx, x, y0, x, y1, m.color, 1.5, [4, 3]);
-      text(ctx, m.label, x + 3, y1 + 4, m.color, '9px IBM Plex Sans', 'left', 'top');
+      text(ctx, m.label, x + 3, W < 420 ? y0 - 4 : y1 + 4, m.color, '9px IBM Plex Sans', 'left', W < 420 ? 'bottom' : 'top');
     });
 
     // series

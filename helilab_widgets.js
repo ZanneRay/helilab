@@ -351,7 +351,7 @@ const HLW = (function () {
         // length ∝ commanded thrust (collective trim − pedal)
         const trx = ix - ir - 4, trLen = Math.min(ir + 8, 7 + trThrust * 8);
         HLD.arrow(ctx, trx, iy, trx, iy + trLen, col.lift, 2, 6);
-        HLD.text(ctx, 'tail rotor', trx + 2, iy + ir + 6, col.lift, '8px IBM Plex Sans', 'center');
+        HLD.text(ctx, ipw < 92 ? 'tail R' : 'tail rotor', trx + 2, iy + ir + 6, col.lift, '8px IBM Plex Sans', 'center');
         // net yaw indicator (right pedal → less tail rotor → torque yaws nose right = CW)
         if (Math.abs(netYaw) > 0.06) {
           curvedArrow(ix, iy, ir + 7, netYaw > 0 ? -0.6 : -2.5, netYaw > 0 ? 1.3 : -1.3, col.bad);
@@ -477,9 +477,9 @@ const HLW = (function () {
       ctx.lineTo(sx(1), y0); ctx.closePath(); ctx.fill(); ctx.stroke();
       HLD.text(ctx, 'lift per metre  ∝ U_T²·C_l', sx(0.4), y1 + 4, col.lift, '11px IBM Plex Sans', 'left', 'top');
       // axes
-      HLD.text(ctx, 'root', sx(0), y0 + 6, col.dim, '10px IBM Plex Sans', 'center', 'top');
+      HLD.text(ctx, 'root', sx(0) + 2, y0 + 6, col.dim, '10px IBM Plex Sans', 'left', 'top');
       HLD.text(ctx, 'r/R', (x0 + x1) / 2, H - 4, col.dim, '10px IBM Plex Sans', 'center', 'top');
-      HLD.text(ctx, 'tip', sx(1), y0 + 6, col.dim, '10px IBM Plex Sans', 'center', 'top');
+      HLD.text(ctx, 'tip', sx(1) - 2, y0 + 6, col.dim, '10px IBM Plex Sans', 'right', 'top');
       // marker
       const mp = lift[Math.round(rMark * 60)];
       HLD.dline(ctx, sx(rMark), y0, sx(rMark), y1, col.warn, 1.5, [4, 3]);
@@ -1022,7 +1022,8 @@ const HLW = (function () {
           : [2, 4, 6, 8, 10, 12, 14];
         HLD.discIso(ctx, cx, cy, R, field, levels,
           { rMin: 0.2, color: 'rgba(20,25,35,0.5)', width: 1,
-            fmt: v => plotMode === 'pctcrit' ? v + '%' : v + '°' });
+            fmt: v => plotMode === 'pctcrit' ? v + '%' : v + '°',
+            label: W < 420 ? false : true });
       }
       ctx.strokeStyle = col.dim; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
@@ -1798,9 +1799,9 @@ const HLW = (function () {
         const tickLen = compact ? 6 : 8;
         HLD.dline(ctx, upBx - tickLen, yA, upBx, yA, col.ink, 1.5);
         HLD.dline(ctx, upBx - tickLen, yB, upBx, yB, col.ink, 1.5);
-        const upLabelY = compact ? Math.min(H - 12, oy + 12) : (yA + yB) / 2;
+        const upLabelY = compact ? Math.min(H - 14, oy + 20) : (yA + yB) / 2;
         HLD.chipLabel(ctx, 'U_P', upBx - 10, upLabelY, col.wind, FSM,
-          'right', 'rgba(13,17,23,0.7)');
+          'right', 'rgba(13,17,23,0.92)');
       }
 
       // ---- V_rel resultant: tail at (xBase,yTop) → head at the airfoil tip (tipX,oy).
@@ -1939,7 +1940,7 @@ const HLW = (function () {
           const thLab = tppL + (chordL - tppL) * 0.70;
           HLD.chipLabel(ctx, '\u03b8=' + deg(thetaDeg),
             aCx + thR * Math.cos(thLab), aCy + thR * Math.sin(thLab),
-            col.chord, FV, 'center', 'rgba(13,17,23,0.6)');
+            col.chord, FV, 'center', 'rgba(13,17,23,0.85)');
         }
 
         // -- alpha: visible at ~50% of U_T (midpoint of the in-plane base). Arc V_rel to chord. --
@@ -2258,7 +2259,7 @@ const HLW = (function () {
       const c = flappingCoeffs(st);
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
       HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
-      const cx = W * 0.40, cy = H * 0.52, R = Math.min(W * 0.30, H * 0.40);
+      const cx = W * 0.40, cy = W < 420 ? H * 0.56 : H * 0.52, R = Math.min(W * 0.30, H * 0.40);
       // colour the disc by lead(+ green)/lag(− purple) hunting angle
       HLD.discPolar(ctx, cx, cy, R, (psi) => {
         const z = zetaOf(c, psi, articulated);
@@ -2285,7 +2286,7 @@ const HLW = (function () {
       const px = W * 0.66, pw = W * 0.32, py = H * 0.14, ph = H * 0.72;
       // mini-axes
       HLD.dline(ctx, px, py + ph / 2, px + pw, py + ph / 2, col.grid, 1, [3, 3]);
-      HLD.text(ctx, 'lead / lag ζ(ψ)', px + pw / 2, py - 4, col.dim, '10px IBM Plex Sans', 'center');
+      HLD.text(ctx, 'lead / lag ζ(ψ)', W < 420 ? px : px + pw / 2, W < 420 ? py - 10 : py - 4, col.dim, (W < 420 ? '9px ' : '10px ') + 'IBM Plex Sans', W < 420 ? 'left' : 'center');
       HLD.text(ctx, '+lead', px, py + 8, col.good, '9px IBM Plex Sans', 'left');
       HLD.text(ctx, '−lag', px, py + ph - 4, '#c060d0', '9px IBM Plex Sans', 'left');
       ctx.strokeStyle = col.accent; ctx.lineWidth = 2; ctx.beginPath();
@@ -2392,7 +2393,8 @@ const HLW = (function () {
       const critDeg = criticalDeg(tw);
       const diverging = bankDeg >= critDeg && tw > 0.6;
       // annotate critical angle marker
-      HLD.text(ctx, 'bank ' + bankDeg.toFixed(0) + '°', mastP.x, H * 0.10, diverging ? col.bad : col.ink, 'bold 13px IBM Plex Sans', 'center');
+      // bank-angle readout in the top-left corner (clear of the tilted thrust vector)
+      HLD.chipLabel(ctx, 'bank ' + bankDeg.toFixed(0) + '°', 16, 18, diverging ? col.bad : col.ink, 'bold 13px IBM Plex Sans', 'left');
       ui.readout.innerHTML = kv([
         ['Bank about pivot', bankDeg.toFixed(0) + '°', diverging ? 'var(--hl-bad)' : 'var(--hl-ink)'],
         ['Critical rollover angle', '≈ ' + critDeg.toFixed(1) + '°', 'var(--hl-warn)'],
@@ -2970,9 +2972,9 @@ const HLW = (function () {
 
     const LAYERS = [
       { v: 'hover',   t: '1 · Hover',            sub: 'symmetric baseline' },
-      { v: 'rigid',   t: '2 · Forward, rigid',   sub: 'the problem' },
-      { v: 'freeflap',t: '3 · Flapping on',      sub: 'the mechanism' },
-      { v: 'trimmed', t: '4 · Cyclic (trim)',    sub: 'the pilot’s solution' },
+      { v: 'rigid',   t: '2 · Rigid fwd',   sub: 'the problem' },
+      { v: 'freeflap',t: '3 · Flapping',      sub: 'the mechanism' },
+      { v: 'trimmed', t: '4 · Cyclic',    sub: 'the pilot’s solution' },
       { v: 'highsp',  t: '5 · High speed',       sub: 'the limit — stall' },
     ];
     const LAYER_NOTE = {

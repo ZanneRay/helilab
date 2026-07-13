@@ -250,7 +250,7 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
 .hl-switch input:checked + .hl-switch-slider::before { transform: translateX(18px); background: var(--brand); }
 
 .hl-seg { display: flex; gap: 4px; flex-wrap: wrap; }
-.hl-seg-btn { flex: 1; min-width: 60px; padding: 6px 8px; font-size: 12px; font-family: inherit;
+.hl-seg-btn { flex: 1; min-width: 72px; padding: 6px 8px; font-size: 12px; font-family: inherit; white-space: nowrap;
   background: var(--panel2); border: 1px solid var(--border); border-radius: 7px;
   color: var(--text2); cursor: pointer; transition: all .13s; }
 .hl-seg-btn:hover { color: var(--text); border-color: var(--border2); }
