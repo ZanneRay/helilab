@@ -1091,11 +1091,17 @@ const HLW = (function () {
 
   /* 10 — Autorotation: driving / driven / stall zones over the WHOLE disc */
   function wAutorotation(host) {
-    const ui = scaffold(host);
+    const ui = scaffold(host, {
+      topStage: 'hl-w-stage hl-w-stage-map',
+      mainStage: 'hl-w-stage hl-w-stage-vec',
+    });
+    const { canvas, topCanvas, controls, readout } = ui;
     let Vkt = 0, upflow = 6, coll = 4;   // forward speed [kt], up-flow [m/s], collective [°]
+    let rBar = 0.60, psiDeg = 270;       // active blade element (r/R, azimuth)
     // Force balance on a blade element in steady autorotation, evaluated over
     // the entire disc (r/R, ψ) so the driving band and its forward-speed shift
-    // are visible.
+    // are visible. The SAME regionAt feeds the disc colour, the BET triangle
+    // and the readout, so the force-triangle's F_H always matches the region.
     //   U_T = r + μ·sinψ      (tangential — gains speed advancing, loses it retreating)
     //   φ   = atan2(−λ_up, U_T) (φ<0: the up-flow through the disc tilts the flow up)
     //   α   = θ − φ ,  F_x = C_l·sinφ + C_d·cosφ   (Leishman in-plane force)
@@ -1107,25 +1113,31 @@ const HLW = (function () {
     // reverse-flow / stall wedge opens at the retreating root.
     const regionAt = (st, r, psiRad, upInflow, mu) => {
       const UT = r + mu * Math.sin(psiRad);
-      if (UT <= 0.02) return { reg: 'reverse', a: 0, phi: 0, fx: 0, UT };
+      if (UT <= 0.02) return { reg: 'reverse', a: 0, phi: 0, fx: 0, UT, theta: 0, cl: 0, cd: 0 };
       const phi = Math.atan2(-upInflow, UT);
       const th = (coll + st.twist * (r - 0.75)) * D2R;
       const a = th - phi;
       const cl = HL.clOf(st, a), cd = HL.cdOf(st, cl);
       const fx = cl * Math.sin(phi) + cd * Math.cos(phi);
       const reg = (a > st.stallAoA * D2R) ? 'stall' : (fx < 0 ? 'driving' : 'driven');
-      return { reg, a, phi, fx, UT };
+      return { reg, a, phi, fx, UT, theta: th, cl, cd };
     };
     const colReg = { reverse: '#8f4fb0', stall: '#d05a6e', driving: 'rgb(60,175,95)', driven: 'rgb(232,170,60)' };
-    const draw = () => {
-      const st = HL.defaultState(); st.V = Vkt * 0.5144;
-      const { ctx, W, H, col } = HLD.setup(ui.canvas);
+    const regChip = { driving: 'DRIVING', driven: 'DRIVEN', stall: 'STALL', reverse: 'REVERSE' };
+
+    function discGeom(W, H) {
+      const GUT = 52; const cx = W * 0.44, cy = H * 0.52;
+      const R = Math.max(40, Math.min(cx - GUT, W - cx - GUT, H * 0.42));
+      return { cx, cy, R };
+    }
+
+    const drawDisc = (ctx, W, H, col) => {
       HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
+      const st = HL.defaultState(); st.V = Vkt * 0.5144;
       const OmR = HL.omR(st);
       const upInflow = upflow / OmR;
       const mu = advanceRatio(st);
-      const GUT = 52; const cx = W * 0.44, cy = H * 0.52;
-      const R = Math.max(40, Math.min(cx - GUT, W - cx - GUT, H * 0.42));
+      const { cx, cy, R } = discGeom(W, H);
       const nr = 14, np = 72;
       let net = 0, cnt = { driving: 0, driven: 0, stall: 0, reverse: 0 };
       for (let ir = 0; ir < nr; ir++) {
@@ -1154,44 +1166,134 @@ const HLW = (function () {
       }
       ctx.strokeStyle = col.dim; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
-      // rotation arrow (CCW from above) + azimuth labels
-      HLD.text(ctx, 'ADV 90°', cx + R + 4, cy, col.dim, '10px IBM Plex Sans', 'left', 'middle');
-      HLD.text(ctx, 'RET 270°', cx - R - 4, cy, col.dim, '10px IBM Plex Sans', 'right', 'middle');
-      HLD.text(ctx, 'NOSE', cx, cy - R - 6, col.dim, '10px IBM Plex Sans', 'center');
-      HLD.text(ctx, 'TAIL', cx, cy + R + 12, col.dim, '10px IBM Plex Sans', 'center');
-      // forward-flight indicator (air comes from the nose) — placed in the top-left
-      // corner, diagonally toward the disc, clear of NOSE and RET 270° labels
+      // rotation arrow (CCW from above) + azimuth labels (clamped inside stage)
+      const lbl = (t, x, ax, ay) => HLD.text(ctx, t, Math.max(22, Math.min(W - 22, x)), Math.max(12, Math.min(H - 4, ay)), col.dim, '10px IBM Plex Sans', ax, 'middle');
+      lbl('ADV 90°', cx + R + 4, 'left', cy);
+      lbl('RET 270°', cx - R - 4, 'right', cy);
+      lbl('NOSE', cx, 'center', cy - R - 6);
+      lbl('TAIL', cx, 'center', cy + R + 12);
+      // active element marker — sits on top of all sectors, clear ring + dot
+      const canAng = HLD.polarToCanvas(psiDeg * D2R);
+      const mx = cx + R * rBar * Math.cos(canAng), my = cy + R * rBar * Math.sin(canAng);
+      const actReg = regionAt(st, rBar, psiDeg * D2R, upInflow, mu).reg;
+      ctx.fillStyle = colReg[actReg];
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(mx, my, 7, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();
+      HLD.chipLabel(ctx, `r/R ${rBar.toFixed(2)} · ψ${psiDeg}°`, mx, my - 16, col.ink, '10px IBM Plex Sans', 'center', 'rgba(13,17,23,0.82)');
+      // forward-flight indicator (air comes from the nose) — top-left corner
       if (mu > 0.001) {
-        const ax0 = 14, ay0 = 16, ax1 = 40, ay1 = 40;
-        HLD.arrow(ctx, ax0, ay0, ax1, ay1, col.accent, 2, 7);
-        HLD.text(ctx, 'V∞ airflow', ax1 + 6, ay0 + 4, col.accent, '10px IBM Plex Sans', 'left', 'middle');
+        HLD.arrow(ctx, 14, 16, 40, 40, col.accent, 2, 7);
+        HLD.text(ctx, 'V∞ airflow', 46, 20, col.accent, '10px IBM Plex Sans', 'left', 'middle');
       }
       // legend
       HLD.text(ctx, '■ driving', W - 74, 20, colReg.driving, '10px IBM Plex Sans');
       HLD.text(ctx, '■ driven', W - 74, 34, colReg.driven, '10px IBM Plex Sans');
       HLD.text(ctx, '■ stall', W - 74, 48, colReg.stall, '10px IBM Plex Sans');
       HLD.text(ctx, '■ reverse', W - 74, 62, colReg.reverse, '10px IBM Plex Sans');
+      HLD.chipLabel(ctx, 'tap disc to pick a station', 12, H - 8, col.dim, '10px IBM Plex Sans', 'left', col.bg);
+      return { cnt, net };
+    };
+
+    // ── BET velocity + force triangle for the active element ────────────────
+    // Uses HLD.bladeSection (the exam drawing) fed by the SAME regionAt values
+    // as the disc, so the drawn F_H direction matches the region colour.
+    const drawTriangle = (ctx, W, H, col) => {
+      HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
+      const st = HL.defaultState(); st.V = Vkt * 0.5144;
+      const OmR = HL.omR(st);
+      const upInflow = upflow / OmR;
+      const mu = advanceRatio(st);
+      const rg = regionAt(st, rBar, psiDeg * D2R, upInflow, mu);
+      const cardinal = psiDeg < 45 || psiDeg > 315 ? 'TAIL' : psiDeg < 135 ? 'ADVANCING' : psiDeg < 225 ? 'NOSE' : 'RETREATING';
+      const compact = W < 560;
+      // title (top-left)
+      HLD.chipLabel(ctx, compact ? `${cardinal.slice(0, 3)} ψ${psiDeg}° · r${rBar.toFixed(2)}` : `${cardinal} ψ=${psiDeg}° · r/R=${rBar.toFixed(2)} · BET diagram`,
+        12, 16, col.dim, '12px IBM Plex Sans', 'left', col.bg);
+      // region chip (top-right)
+      const rc = rg.reg;
+      const rcol = rc === 'driving' ? colReg.driving : rc === 'driven' ? colReg.driven : rc === 'stall' ? colReg.stall : colReg.reverse;
+      const cw = compact ? 92 : 116, ch = compact ? 20 : 24;
+      ctx.globalAlpha = 0.9; ctx.fillStyle = rcol;
+      ctx.fillRect(W - cw - 6, 6, cw + 6, ch + 4); ctx.globalAlpha = 1;
+      ctx.strokeStyle = rcol; ctx.lineWidth = 1.4; ctx.strokeRect(W - cw - 6, 6, cw + 6, ch + 4);
+      HLD.text(ctx, regChip[rc], W - 6 - (cw + 6) / 2, 6 + (ch + 4) / 2, '#fff', (compact ? 'bold 10px ' : 'bold 11px ') + 'IBM Plex Sans', 'center', 'middle');
+
+      if (rc === 'reverse') {
+        HLD.chipLabel(ctx, 'reverse flow — U_T < 0, standard BET triangle not valid here',
+          W / 2, H * 0.5, col.bad, '13px IBM Plex Sans', 'center', 'rgba(248,113,113,0.15)');
+        return;
+      }
+      // bladeSection draws: rotor-plane ref, V_rel (up-flow → wind from below),
+      // airfoil at θ, θ/φ/α arcs, L+D, and TAF resolved into Thrust + F_H (×6).
+      const ox = W * 0.30, oy = H * 0.62, sc = Math.min(W * 0.50, H * 0.60, 300);
+      HLD.bladeSection(ctx, ox, oy, sc, {
+        theta: rg.theta, phi: rg.phi, ampl: 4.0,
+        showForces: true, showResolve: true,
+        cl: rg.cl, cd: rg.cd, aoa: rg.a,
+        stall: rc === 'stall',
+      }, col);
+      // F_H verdict line under the triangle — repeats the disc verdict in words
+      const drives = rg.fx < 0;
+      HLD.chipLabel(ctx,
+        drives ? 'F_H points WITH rotation → DRIVES the rotor (autorotation)' : 'F_H opposes rotation → brakes (driven / powered)',
+        12, H - 10, drives ? col.good : col.warn, '11px IBM Plex Sans', 'left', col.bg);
+    };
+
+    const draw = () => {
+      const st = HL.defaultState(); st.V = Vkt * 0.5144;
+      const OmR = HL.omR(st);
+      const upInflow = upflow / OmR;
+      const mu = advanceRatio(st);
+      const { ctx: c1, W: w1, H: h1, col: col1 } = HLD.setup(topCanvas);
+      const { cnt, net } = drawDisc(c1, w1, h1, col1);
+      const { ctx: c2, W: w2, H: h2, col: col2 } = HLD.setup(canvas);
+      drawTriangle(c2, w2, h2, col2);
+      const rg = regionAt(st, rBar, psiDeg * D2R, upInflow, mu);
       const rrpm = net > 0.02 ? 'increasing ↑' : net < -0.02 ? 'decaying ↓' : 'steady (balanced)';
       const rrpmCol = net > 0.02 ? 'var(--hl-good)' : net < -0.02 ? 'var(--hl-bad)' : 'var(--hl-warn)';
       ui.readout.innerHTML = kv([
         ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
         ['Collective θ₀', coll.toFixed(1) + '°', 'var(--hl-chord)'],
         ['Up-flow through disc', upflow.toFixed(0) + ' m/s', 'var(--hl-wind)'],
-        ['Driving cells', cnt.driving + ' / ' + (nr * np), 'var(--hl-good)'],
+        ['Element region', regChip[rg.reg] + (rg.reg === 'reverse' ? '' : ` · α=${(rg.a * R2D).toFixed(1)}°`),
+          rg.reg === 'driving' ? 'var(--hl-good)' : rg.reg === 'driven' ? 'var(--hl-warn)' : rg.reg === 'stall' ? 'var(--hl-bad)' : 'var(--hl-dim)'],
+        ['F_H direction', rg.reg === 'reverse' ? 'undefined (reverse)' : (rg.fx < 0 ? 'forward → drives rotor' : 'aft → brakes rotor'),
+          rg.fx < 0 ? 'var(--hl-good)' : 'var(--hl-warn)'],
+        ['Driving cells', cnt.driving + ' / ' + (14 * 72), 'var(--hl-good)'],
         ['Rotor RPM trend', rrpm, rrpmCol],
-      ]) + `<p class="hl-note">The whole disc is classified: the <b>driving</b> band
+      ]) + `<p class="hl-note">The disc classifies every element: the <b>driving</b> band
         (green) speeds the rotor up, the <b>driven</b> tip (amber) brakes it, and the
-        root <b>stalls</b>. In the hover-descent (0 kt) the pattern is axisymmetric —
-        a driving ring inside a driven tip. Add <b>forward speed</b> and watch it go
-        asymmetric: the advancing side (ψ 90°) gains U_T and turns driven, while the
-        <b>retreating side (ψ 270°) loses U_T so φ grows and the driving zone migrates
-        there</b> — with a reverse-flow/stall wedge opening at the retreating root.
-        Balance driving vs driven with the collective to hold RRPM; flare at the
-        bottom to trade RRPM and rate of descent for a cushion of thrust.</p>`;
+        root <b>stalls</b>. <b>Tap the disc</b> (or use the r/R and ψ sliders) to move the
+        white marker — the BET diagram below updates to that element, and its F_H
+        direction always matches the colour under the marker. At 0 kt the pattern is
+        axisymmetric (driving ring inside a driven tip); add <b>forward speed</b> and the
+        driving zone migrates toward the <b>retreating side (ψ 270°)</b> as the
+        advancing side speeds up and goes driven, with a reverse/stall wedge at the
+        retreating root. Balance driving vs driven with the collective to hold RRPM.</p>`;
     };
+
     slider(ui.controls, { label: 'Forward speed', min: 0, max: 80, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
     slider(ui.controls, { label: 'Collective θ₀ (RRPM control)', min: 1, max: 9, step: 0.5, val: coll, unit: '°', on: v => { coll = v; draw(); } });
     slider(ui.controls, { label: 'Up-flow through disc', min: 3, max: 12, step: 0.5, val: upflow, unit: ' m/s', fmt: v => v.toFixed(1), on: v => { upflow = v; draw(); } });
+    const rbarCtrl = slider(ui.controls, { label: 'Blade station r/R', min: 0.20, max: 0.97, step: 0.01, val: rBar, fmt: v => v.toFixed(2), on: v => { rBar = v; draw(); } });
+    const azCtrl = slider(ui.controls, { label: 'Azimuth ψ', min: 0, max: 355, step: 5, val: psiDeg, unit: '°', on: v => { psiDeg = v; draw(); } });
+
+    // ── click the disc to pick (r, ψ) ──────────────────────────────────
+    topCanvas.style.cursor = 'crosshair';
+    topCanvas.addEventListener('click', (e) => {
+      const r = topCanvas.getBoundingClientRect();
+      const x = e.clientX - r.left, y = e.clientY - r.top;
+      const d = discGeom(r.width, r.height);
+      const dx = x - d.cx, dy = y - d.cy;
+      const rad = Math.hypot(dx, dy);
+      if (rad > d.R * 1.02) return;
+      rBar = Math.max(0.20, Math.min(0.97, rad / d.R));
+      const canAng = Math.atan2(dy, dx);
+      const psi = (Math.PI / 2 - canAng + 2 * Math.PI) % (2 * Math.PI);
+      psiDeg = Math.round(psi * R2D / 5) * 5 % 360;
+      rbarCtrl && rbarCtrl.set(rBar); azCtrl && azCtrl.set(psiDeg); draw();
+    });
+
     ui.onDraw(draw);
   }
 
