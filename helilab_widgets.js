@@ -662,7 +662,7 @@ const HLW = (function () {
       if (phase === 'ACCELERATING ↑') return 'Collective raised → <b>T &gt; W</b> → accelerating up. The growing climb raises the inflow, which trims the blade α down and pulls T back toward W.';
       if (phase === 'ACCELERATING ↓') return 'Collective lowered → <b>T &lt; W</b> → accelerating down. The descent reduces the inflow, raising α and pushing T back up toward W.';
       if (phase === 'STEADY CLIMB') return '✔ <b>T = W</b> again at a steady rate of climb. Notice α is back near its hover value — the extra collective went into beating the higher inflow, not into more AoA. That is why climbing costs collective/power.';
-      if (phase === 'STEADY DESCENT') return '✔ <b>T = W</b> at a steady rate of descent, now <b>below the VRS band</b> in the clean windmill / autorotative state — the rotor had to pass <i>through</i> VRS to get here. (Engine-off autorotation lives in this regime — Lesson 10.)';
+      if (phase === 'STEADY DESCENT') return '✔ <b>T = W</b> at a steady rate of descent, now <b>below the VRS band</b> in the clean windmill / autorotative state — the rotor had to pass <i>through</i> VRS to get here. (Engine-off autorotation lives in this regime — Lesson 15.)';
       if (phase.indexOf('manual') >= 0) return 'Manual scrub. Press <b>Climb</b> or <b>Descent entry</b> to watch the transient: T momentarily ≠ W, the aircraft accelerates, and the changing inflow trims it back to T = W.';
       return 'Hover: thrust exactly balances weight. Press <b>Climb entry</b> or <b>Descent entry</b> to see how the rotor settles into a steady rate of climb/descent.';
     };

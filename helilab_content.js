@@ -176,7 +176,7 @@ const HL_LESSONS = [
       <p>In a <b>descent</b>, the upward-moving air opposes the rotor's downwash.
       A fast, clean descent (or autorotation) lets the air drive the rotor. But in
       a narrow band of <b>slow vertical descent</b> — descent rate near the hover
-      induced velocity (V<sub>c</sub>/v<sub>h</sub> ≈ −0.25 to −1.6) — the rotor
+      induced velocity (V<sub>c</sub>/v<sub>h</sub> ≈ −0.25 to −1.8) — the rotor
       sinks into its own turbulent wake. This is the <b>Vortex Ring State (VRS)</b>:
       </p>
       <ul>
