@@ -67,6 +67,26 @@
     performance:     ['hover', 'groundeffect', 'verticalflight'],
     betdiagram:      ['bladeelement', 'bet-velocity', 'bet-guided', 'autorotation'],
   };
+
+  /* Build a "Related lessons" chip-row from an array of lesson ids. Shared by
+     the lesson reader, the Sandbox and the Maths deep-dive so every view ties
+     back into the learning journey. Chips jump via the normal nav path. */
+  function buildRelated(ids) {
+    const rel = el('div', 'hl-related');
+    rel.appendChild(el('div', 'hl-related-h', 'Related lessons'));
+    const chips = el('div', 'hl-seg hl-related-chips');
+    ids.forEach(rid => {
+      const r = HL_LESSONS.find(l => l.id === rid);
+      if (!r) return;
+      const ci = HL_LESSONS.indexOf(r) + 1;
+      const b = el('button', 'hl-seg-btn', ci + '. ' + r.title);
+      b.title = r.stage + ' — ' + r.subtitle;
+      b.onclick = () => { inSandbox = false; inMaths = false; current = rid; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+      chips.appendChild(b);
+    });
+    rel.appendChild(chips);
+    return rel;
+  }
   let inSandbox = false;
   let inMaths = false;
 
@@ -193,22 +213,7 @@
 
     // related-lessons cross-references (coherence A→Z)
     const relIds = HL_RELATED[lesson.id] || [];
-    if (relIds.length) {
-      const rel = el('div', 'hl-related');
-      rel.appendChild(el('div', 'hl-related-h', 'Related lessons'));
-      const chips = el('div', 'hl-seg hl-related-chips');
-      relIds.forEach(rid => {
-        const r = HL_LESSONS.find(l => l.id === rid);
-        if (!r) return;
-        const ci = HL_LESSONS.indexOf(r) + 1;
-        const b = el('button', 'hl-seg-btn', ci + '. ' + r.title);
-        b.title = r.stage + ' — ' + r.subtitle;
-        b.onclick = () => { current = rid; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-        chips.appendChild(b);
-      });
-      rel.appendChild(chips);
-      main.appendChild(rel);
-    }
+    if (relIds.length) main.appendChild(buildRelated(relIds));
 
     // footer nav
     const foot = el('div', 'hl-lesson-foot');
@@ -273,6 +278,7 @@
     const mount = el('div', 'hl-sandbox-mount');
     main.appendChild(mount);
     try { HLW.wSandbox(mount); } catch (e) { mount.innerHTML = '<div class="hl-err">Sandbox error: ' + e.message + '</div>'; console.error(e); }
+    main.appendChild(buildRelated(['bigpicture', 'bladeelement', 'dissymmetry', 'flapping', 'envelope', 'performance', 'bet-velocity']));
     main.scrollTop = 0;
   }
 
@@ -291,6 +297,7 @@
     const mount = el('div', 'hl-maths-mount');
     main.appendChild(mount);
     try { HLW.wBetModel(mount); } catch (e) { mount.innerHTML = '<div class="hl-err">Maths error: ' + e.message + '</div>'; console.error(e); }
+    main.appendChild(buildRelated(['bet-velocity', 'bladeelement', 'bet-guided', 'betdiagram']));
     main.scrollTop = 0;
   }
 
