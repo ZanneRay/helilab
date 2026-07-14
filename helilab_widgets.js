@@ -1784,13 +1784,25 @@ const HLW = (function () {
       if (showDetailLabels && (oy - yVi) >= LBL_MIN) {
         HLD.chipLabel(ctx, 'V_i', viLx, (yVi + oy) / 2, col.wind, FSM, viAlign);
       }
-      // V_n segment (middle): from yVn up to yVi
+      // V_n segment (middle): from yVn up to yVi. Only drawn when v_n>0 (down-flow
+      // ADDS to the stack). In forward flight v_n = μ·tan α_TPP is typically NEGATIVE
+      // (the TPP tilts nose-down, so the free stream has an UPWARD through-disc
+      // component → V_n SUBTRACTS from U_P). A subtracting V_n is NOT placed on the
+      // collinear stack — its value lives in the readout table — otherwise its
+      // cumulative base yVn = oy−(v_i+v_n)·AMP·sy dips BELOW the TPP and drags the
+      // advancing V_flap down through the plane. See yFlapBase below.
       if (v_n > 1e-4) {
         HLD.arrow(ctx, xBase, yVn, xBase, yVi, col.accent, 2.5, 7);
         if (showDetailLabels && (yVi - yVn) >= LBL_MIN) {
           HLD.chipLabel(ctx, 'V_n', viLx, (yVn + yVi) / 2, col.accent, FSM, viAlign);
         }
       }
+      // Collinear base for the ADVANCING V_flap. Only the POSITIVE (down-flow) terms
+      // sit on the stack line; when V_n subtracts (v_n≤0) V_flap stacks on top of
+      // V_i instead, so the advancing V_flap stays ABOVE the TPP (it must never
+      // cross the plane and stick out below it). yTop/UP remains the authority for
+      // the V_rel slope; the segment lengths are visual, not 1:1 with the m/s values.
+      const yFlapBase = v_n > 1e-4 ? yVn : yVi;
       // V_flap segment: the flapping-velocity term. Its ARROW shows the PHYSICAL
       // airflow direction the flapping induces, and its sign tells the stack what to do:
       //   • ADVANCING (v_flap>0, blade flaps UP): the section chases the downwash, so
@@ -1810,7 +1822,7 @@ const HLW = (function () {
           // (no offset), tip-to-tail above V_n, head DOWN toward the plane — exactly
           // like V_i and V_n. yTop is ABOVE yVn (the stack grew), so tail=yTop →
           // head=yVn points DOWN. No offset ticks are needed since it sits on the line.
-          HLD.arrow(ctx, xBase, yTop, xBase, yVn, flCol, 2.5, 7);
+          HLD.arrow(ctx, xBase, yTop, xBase, yFlapBase, flCol, 2.5, 7);
           // Label placement for the ADD case is constrained on BOTH sides: the V_rel
           // resultant runs DOWN-RIGHT from the stack top (xBase,yTop) to the tip, so
           // the RIGHT of the V_flap span is crossed by V_rel; and on the ADVANCING
@@ -1826,7 +1838,7 @@ const HLW = (function () {
           // top — above where V_rel starts, clear of the bracket and the shaft.
           const flTxt = 'V_flap';
           if (showDetailLabels) HLD.chipLabel(ctx, flTxt, xBase, yTop - 11, flCol,
-            FSM, 'center', 'rgba(0,0,0,0.5)');
+            FSM, 'center');
         } else {
           // subtracts: the down-flapping blade sees UPWARD induced flow, so the
           // PHYSICAL airflow arrow must point UP. yTop is BELOW yVn on the retreating
@@ -1847,7 +1859,7 @@ const HLW = (function () {
           // (yVn is above the plane in the subtract case, outside the bracket span).
           const flTxt = 'V_flap';
           if (showDetailLabels) HLD.chipLabel(ctx, flTxt, xBase + flDx, yVn - 8, flCol,
-            FSM, 'center', 'rgba(0,0,0,0.5)');
+            FSM, 'center');
         }
       }
       // ---- U_P total bracket — JUST LEFT of all vectors, never crossing them --------
@@ -3345,24 +3357,29 @@ const HLW = (function () {
       // V_i (bottom)
       HLD.arrow(ctx, xBase, yVi, xBase, oy, col.wind, 2.5, 8);
       if (showDetailLabels && (oy - yVi) >= LBL_MIN) HLD.chipLabel(ctx, 'V_i', viLx, (yVi + oy) / 2, col.wind, FSM, 'left');
-      // V_n (middle)
+      // V_n (middle) — only drawn when v_n>0 (down-flow). In forward flight v_n is
+      // typically NEGATIVE (nose-down TPP → upward through-disc component), so a
+      // subtracting V_n is kept off the collinear stack — otherwise its cumulative
+      // base yVn dips BELOW the TPP and drags the advancing V_flap through the plane.
       if (v_n > 1e-4) {
         HLD.arrow(ctx, xBase, yVn, xBase, yVi, col.accent, 2.5, 7);
         if (showDetailLabels && (yVi - yVn) >= LBL_MIN) HLD.chipLabel(ctx, 'V_n', viLx, (yVn + yVi) / 2, col.accent, FSM, 'left');
       }
+      // Collinear base for the ADVANCING V_flap — stays above the TPP even when V_n≤0.
+      const yFlapBase = v_n > 1e-4 ? yVn : yVi;
       // V_flap: ADVANCING (v_flap>0) ADDS to the stack (collinear, head down);
       //         RETREATING (v_flap<0) SUBTRACTS — own up-arrow just right of stack.
       if (Math.abs(v_flap) > 1e-4 && layer !== 'rigid' && layer !== 'hover') {
         const flCol = v_flap > 0 ? col.good : col.warn;
         if (v_flap > 0) {
-          HLD.arrow(ctx, xBase, yTop, xBase, yVn, flCol, 2.5, 7);
-          if (showDetailLabels) HLD.chipLabel(ctx, 'V_flap', xBase, yTop - 11, flCol, FSM, 'center', 'rgba(0,0,0,0.5)');
+          HLD.arrow(ctx, xBase, yTop, xBase, yFlapBase, flCol, 2.5, 7);
+          if (showDetailLabels) HLD.chipLabel(ctx, 'V_flap', xBase, yTop - 11, flCol, FSM, 'center');
         } else {
           const flDx = 6;
           HLD.arrow(ctx, xBase + flDx, yTop, xBase + flDx, yVn, flCol, 2.5, 7);
           HLD.dline(ctx, xBase, yVn, xBase + flDx, yVn, col.grid, 1, [2, 3]);
           HLD.dline(ctx, xBase, yTop, xBase + flDx, yTop, col.grid, 1, [2, 3]);
-          if (showDetailLabels) HLD.chipLabel(ctx, 'V_flap', xBase + flDx, yVn - 8, flCol, FSM, 'center', 'rgba(0,0,0,0.5)');
+          if (showDetailLabels) HLD.chipLabel(ctx, 'V_flap', xBase + flDx, yVn - 8, flCol, FSM, 'center');
         }
       }
 
