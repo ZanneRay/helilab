@@ -430,10 +430,16 @@ const HLW = (function () {
       const stall = aoa >= st.stallAoA * D2R;
       const cl = HL.clOf(st, aoa);
       const cd = HL.cdOf(st, cl);
+      // velocity triangle at r̄ = 0.75: v_rot = U_T = 0.75·ΩR (rotational,
+      // in-plane); v_i = U_P = U_T·tan φ (induced, perpendicular). Same φ as the
+      // diagram, so the on-canvas legs and these readout values agree.
+      const OmR = HL.omR(st);
+      const vrot = 0.75 * OmR;
+      const vi = vrot * Math.tan(phi * D2R);
       const ox = W * 0.16, oy = H * 0.6, len = Math.min(W * 0.62, 300);
       HLD.bladeSection(ctx, ox, oy, len, {
         theta: theta * D2R, phi: phi * D2R, ampl: 4.0, showForces: true,
-        cl, cd, aoa, stall,
+        showVelocity: true, cl, cd, aoa, stall,
       }, col);
       const aoaDeg = theta - phi;
       ui.readout.innerHTML = kv([
@@ -441,6 +447,8 @@ const HLW = (function () {
         ['Inflow φ', phi.toFixed(1) + '°' + (linked ? ' (from θ)' : ''), 'var(--hl-wind)'],
         ['AoA α = θ − φ', aoaDeg.toFixed(1) + '°', stall ? 'var(--hl-bad)' : 'var(--hl-good)'],
         ['Lift coeff C_l', stall ? 'collapsed' : cl.toFixed(2), stall ? 'var(--hl-bad)' : 'var(--hl-ink)'],
+        ['v_rot (U_T)', vrot.toFixed(0) + ' m/s', 'var(--hl-wind)'],
+        ['v_i (U_P)', vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
       ]) + `<p class="hl-note">${stall
         ? '⚠ Past the stall angle the flow separates and lift collapses — exactly what limits the retreating blade.'
         : linked

@@ -289,6 +289,23 @@ const HLD = (function () {
         chipLabel(ctx, 'TAF', ox + Tx + tpx * 18, oy + Ty + tpy * 18, tafCol, 'bold 11px IBM Plex Sans', 'center');
       }
     }
+    // velocity-triangle construction (opt-in): decompose V_rel into its
+    // in-plane rotational component v_rot = U_T (parallel to the rotor plane)
+    // and its perpendicular induced component v_i = U_P. The two legs meet at
+    // a right angle directly above the airfoil; V_rel is the hypotenuse, so the
+    // triangle reads: V_rel = v_rot + v_i, with tan φ = v_i / v_rot. Drawn thin
+    // so the bold V_rel / forces stay dominant. Convention matches the BET
+    // velocity-triangle tab (v_rot toward the leading edge, v_i downward).
+    if (opts.showVelocity) {
+      const cX = ox, cY = wty;                              // right-angle corner
+      arrow(ctx, wtx, wty, cX, cY, col.wind, 1.5, 7);      // v_rot leg (∥ plane, head → LE)
+      arrow(ctx, cX, cY, ox, oy, col.wind, 1.5, 7);        // v_i leg (⟂ plane, head → plane)
+      const sq = 5;                                        // right-angle marker
+      dline(ctx, cX - sq, cY, cX - sq, cY + sq, col.dim, 1);
+      dline(ctx, cX - sq, cY + sq, cX, cY + sq, col.dim, 1);
+      chipLabel(ctx, 'v_rot', (wtx + cX) / 2, cY - 8, col.wind, 'bold 10px IBM Plex Sans', 'center');
+      chipLabel(ctx, 'v_i', cX - 7, cY + (oy - cY) * 0.42, col.wind, 'bold 10px IBM Plex Sans', 'right');
+    }
     if (opts.stall) {
       text(ctx, '⚠ STALLED', ox + len * 0.45, oy - len * 0.4, col.bad, 'bold 13px IBM Plex Sans', 'center');
     }

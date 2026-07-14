@@ -543,7 +543,8 @@ const HL_LESSONS = [
       (often held by a stuck skid, a slope, or a tie-down).</p>
       <p>Once a roll starts about that pivot, the <b>tilted thrust vector</b> gains
       a horizontal component that <b>feeds the roll further</b>. Past a
-      <b>critical rollover angle</b> — typically only about <b>5–8°</b> — recovery
+      <b>critical rollover angle</b> — small, typically <b>5–8° at high thrust</b>
+      (rising toward ~12° when collective/thrust is reduced) — recovery
       by lateral cyclic alone becomes impossible: the disc simply cannot generate
       enough restoring moment, and reducing collective is the only fix.</p>
       <ul>
@@ -560,7 +561,7 @@ const HL_LESSONS = [
       restoring moment turn into a rolling moment past the critical angle.</p>`,
     takeaways: [
       'Dynamic rollover = rolling about a fixed pivot (skid/wheel), not the CofG.',
-      'Critical angle is small (~5–8°); past it, tilted thrust drives the roll — divergent.',
+      'Critical angle is small (~5–8° at high thrust, larger at reduced collective); past it, tilted thrust drives the roll — divergent.',
       'Recovery is to smoothly LOWER COLLECTIVE, not to correct with cyclic.',
     ],
     check: {
