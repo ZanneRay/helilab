@@ -1858,8 +1858,8 @@ const HLW = (function () {
           // roughly xBase−12..xBase+24 — clear of the bracket and above the plane
           // (yVn is above the plane in the subtract case, outside the bracket span).
           const flTxt = 'V_flap';
-          if (showDetailLabels) HLD.chipLabel(ctx, flTxt, xBase + flDx, yVn - 8, flCol,
-            FSM, 'center');
+          if (showDetailLabels) HLD.chipLabel(ctx, flTxt, xBase - 8, yVn - 8, flCol,
+            FSM, 'right');
         }
       }
       // ---- U_P total bracket — JUST LEFT of all vectors, never crossing them --------
@@ -1899,7 +1899,7 @@ const HLW = (function () {
       const vrFrac = netUpflow ? 0.40 : 0.45;
       const vrx = xBase + (tipX - xBase) * vrFrac, vry = yTop + (oy - yTop) * vrFrac;
       if (!compact) {
-        HLD.chipLabel(ctx, 'V_rel', vrx + (netUpflow ? 4 : -6), vry - 12, col.wind,
+        HLD.chipLabel(ctx, 'V_rel', vrx - 30, vry + 12, col.wind,
           FVrel, 'center');
       }
 
@@ -3379,7 +3379,7 @@ const HLW = (function () {
           HLD.arrow(ctx, xBase + flDx, yTop, xBase + flDx, yVn, flCol, 2.5, 7);
           HLD.dline(ctx, xBase, yVn, xBase + flDx, yVn, col.grid, 1, [2, 3]);
           HLD.dline(ctx, xBase, yTop, xBase + flDx, yTop, col.grid, 1, [2, 3]);
-          if (showDetailLabels) HLD.chipLabel(ctx, 'V_flap', xBase + flDx, yVn - 8, flCol, FSM, 'center');
+          if (showDetailLabels) HLD.chipLabel(ctx, 'V_flap', xBase - 8, yVn - 8, flCol, FSM, 'right');
         }
       }
 
@@ -3401,7 +3401,7 @@ const HLW = (function () {
       HLD.arrow(ctx, xBase, yTop, tipX, oy, col.wind, 3, 10);
       const vrFrac = netUpflow ? 0.40 : 0.45;
       const vrx = xBase + (tipX - xBase) * vrFrac, vry = yTop + (oy - yTop) * vrFrac;
-      if (!compact) HLD.chipLabel(ctx, 'V_rel', vrx + (netUpflow ? 4 : -6), vry - 12, col.wind, FVrel, 'center');
+      if (!compact) HLD.chipLabel(ctx, 'V_rel', vrx - 30, vry + 12, col.wind, FVrel, 'center');
       HLD.dot(ctx, tipX, oy, 3.5, col.ink);
 
       // ================= AIRFOIL AT THE TIP + θ/α ARCS =========================
