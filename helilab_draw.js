@@ -290,21 +290,22 @@ const HLD = (function () {
       }
     }
     // velocity-triangle construction (opt-in): decompose V_rel into its
-    // in-plane rotational component v_rot = U_T (parallel to the rotor plane)
-    // and its perpendicular induced component v_i = U_P. The two legs meet at
-    // a right angle directly above the airfoil; V_rel is the hypotenuse, so the
-    // triangle reads: V_rel = v_rot + v_i, with tan φ = v_i / v_rot. Drawn thin
-    // so the bold V_rel / forces stay dominant. Convention matches the BET
-    // velocity-triangle tab (v_rot toward the leading edge, v_i downward).
+    // in-plane rotational component v_rot = U_T (along the rotor plane, head →
+    // leading edge) and its perpendicular induced component v_i = U_P (head
+    // down to the plane). The two legs meet at a right angle at the foot of the
+    // V_rel tail; V_rel is the hypotenuse, so V_rel = v_rot + v_i with
+    // tan φ = v_i / v_rot. Convention matches the BET velocity-triangle tab
+    // (v_rot along the plane toward the airfoil, v_i downward). Drawn thin so
+    // the bold V_rel / forces stay dominant.
     if (opts.showVelocity) {
-      const cX = ox, cY = wty;                              // right-angle corner
-      arrow(ctx, wtx, wty, cX, cY, col.wind, 1.5, 7);      // v_rot leg (∥ plane, head → LE)
-      arrow(ctx, cX, cY, ox, oy, col.wind, 1.5, 7);        // v_i leg (⟂ plane, head → plane)
-      const sq = 5;                                        // right-angle marker
-      dline(ctx, cX - sq, cY, cX - sq, cY + sq, col.dim, 1);
-      dline(ctx, cX - sq, cY + sq, cX, cY + sq, col.dim, 1);
-      chipLabel(ctx, 'v_rot', (wtx + cX) / 2, cY - 8, col.wind, 'bold 10px IBM Plex Sans', 'center');
-      chipLabel(ctx, 'v_i', cX - 7, cY + (oy - cY) * 0.42, col.wind, 'bold 10px IBM Plex Sans', 'right');
+      const fX = wtx, fY = oy;                              // right-angle corner (on the plane)
+      arrow(ctx, fX, fY, ox, fY, col.wind, 1.5, 7);        // v_rot leg (∥ plane, head → LE)
+      arrow(ctx, wtx, wty, fX, fY, col.wind, 1.5, 7);       // v_i leg (⟂ plane, head → plane)
+      const sq = 5;                                        // right-angle marker (upper-left of corner)
+      dline(ctx, fX - sq, fY - sq, fX, fY - sq, col.dim, 1);
+      dline(ctx, fX - sq, fY - sq, fX - sq, fY, col.dim, 1);
+      chipLabel(ctx, 'v_rot', (fX + ox) / 2, fY + 12, col.wind, 'bold 10px IBM Plex Sans', 'center');
+      chipLabel(ctx, 'v_i', fX + 7, (wty + fY) / 2, col.wind, 'bold 10px IBM Plex Sans', 'left');
     }
     if (opts.stall) {
       text(ctx, '⚠ STALLED', ox + len * 0.45, oy - len * 0.4, col.bad, 'bold 13px IBM Plex Sans', 'center');
