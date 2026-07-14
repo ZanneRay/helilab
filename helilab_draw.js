@@ -305,7 +305,10 @@ const HLD = (function () {
       dline(ctx, fX - sq, fY - sq, fX, fY - sq, col.dim, 1);
       dline(ctx, fX - sq, fY - sq, fX - sq, fY, col.dim, 1);
       chipLabel(ctx, 'v_rot', (fX + ox) / 2, fY + 12, col.wind, 'bold 10px IBM Plex Sans', 'center');
-      chipLabel(ctx, 'v_i', fX + 7, (wty + fY) / 2, col.wind, 'bold 10px IBM Plex Sans', 'left');
+      chipLabel(ctx, 'v_i', fX - 7, (wty + fY) / 2, col.wind, 'bold 10px IBM Plex Sans', 'right');
+      // at low φ the v_i leg (x = wtx) can cross the far-right "rotor plane" label;
+      // re-stamp it on top so its background masks the crossing (leg reads as passing behind).
+      chipLabel(ctx, 'rotor plane', ox + len * 1.12, oy - 9, col.dim, '10px IBM Plex Sans', 'right');
     }
     if (opts.stall) {
       text(ctx, '⚠ STALLED', ox + len * 0.45, oy - len * 0.4, col.bad, 'bold 13px IBM Plex Sans', 'center');
