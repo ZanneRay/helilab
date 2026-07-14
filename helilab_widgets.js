@@ -439,7 +439,7 @@ const HLW = (function () {
       const ox = W * 0.16, oy = H * 0.6, len = Math.min(W * 0.62, 300);
       HLD.bladeSection(ctx, ox, oy, len, {
         theta: theta * D2R, phi: phi * D2R, ampl: 4.0, showForces: true,
-        showVelocity: true, cl, cd, aoa, stall,
+        showVelocity: theta >= 3 && phi < theta, cl, cd, aoa, stall,
       }, col);
       const aoaDeg = theta - phi;
       ui.readout.innerHTML = kv([
