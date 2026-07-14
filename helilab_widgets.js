@@ -2432,7 +2432,7 @@ const HLW = (function () {
       HLD.text(ctx, 'pivot (skid on ground)', pvx, pvy + 22, col.warn, '10px IBM Plex Sans', 'center');
       // helicopter body: rotate the whole airframe about the pivot by φ
       const bodyLen = Math.min(W * 0.34, 190), bodyH = 26, cgH = 46, mastH = 78;
-      const rot = (dx, dy) => ({ x: pvx + dx * Math.cos(phi) - dy * Math.sin(phi), y: pvy + dx * Math.sin(phi) - dy * Math.cos(phi) });
+      const rot = (dx, dy) => ({ x: pvx + dx * Math.cos(phi) - dy * Math.sin(phi), y: pvy - dx * Math.sin(phi) - dy * Math.cos(phi) });
       // (dx,dy) in body frame: +dx toward the raised skid (right), +dy up
       const skidR = rot(bodyLen, 0);      // raised skid tip
       const cgP = rot(bodyLen * 0.5, cgH);
@@ -2445,14 +2445,14 @@ const HLW = (function () {
       HLD.dline(ctx, cgP.x, cgP.y, mastP.x, mastP.y, col.dim, 3, [1, 0]);
       // rotor disc (perpendicular to mast → tilts with the airframe)
       const dR = bodyLen * 0.52;
-      const dxv = Math.cos(phi), dyv = Math.sin(phi);   // disc plane direction (body-x rotated)
+      const dxv = Math.cos(phi), dyv = -Math.sin(phi);   // disc plane direction (body-x rotated)
       ctx.strokeStyle = col.accent; ctx.lineWidth = 4; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(mastP.x - dR * dxv, mastP.y - dR * dyv); ctx.lineTo(mastP.x + dR * dxv, mastP.y + dR * dyv); ctx.stroke();
       ctx.lineCap = 'butt';
       // thrust vector ⟂ disc (tilts with bank) — length ∝ T/W
-      const WL = 60, tLen = Math.max(16, Math.min(tw, 1.4) * WL);
-      // disc normal in canvas: body-up rotated by φ → (sinφ, -cosφ)
-      const tnx = Math.sin(phi), tny = -Math.cos(phi);
+      const WL = 40, tLen = Math.max(16, Math.min(tw, 1.4) * WL);
+      // disc normal in canvas: body-up rotated by φ → (-sinφ, -cosφ)
+      const tnx = -Math.sin(phi), tny = -Math.cos(phi);
       HLD.arrow(ctx, mastP.x, mastP.y, mastP.x + tnx * tLen, mastP.y + tny * tLen, tw >= 1 ? col.lift : col.warn, 4, 12);
       HLD.text(ctx, 'Thrust', mastP.x + tnx * tLen + 6, mastP.y + tny * tLen, tw >= 1 ? col.lift : col.warn, 'bold 11px IBM Plex Sans');
       // weight at CG (always straight down)
