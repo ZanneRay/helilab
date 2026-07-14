@@ -544,7 +544,7 @@ const HL_LESSONS = [
       <p>Once a roll starts about that pivot, the <b>tilted thrust vector</b> gains
       a horizontal component that <b>feeds the roll further</b>. Past a
       <b>critical rollover angle</b> — small, typically <b>5–8° at high thrust</b>
-      (rising toward ~12° when collective/thrust is reduced) — recovery
+      (higher — about 12° in this model — when collective/thrust is reduced) — recovery
       by lateral cyclic alone becomes impossible: the disc simply cannot generate
       enough restoring moment, and reducing collective is the only fix.</p>
       <ul>

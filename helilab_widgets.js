@@ -431,8 +431,10 @@ const HLW = (function () {
       const cl = HL.clOf(st, aoa);
       const cd = HL.cdOf(st, cl);
       // velocity triangle at r̄ = 0.75: v_rot = U_T = 0.75·ΩR (rotational,
-      // in-plane); v_i = U_P = U_T·tan φ (induced, perpendicular). Same φ as the
-      // diagram, so the on-canvas legs and these readout values agree.
+      // in-plane); v_i = U_P = U_T·tan φ (induced, perpendicular). NOTE: these
+      // readout values use the physical φ; the on-canvas legs use the amplified
+      // (×4) φ like the rest of the diagram, so the leg proportions are visually
+      // scaled, not 1:1 with these m/s values.
       const OmR = HL.omR(st);
       const vrot = 0.75 * OmR;
       const vi = vrot * Math.tan(phi * D2R);
