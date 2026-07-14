@@ -849,7 +849,7 @@ const HLW = (function () {
         ctx.strokeStyle = 'rgba(180,60,200,0.9)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
         ctx.beginPath(); ctx.arc(cx - R * mu / 2, cy, R * mu / 2, 0, 2 * Math.PI); ctx.stroke();
         ctx.setLineDash([]);
-        HLD.text(ctx, 'reverse flow', cx - R * mu / 2, cy + 2, '#d96ee0', '9px IBM Plex Sans', 'center', 'middle');
+        HLD.text(ctx, 'reverse flow', cx - R * mu / 2, cy + R * mu / 2 + 9, '#d96ee0', '9px IBM Plex Sans', 'center', 'top');
       }
       // current blade + local U_T at the pointer (0.75R)
       const pr = HLD.polarToCanvas(psiDeg * D2R);
