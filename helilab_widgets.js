@@ -1676,7 +1676,7 @@ const HLW = (function () {
       // collide with the vectors and each other. They are already listed in the readout
       // table below, so suppress their on-canvas text when the stage is compact; the
       // arrows themselves stay. The key labels (θ, α, U_P, V_rot, V_T) always show.
-      const compact = W < 560;
+      const compact = W < 400;
       const showDetailLabels = !compact;
 
       // rotor-plane baseline = the Tip-Path-Plane (TPP) reference. Labelled 'TPP'
@@ -3308,7 +3308,7 @@ const HLW = (function () {
       const FV   = fs.toFixed(1) + 'px IBM Plex Sans, sans-serif';
       const FSM  = Math.max(8, fs - 1).toFixed(1) + 'px IBM Plex Sans, sans-serif';
       const FVrel = Math.max(10, fs + 1).toFixed(1) + 'px IBM Plex Sans, sans-serif';
-      const compact = W < 560;
+      const compact = W < 400;
       const showDetailLabels = !compact;
 
       // rotor-plane baseline (TPP)
