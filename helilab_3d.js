@@ -237,9 +237,12 @@ function create(container, opts) {
   // along −Z, and it carries its own main-rotor hub node + a static blade. We:
   //   • rotate it +90° about Y so the nose points along +X (our forward),
   //   • hide its static main rotor (we draw our own animated blades),
-  //   • anchor its own rotor-hub (model-space ≈ (0.03, 1.73, 2.06)) to our hub
+  //   • anchor its own rotor-hub (model-space ≈ (0.03, 1.91, 2.04)) to our hub
   //     at (0, MAST, 0) — so the rotor always sits exactly on the mast.
-  const GLB_HUB = new THREE.Vector3(0.0305, 1.732, 2.057);   // main-rotor axis, model space
+  // Heli_simple.glb is the FULL symmetric fuselage (both sides) exported from
+  // Heli_simple.obj; the previous GLB was a half-model. No main blades in the
+  // model — we draw our own. The model's main-rotor hub disc is the "Circle" node.
+  const GLB_HUB = new THREE.Vector3(0.031, 1.909, 2.035);   // main-rotor axis, model space (full model)
   const GLB_SCALE = 0.34;                                     // tuned to ~fuselage length
   if (opts.showFuselage !== false) tryLoadGlb();
   function tryLoadGlb() {

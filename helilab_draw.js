@@ -476,6 +476,49 @@ const HLD = (function () {
     ctx.restore();
   }
 
+  /* Side-view helicopter wireframe (precomputed in helilab_model2d.js).
+     Draws the H145 fuselage as line art, with optional bank/roll.
+     opts:
+       cx, cy     — screen position of the 'anchor' model point (default = hub)
+       scale      — pixels per normalized model unit (model x spans 0..1)
+       rollRad    — bank angle (rad); + rolls the body to the right (nose-right view)
+       anchor     — {x,y} normalized model point that maps to (cx,cy)  [default hub]
+       pivot      — {x,y} normalized model point the body rolls about  [default anchor]
+       color,width,alpha — stroke style
+     The transform: rotate model points about `pivot` by rollRad, then translate so
+     that `anchor` lands on (cx,cy). Screen y is inverted (up = −y). */
+  function drawHeliWire(ctx, opts) {
+    const M = window.HL_MODEL2D; if (!M || !M.lines) return;
+    const cx = opts.cx, cy = opts.cy, S = opts.scale;
+    const anchor = opts.anchor || M.hub;
+    const pivot  = opts.pivot  || anchor;
+    const roll = opts.rollRad || 0;
+    const color = opts.color || COL().dim;
+    const width = opts.width || 1.3;
+    const alpha = opts.alpha != null ? opts.alpha : 0.92;
+    const cos = Math.cos(roll), sin = Math.sin(roll);
+    const X = (px, py) => {
+      const dx = px - pivot.x, dy = py - pivot.y;
+      const rx = dx * cos - dy * sin, ry = dx * sin + dy * cos;
+      const wx = pivot.x + rx, wy = pivot.y + ry;
+      return [ cx + (wx - anchor.x) * S, cy - (wy - anchor.y) * S ];
+    };
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth = width;
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.globalAlpha *= alpha;
+    ctx.beginPath();
+    for (const ln of M.lines) {
+      for (let i = 0; i < ln.length; i++) {
+        const p = X(ln[i][0], ln[i][1]);
+        i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]);
+      }
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   return { css, COL, setup, clear, grid, arrow, dline, arc, text, dot, hatchRect, tick,
-           chipLabel, bladeSection, nacaProfile, lineChart, discPolar, discIso, polarToCanvas, fmt };
+           chipLabel, bladeSection, nacaProfile, lineChart, discPolar, discIso, polarToCanvas, fmt,
+           drawHeliWire };
 })();

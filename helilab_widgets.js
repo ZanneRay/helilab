@@ -285,14 +285,13 @@ const HLW = (function () {
       const netYaw    = torqueMag - trThrust;                   // >0 nose-right (right pedal)
 
       // fuselage — nose to the RIGHT (= forward); tail boom + fin to the LEFT (aft)
-      ctx.fillStyle = col.dim; ctx.globalAlpha = 0.85;
-      ctx.beginPath(); ctx.ellipse(cx, cy, 46, 22, 0, 0, 2 * Math.PI); ctx.fill();   // cabin
-      ctx.fillRect(cx - 92, cy - 6, 92, 10);                  // tail boom (left)
-      ctx.beginPath(); ctx.ellipse(cx - 96, cy - 1, 8, 16, 0, 0, 2 * Math.PI); ctx.fill();  // tail fin
-      ctx.globalAlpha = 1;
-      HLD.text(ctx, 'nose ▸', cx + 18, cy + 36, col.dim, '9px IBM Plex Sans');
-      // mast + disc
+      // Real side-view wireframe of the H145 (precomputed from Heli_simple.obj).
+      // Place the main-rotor HUB on the mast top so the disc/thrust sit exactly on
+      // the rotor axis; the body hangs below it, belly near `cy`.
       const mastTop = cy - 52;
+      HLD.drawHeliWire(ctx, { cx, cy: mastTop, scale: W * 0.40, color: col.dim, width: 1.3, alpha: 0.9 });
+      HLD.text(ctx, 'nose ▸', cx + 20, cy + 34, col.dim, '9px IBM Plex Sans');
+      // mast + disc
       HLD.dline(ctx, cx, cy - 18, cx, mastTop, col.dim, 3, [1, 0]);
       const tilt = (cyc / 100) * 14 * D2R;
       const dR = Math.min(92, W * 0.19);
@@ -2431,16 +2430,30 @@ const HLW = (function () {
       HLD.dot(ctx, pvx, pvy, 5, col.warn);
       HLD.text(ctx, 'pivot (skid on ground)', pvx, pvy + 22, col.warn, '10px IBM Plex Sans', 'center');
       // helicopter body: rotate the whole airframe about the pivot by φ
-      const bodyLen = Math.min(W * 0.34, 190), bodyH = 26, cgH = 46, mastH = 78;
+      const bodyLen = Math.min(W * 0.34, 190), cgH = 46, mastH = 78;
       const rot = (dx, dy) => ({ x: pvx + dx * Math.cos(phi) - dy * Math.sin(phi), y: pvy - dx * Math.sin(phi) - dy * Math.cos(phi) });
       // (dx,dy) in body frame: +dx toward the raised skid (right), +dy up
-      const skidR = rot(bodyLen, 0);      // raised skid tip
       const cgP = rot(bodyLen * 0.5, cgH);
       const mastP = rot(bodyLen * 0.5, cgH + mastH);
-      // fuselage box (from pivot skid to raised skid)
-      ctx.strokeStyle = col.ink; ctx.lineWidth = 3; ctx.lineJoin = 'round';
-      const p1 = rot(0, 0), p2 = rot(bodyLen, 0), p3 = rot(bodyLen, bodyH), p4 = rot(0, bodyH);
-      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y); ctx.lineTo(p4.x, p4.y); ctx.closePath(); ctx.stroke();
+      // fuselage — clean front-view silhouette (model-inspired), banked about the pivot.
+      // All points are in body frame (dx toward raised skid, dy up) then rotated by φ.
+      const strokeBF = (pts, close) => { ctx.beginPath(); pts.forEach((p, i) => {
+        const s = rot(p[0], p[1]); i ? ctx.lineTo(s.x, s.y) : ctx.moveTo(s.x, s.y);
+      }); if (close) ctx.closePath(); ctx.stroke(); };
+      ctx.strokeStyle = col.ink; ctx.lineWidth = 2.5; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+      const cxC = bodyLen * 0.5, cyC = cgH - 6, rx = bodyLen * 0.46, ry = 24;
+      // cabin (rounded)
+      const cabin = []; for (let a = 0; a <= 2 * Math.PI + 0.15; a += 0.18) cabin.push([cxC + rx * Math.cos(a), cyC + ry * Math.sin(a)]); strokeBF(cabin);
+      // skids: down-slope (pivot, on ground) + raised, as tubes at dy=0
+      const sk = bodyLen * 0.30;
+      strokeBF([[-sk / 2, 0], [sk / 2, 0]]);                       // pivot (down-slope) skid
+      strokeBF([[bodyLen - sk / 2, 0], [bodyLen + sk / 2, 0]]);   // raised skid
+      // struts: skid → cabin belly
+      strokeBF([[0, 0], [cxC - rx * 0.55, cyC - ry]]);
+      strokeBF([[0, 0], [cxC - rx * 0.15, cyC - ry]]);
+      strokeBF([[bodyLen, 0], [cxC + rx * 0.55, cyC - ry]]);
+      strokeBF([[bodyLen, 0], [cxC + rx * 0.15, cyC - ry]]);
+      ctx.lineCap = 'butt';
       // mast
       HLD.dline(ctx, cgP.x, cgP.y, mastP.x, mastP.y, col.dim, 3, [1, 0]);
       // rotor disc (perpendicular to mast → tilts with the airframe)
