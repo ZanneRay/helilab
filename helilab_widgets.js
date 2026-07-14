@@ -366,7 +366,7 @@ const HLW = (function () {
       const DN = 0.5 * rho * spd * spd * st.fEq;
       const ThN = tw * WN * Math.sin(tilt);          // T·sin(tilt): forward thrust component
       const netN = ThN - DN;                          // net horizontal force → acceleration
-      const dragPx = Math.min(DN / WN * WL, 1.6 * WL);
+      const dragPx = Math.min(DN / Math.max(ThN, WN * 0.02) * WL, 1.6 * WL);
       if (dragPx > 4) {                               // drag opposes motion (backward = left)
         HLD.arrow(ctx, cx - 6, cy + 26, cx - 6 - dragPx, cy + 26, col.drag, 3, 10);
         HLD.text(ctx, 'Drag ' + (DN < 1000 ? DN.toFixed(0) : (DN / 1000).toFixed(1) + 'k') + ' N',
