@@ -269,7 +269,7 @@ const HLW = (function () {
   /* 1 — Big picture: side-view helicopter — collective (real T/W), cyclic, pedals */
   function wBigPicture(host) {
     const ui = scaffold(host);
-    let coll = 52, cyc = 0, pedal = 0;   // collective %, cyclic ±, pedal ± (left/right)
+    let coll = 52, cyc = 0, pedal = 0, spd = 0;   // collective %, cyclic ±, pedal ±, airspeed m/s
     const draw = () => {
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
       HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 32);
@@ -309,8 +309,8 @@ const HLW = (function () {
       HLD.arrow(ctx, cx, mastTop, cx + tnx * tLen, mastTop + tny * tLen, tw >= 1 ? col.lift : col.warn, 4, 12);
       HLD.text(ctx, 'Thrust', cx + tnx * tLen + 6, mastTop + tny * tLen, tw >= 1 ? col.lift : col.warn, 'bold 12px IBM Plex Sans');
       // weight (fixed reference)
-      HLD.arrow(ctx, cx, cy + 6, cx, cy + 6 + WL, col.drag, 3, 10);
-      HLD.text(ctx, 'Weight', cx + 6, cy + 52, col.drag, '11px IBM Plex Sans');
+      HLD.arrow(ctx, cx, cy + 6, cx, cy + 6 + WL, col.dim, 3, 10);
+      HLD.text(ctx, 'Weight', cx + 6, cy + 52, col.dim, '11px IBM Plex Sans');
 
       // ── top-view inset: torque reaction, tail-rotor anti-torque & yaw ──────
       const curvedArrow = (acx, acy, ar, a0, sweep, color) => {
@@ -361,25 +361,43 @@ const HLW = (function () {
         }
       })();
 
-      // net horizontal (thrust horizontal component)
-      const horiz = tnx * tLen;
-      if (Math.abs(horiz) > 4) {
-        HLD.arrow(ctx, cx, cy - 70, cx + horiz * 1.4, cy - 70, col.warn, 3, 10);
-        HLD.text(ctx, horiz > 0 ? 'accelerate →' : '← accelerate',
-          cx + horiz * 0.7, cy - 78, col.warn, '11px IBM Plex Sans', 'center');
+      // parasite drag D = ½ρV²f_eq  (engine Ppar = ½ρV³f_eq → D = Ppar/V)
+      const WN = HL.weightN(st), rho = HL.rho(st);
+      const DN = 0.5 * rho * spd * spd * st.fEq;
+      const ThN = tw * WN * Math.sin(tilt);          // T·sin(tilt): forward thrust component
+      const netN = ThN - DN;                          // net horizontal force → acceleration
+      const dragPx = Math.min(DN / WN * WL, 1.6 * WL);
+      if (dragPx > 4) {                               // drag opposes motion (backward = left)
+        HLD.arrow(ctx, cx - 6, cy + 26, cx - 6 - dragPx, cy + 26, col.drag, 3, 10);
+        HLD.text(ctx, 'Drag ' + (DN < 1000 ? DN.toFixed(0) : (DN / 1000).toFixed(1) + 'k') + ' N',
+          cx - 6 - dragPx * 0.5, cy + 38, col.drag, '10px IBM Plex Sans', 'center');
+      }
+      const netPx = Math.max(-1.6 * WL, Math.min(1.6 * WL, netN / WN * WL));
+      const steady = Math.abs(netN) < 0.05 * Math.max(ThN, DN, WN * 0.01);
+      if (Math.abs(netPx) > 4) {
+        HLD.arrow(ctx, cx, cy - 70, cx + netPx * 1.4, cy - 70, col.warn, 3, 10);
+      }
+      if (Math.abs(netPx) > 4 || steady) {
+        HLD.text(ctx, steady ? 'steady — T·sinθ = Drag' : (netN > 0 ? 'accelerate →' : '← decelerate'),
+          cx + netPx * 0.7, cy - 78, col.warn, '11px IBM Plex Sans', 'center');
       }
       const vert = tw > 1.05 ? 'climb' : tw < 0.95 ? 'descend' : 'hover';
-      const result = Math.abs(cyc) < 3 ? vert : (cyc > 0 ? vert + ' + accel forward' : vert + ' + decel/back');
+      const horizTxt = steady ? 'steady cruise' : (netN > 0 ? 'accel forward' : 'decel');
+      const result = (Math.abs(cyc) < 3 && spd < 1) ? vert : vert + ' + ' + horizTxt;
       const yawTxt = Math.abs(netYaw) < 0.06 ? 'balanced — heading held'
         : (netYaw > 0 ? 'nose yaws right →' : '← nose yaws left');
       ui.readout.innerHTML = kv([
         ['Collective', coll.toFixed(0) + ' %  ·  T/W ' + tw.toFixed(2), tw >= 1 ? 'var(--hl-good)' : 'var(--hl-bad)'],
         ['Cyclic / disc tilt', (cyc / 100 * 14).toFixed(1) + '°', 'var(--hl-accent)'],
+        ['Airspeed', spd.toFixed(0) + ' m/s  (' + (spd * 1.944).toFixed(0) + ' kt)', 'var(--hl-accent)'],
+        ['Drag / T_h', DN.toFixed(0) + ' N  ·  ' + ThN.toFixed(0) + ' N', DN > ThN ? 'var(--hl-bad)' : 'var(--hl-drag)'],
         ['Pedals / yaw', yawTxt, Math.abs(netYaw) < 0.06 ? 'var(--hl-good)' : 'var(--hl-warn)'],
         ['Result', result, 'var(--hl-warn)'],
-      ]) + `<p class="hl-note">Collective sets total thrust: <b>T/W > 1 climbs, < 1
-        descends</b>. Cyclic tilts the disc to accelerate. The main rotor's <b>torque</b>
-        spins the fuselage the other way — the <b>tail rotor</b> cancels it.
+      ]) + `<p class="hl-note">Collective sets total thrust: <b>T/W &gt; 1 climbs, &lt; 1
+        descends</b>. Cyclic <b>tilts the thrust</b> — its forward component T·sinθ
+        accelerates the helicopter, but as speed builds <b>parasite drag</b> (½ρV²f)
+        grows until T·sinθ = Drag and you cruise at steady speed. The main rotor's
+        <b>torque</b> spins the fuselage the other way — the <b>tail rotor</b> cancels it.
         <b>Right pedal always yaws the nose right.</b> The EC135/H145 rotor turns
         <b>counter-clockwise</b> (from above), so its torque yaws the nose right and
         you hold <b>left pedal</b> against it — right pedal then <i>reduces</i>
@@ -388,6 +406,7 @@ const HLW = (function () {
     slider(ui.controls, { label: 'Collective (total thrust)', min: 0, max: 100, step: 1, val: coll, unit: ' %', on: v => { coll = v; draw(); } });
     slider(ui.controls, { label: 'Cyclic — aft ◀ ▶ forward', min: -100, max: 100, step: 1, val: cyc, unit: '', fmt: v => v.toFixed(0), on: v => { cyc = v; draw(); } });
     slider(ui.controls, { label: 'Pedals — left ◀ ▶ right', min: -100, max: 100, step: 1, val: pedal, unit: '', fmt: v => v.toFixed(0), on: v => { pedal = v; draw(); } });
+    slider(ui.controls, { label: 'Airspeed V', min: 0, max: 60, step: 1, val: spd, unit: ' m/s', on: v => { spd = v; draw(); } });
     ui.onDraw(draw);
   }
 
