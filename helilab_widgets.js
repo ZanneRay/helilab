@@ -289,8 +289,12 @@ const HLW = (function () {
       // Place the main-rotor HUB on the mast top so the disc/thrust sit exactly on
       // the rotor axis; the body hangs below it, belly near `cy`.
       const mastTop = cy - 52;
-      HLD.drawHeliWire(ctx, { cx, cy: mastTop, scale: W * 0.40, color: col.dim, width: 1.3, alpha: 0.9 });
-      HLD.text(ctx, 'nose ▸', cx + 20, cy + 34, col.dim, '9px IBM Plex Sans');
+      const WS = W * 0.40;
+      HLD.drawHeliWire(ctx, { cx, cy: mastTop, scale: WS, color: col.dim, width: 1.3, alpha: 0.9 });
+      // nose tip screen x (model faces right: nose at M2.noseX, hub at M2.hub.x)
+      const M2 = window.HL_MODEL2D;
+      const noseXs = cx + (M2.noseX - M2.hub.x) * WS;
+      HLD.text(ctx, 'nose ▸', noseXs - 14, cy + 22, col.dim, '9px IBM Plex Sans', 'center');
       // mast + disc
       HLD.dline(ctx, cx, cy - 18, cx, mastTop, col.dim, 3, [1, 0]);
       const tilt = (cyc / 100) * 14 * D2R;
@@ -308,10 +312,12 @@ const HLW = (function () {
       HLD.arrow(ctx, cx, mastTop, cx + tnx * tLen, mastTop + tny * tLen, tw >= 1 ? col.lift : col.warn, 4, 12);
       HLD.text(ctx, 'Thrust', cx + tnx * tLen + 6, mastTop + tny * tLen, tw >= 1 ? col.lift : col.warn, 'bold 12px IBM Plex Sans');
       // weight (fixed reference)
-      // weight — drawn from the hub (thrust tail) downward, so all force vectors
-      // share a common origin (free-body convention)
-      HLD.arrow(ctx, cx, mastTop, cx, mastTop + WL, col.dim, 3, 10);
-      HLD.text(ctx, 'Weight', cx + 8, mastTop + WL * 0.55, col.dim, '11px IBM Plex Sans');
+      // weight + drag act at the CG (lower body); thrust + accelerate stay at the hub.
+      // Two origin clusters keep the body free-body clean (weight no longer crosses
+      // the whole fuselage) while the rotor forces still read from the hub.
+      const cgY = cy - 6;
+      HLD.arrow(ctx, cx, cgY, cx, cgY + WL, col.dim, 3, 10);
+      HLD.text(ctx, 'Weight', cx + 8, cgY + WL * 0.5, col.dim, '11px IBM Plex Sans');
 
       // ── top-view inset: torque reaction, tail-rotor anti-torque & yaw ──────
       const curvedArrow = (acx, acy, ar, a0, sweep, color) => {
@@ -368,12 +374,17 @@ const HLW = (function () {
       const ThN = tw * WN * Math.sin(tilt);          // T·sin(tilt): forward thrust component
       const netN = ThN - DN;                          // net horizontal force → acceleration
       const dragPx = Math.min(DN / Math.max(ThN, WN * 0.02) * WL, 1.6 * WL);
-      if (dragPx > 4) {                               // drag opposes motion (backward = left), from the hub
-        HLD.arrow(ctx, cx, mastTop, cx - dragPx, mastTop, col.drag, 3, 10);
+      if (dragPx > 4) {                               // drag opposes motion (backward = left), from the CG
+        HLD.arrow(ctx, cx, cgY, cx - dragPx, cgY, col.drag, 3, 10);
         HLD.text(ctx, 'Drag ' + (DN < 1000 ? DN.toFixed(0) : (DN / 1000).toFixed(1) + 'k') + ' N',
-          cx - dragPx * 0.5, mastTop - 10, col.drag, '10px IBM Plex Sans', 'center');
+          cx - dragPx * 0.5, cgY - 12, col.drag, '10px IBM Plex Sans', 'center');
       }
-      const netPx = Math.max(-1.6 * WL, Math.min(1.6 * WL, netN / WN * WL));
+      // net horizontal force → acceleration. Scale on the SAME reference as drag/thrust-h
+      // (max of ThN, DN, WN·0.02) so the net arrow stays comparable to the drag arrow and
+      // remains visible when decelerating (tilt≈0 → ThN≈0 → net≈−drag). The old /WN
+      // scaling made the net arrow vanish because WN ≫ net force.
+      const refN = Math.max(ThN, DN, WN * 0.02);
+      const netPx = Math.max(-1.6 * WL, Math.min(1.6 * WL, netN / refN * WL));
       const steady = Math.abs(netN) < 0.05 * Math.max(ThN, DN, WN * 0.01);
       if (Math.abs(netPx) > 4) {
         // net horizontal force → acceleration, from the hub (thrust tail).
@@ -383,10 +394,11 @@ const HLW = (function () {
         HLD.arrow(ctx, cx, mastTop, cx + netPx * 1.4, netY, col.warn, 3, 10);
       }
       if (Math.abs(netPx) > 4 || steady) {
-        const netY = mastTop + (netN < 0 ? 13 : 0);
-        // label sits BELOW the arrow so it clears the rising thrust line above
+        // label fixed to the RIGHT of the hub, below the tilted disc: stays clear of
+        // the disc line above and the drag/weight labels on the left (which collide
+        // with a leftward net arrow in the decelerate case)
         HLD.text(ctx, steady ? 'steady — T·sinθ = Drag' : (netN > 0 ? 'accelerate →' : '← decelerate'),
-          cx + netPx * 0.7, netY + 14, col.warn, '11px IBM Plex Sans', 'center');
+          cx + 56, mastTop + 30, col.warn, '11px IBM Plex Sans');
       }
       const vert = tw > 1.05 ? 'climb' : tw < 0.95 ? 'descend' : 'hover';
       const horizTxt = steady ? 'steady cruise' : (netN > 0 ? 'accel forward' : 'decel');
