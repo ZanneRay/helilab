@@ -308,8 +308,10 @@ const HLW = (function () {
       HLD.arrow(ctx, cx, mastTop, cx + tnx * tLen, mastTop + tny * tLen, tw >= 1 ? col.lift : col.warn, 4, 12);
       HLD.text(ctx, 'Thrust', cx + tnx * tLen + 6, mastTop + tny * tLen, tw >= 1 ? col.lift : col.warn, 'bold 12px IBM Plex Sans');
       // weight (fixed reference)
-      HLD.arrow(ctx, cx, cy + 6, cx, cy + 6 + WL, col.dim, 3, 10);
-      HLD.text(ctx, 'Weight', cx + 6, cy + 52, col.dim, '11px IBM Plex Sans');
+      // weight — drawn from the hub (thrust tail) downward, so all force vectors
+      // share a common origin (free-body convention)
+      HLD.arrow(ctx, cx, mastTop, cx, mastTop + WL, col.dim, 3, 10);
+      HLD.text(ctx, 'Weight', cx + 8, mastTop + WL * 0.55, col.dim, '11px IBM Plex Sans');
 
       // ── top-view inset: torque reaction, tail-rotor anti-torque & yaw ──────
       const curvedArrow = (acx, acy, ar, a0, sweep, color) => {
@@ -366,19 +368,25 @@ const HLW = (function () {
       const ThN = tw * WN * Math.sin(tilt);          // T·sin(tilt): forward thrust component
       const netN = ThN - DN;                          // net horizontal force → acceleration
       const dragPx = Math.min(DN / Math.max(ThN, WN * 0.02) * WL, 1.6 * WL);
-      if (dragPx > 4) {                               // drag opposes motion (backward = left)
-        HLD.arrow(ctx, cx - 6, cy + 26, cx - 6 - dragPx, cy + 26, col.drag, 3, 10);
+      if (dragPx > 4) {                               // drag opposes motion (backward = left), from the hub
+        HLD.arrow(ctx, cx, mastTop, cx - dragPx, mastTop, col.drag, 3, 10);
         HLD.text(ctx, 'Drag ' + (DN < 1000 ? DN.toFixed(0) : (DN / 1000).toFixed(1) + 'k') + ' N',
-          cx - 6 - dragPx * 0.5, cy + 38, col.drag, '10px IBM Plex Sans', 'center');
+          cx - dragPx * 0.5, mastTop - 10, col.drag, '10px IBM Plex Sans', 'center');
       }
       const netPx = Math.max(-1.6 * WL, Math.min(1.6 * WL, netN / WN * WL));
       const steady = Math.abs(netN) < 0.05 * Math.max(ThN, DN, WN * 0.01);
       if (Math.abs(netPx) > 4) {
-        HLD.arrow(ctx, cx, cy - 70, cx + netPx * 1.4, cy - 70, col.warn, 3, 10);
+        // net horizontal force → acceleration, from the hub (thrust tail).
+        // When it points left (decel) it would sit on top of the drag arrow, so
+        // nudge it down a little to stay legible.
+        const netY = mastTop + (netN < 0 ? 13 : 0);
+        HLD.arrow(ctx, cx, mastTop, cx + netPx * 1.4, netY, col.warn, 3, 10);
       }
       if (Math.abs(netPx) > 4 || steady) {
+        const netY = mastTop + (netN < 0 ? 13 : 0);
+        // label sits BELOW the arrow so it clears the rising thrust line above
         HLD.text(ctx, steady ? 'steady — T·sinθ = Drag' : (netN > 0 ? 'accelerate →' : '← decelerate'),
-          cx + netPx * 0.7, cy - 78, col.warn, '11px IBM Plex Sans', 'center');
+          cx + netPx * 0.7, netY + 14, col.warn, '11px IBM Plex Sans', 'center');
       }
       const vert = tw > 1.05 ? 'climb' : tw < 0.95 ? 'descend' : 'hover';
       const horizTxt = steady ? 'steady cruise' : (netN > 0 ? 'accel forward' : 'decel');
