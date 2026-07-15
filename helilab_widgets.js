@@ -379,12 +379,10 @@ const HLW = (function () {
         HLD.text(ctx, 'Drag ' + (DN < 1000 ? DN.toFixed(0) : (DN / 1000).toFixed(1) + 'k') + ' N',
           cx - dragPx * 0.5, cgY - 12, col.drag, '10px IBM Plex Sans', 'center');
       }
-      // net horizontal force → acceleration. Scale on the SAME reference as drag/thrust-h
-      // (max of ThN, DN, WN·0.02) so the net arrow stays comparable to the drag arrow and
-      // remains visible when decelerating (tilt≈0 → ThN≈0 → net≈−drag). The old /WN
-      // scaling made the net arrow vanish because WN ≫ net force.
-      const refN = Math.max(ThN, DN, WN * 0.02);
-      const netPx = Math.max(-1.6 * WL, Math.min(1.6 * WL, netN / refN * WL));
+      // net horizontal force → acceleration (the residual T_h − Drag). Scaled on WN
+      // so the net arrow stays SMALL — it's a residual, never larger than the
+      // thrust/weight/drag arrows that produce it (WN ≫ net force).
+      const netPx = Math.max(-1.6 * WL, Math.min(1.6 * WL, netN / WN * WL));
       const steady = Math.abs(netN) < 0.05 * Math.max(ThN, DN, WN * 0.01);
       if (Math.abs(netPx) > 4) {
         // net horizontal force → acceleration, from the hub (thrust tail).
