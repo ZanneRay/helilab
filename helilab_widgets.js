@@ -524,7 +524,7 @@ const HLW = (function () {
       HLD.text(ctx, 'lift per metre  ∝ U_T²·C_l', sx(0.4), y1 + 4, col.lift, '11px IBM Plex Sans', 'left', 'top');
       // axes
       HLD.text(ctx, 'root', sx(0) + 2, y0 + 6, col.dim, '10px IBM Plex Sans', 'left', 'top');
-      HLD.text(ctx, 'r/R', (x0 + x1) / 2, H - 4, col.dim, '10px IBM Plex Sans', 'center', 'top');
+      HLD.text(ctx, 'r/R', (x0 + x1) / 2, H - 4, col.dim, '10px IBM Plex Sans', 'center', 'bottom');
       HLD.text(ctx, 'tip', sx(1) - 2, y0 + 6, col.dim, '10px IBM Plex Sans', 'right', 'top');
       // marker
       const mp = lift[Math.round(rMark * 60)];
@@ -3271,7 +3271,8 @@ const HLW = (function () {
         // clamp inside the stage so labels never clip on short mobile discs
         lx = Math.max(28, Math.min(W - 28, lx));
         ly = Math.max(14, Math.min(H - 14, ly));
-        HLD.text(ctx, txt, lx, ly, col.ink, lblFont, 'center', 'middle');
+        // knockout box so the azimuth pointer / β curve can't strike the text
+        HLD.chipLabel(ctx, txt, lx, ly, col.ink, lblFont, 'center');
       };
       lbl('TAIL 0°',  HLD.polarToCanvas(0));
       lbl('ADV 90°',  HLD.polarToCanvas(Math.PI / 2));
@@ -3515,6 +3516,13 @@ const HLW = (function () {
         }
       } else {
         HLD.chipLabel(ctx, 'reverse flow — α undefined', tipX - 140, oy - 40, col.bad, FV, 'left', 'rgba(248,113,113,0.15)');
+      }
+
+      // Re-stamp V_rot's chip LAST so the θ/α arc strokes can't strike its text
+      // (knockout box on top). Label-only; geometry above is unchanged.
+      if ((tipX - xRotTail) > 70) {
+        if (Vt < 0) HLD.chipLabel(ctx, 'V_rot', xRotTail + 6, oy - 14, col.lift, FV, 'left');
+        else HLD.chipLabel(ctx, 'V_rot', xRotTail + (tipX - xRotTail) * 0.44, oy - 14, col.lift, FV, 'center');
       }
 
       // reverse / net-upflow flags (below the title so they never collide)

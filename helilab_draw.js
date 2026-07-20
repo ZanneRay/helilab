@@ -283,7 +283,9 @@ const HLD = (function () {
         chipLabel(ctx, 'Thrust', ox - 44, oy + Ty + (Ty < 0 ? 4 : -12), col.good, 'bold 10px IBM Plex Sans', 'right');
         const fhCol = Tx > 0 ? col.good : col.warn;
         arrow(ctx, ox, oy, ox + Tx, oy, fhCol, 2.4, 9);
-        chipLabel(ctx, 'F_H ×6', ox + Tx + (Tx < 0 ? -20 : 20), oy + 16, fhCol, 'bold 10px IBM Plex Sans', Tx < 0 ? 'right' : 'left');
+        // F_H label dropped clear below the arcs: at small/negative φ the φ arc chip
+        // swings down onto the plane line, so keep F_H well beneath it (label-only).
+        chipLabel(ctx, 'F_H ×6', ox + Tx + (Tx < 0 ? -20 : 20), oy + 28, fhCol, 'bold 10px IBM Plex Sans', Tx < 0 ? 'right' : 'left');
         // TAF resultant — label on the right-perpendicular side, away from L
         arrow(ctx, ox, oy, ox + Tx, oy + Ty, tafCol, 2.6, 10);
         chipLabel(ctx, 'TAF', ox + Tx + tpx * 18, oy + Ty + tpy * 18, tafCol, 'bold 11px IBM Plex Sans', 'center');
