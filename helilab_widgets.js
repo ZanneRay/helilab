@@ -294,7 +294,7 @@ const HLW = (function () {
       // nose tip screen x (model faces right: nose at M2.noseX, hub at M2.hub.x)
       const M2 = window.HL_MODEL2D;
       const noseXs = cx + (M2.noseX - M2.hub.x) * WS;
-      HLD.text(ctx, 'nose ▸', noseXs - 14, cy + 22, col.dim, '9px IBM Plex Sans', 'center');
+      HLD.text(ctx, 'nose ▸', noseXs + 4, cy + 38, col.dim, '9px IBM Plex Sans', 'center');
       // mast + disc
       HLD.dline(ctx, cx, cy - 18, cx, mastTop, col.dim, 3, [1, 0]);
       const tilt = (cyc / 100) * 14 * D2R;
@@ -860,7 +860,7 @@ const HLW = (function () {
         const ut = 0.75 + mu * Math.sin(psi);
         const t = (ut + Math.abs(mu)) / (1.5 + 2 * Math.abs(mu));
         return ut < 0 ? 'rgba(180,60,200,0.55)' : ramp(t);
-      }, col, { V: st.V });
+      }, col, { V: st.V, hideAdvLabel: true });   // ADV bar chart occupies the right gutter
       // reverse-flow circle (UT<0 region: r < -mu sinψ on retreating side)
       if (mu > 0.05) {
         ctx.strokeStyle = 'rgba(180,60,200,0.9)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
@@ -1397,7 +1397,7 @@ const HLW = (function () {
         { pts: curve.map(p => ({ x: p.V / 0.5144, y: p.Pi / 1000 })), color: 'rgba(56,189,248,0.9)', width: 1.6, label: 'P_i induced', dash: [4, 3] },
         { pts: curve.map(p => ({ x: p.V / 0.5144, y: (p.Pp) / 1000 })), color: 'rgba(52,211,153,0.9)', width: 1.6, label: 'P_p profile', dash: [4, 3] },
         { pts: curve.map(p => ({ x: p.V / 0.5144, y: p.Ppar / 1000 })), color: 'rgba(248,113,113,0.9)', width: 1.6, label: 'P_par parasite', dash: [4, 3] },
-        { pts: curve.map(p => ({ x: p.V / 0.5144, y: p.Ptot / 1000 })), color: 'var(--hl-ink)', width: 2.6, label: 'P_total' },
+        { pts: curve.map(p => ({ x: p.V / 0.5144, y: p.Ptot / 1000 })), color: '#e6edf3', width: 2.6, label: 'P_total' },
       ];
       const ymax = Math.max(...curve.map(p => p.Ptot)) / 1000 * 1.1;
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
@@ -2488,7 +2488,7 @@ const HLW = (function () {
       HLD.text(ctx, 'Thrust', mastP.x + tnx * tLen + 6, mastP.y + tny * tLen, tw >= 1 ? col.lift : col.warn, 'bold 11px IBM Plex Sans');
       // weight at CG (always straight down)
       HLD.arrow(ctx, cgP.x, cgP.y, cgP.x, cgP.y + WL, col.drag, 3, 10);
-      HLD.text(ctx, 'Weight', cgP.x + 6, cgP.y + WL, col.drag, '11px IBM Plex Sans');
+      HLD.text(ctx, 'Weight', cgP.x + 8, cgP.y + WL * 0.5, col.drag, '11px IBM Plex Sans', 'left', 'middle');
       // ── moments about the pivot, in real SI units (kN·m) ──────────────────
       // Real EC135-class geometry: CG a little inboard of and above the pivot
       // skid, rotor hub high on the mast. Weight RESTORES via its horizontal arm

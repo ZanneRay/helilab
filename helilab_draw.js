@@ -342,11 +342,10 @@ const HLD = (function () {
     if (axes.ylab) { ctx.save(); ctx.translate(11, (y0 + y1) / 2); ctx.rotate(-Math.PI / 2);
       text(ctx, axes.ylab, 0, 0, col.dim, '10px IBM Plex Sans', 'center'); ctx.restore(); }
 
-    // markers
+    // marker dashed lines (drawn UNDER the series so the curve reads on top)
     (markers || []).forEach(m => {
       const x = sx(m.x);
       dline(ctx, x, y0, x, y1, m.color, 1.5, [4, 3]);
-      text(ctx, m.label, x + 3, W < 420 ? y0 - 4 : y1 + 4, m.color, '9px IBM Plex Sans', 'left', W < 420 ? 'bottom' : 'top');
     });
 
     // series
@@ -357,6 +356,24 @@ const HLD = (function () {
       ctx.beginPath();
       s.pts.forEach((p, i) => { const X = sx(p.x), Y = sy(p.y); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
       ctx.stroke(); ctx.restore();
+    });
+
+    // marker LABELS (drawn OVER the series, each on a knockout box so a crossing
+    // curve never renders them illegible — fixes RET/ADV struck by β(ψ) on tab 7).
+    // Near the right edge the label flips to the LEFT of its line so it never
+    // collides with the series legend that lives in the top-right corner.
+    (markers || []).forEach(m => {
+      const x = sx(m.x);
+      const ly = W < 420 ? y0 - 4 : y1 + 4, base = W < 420 ? 'bottom' : 'top';
+      ctx.font = '9px IBM Plex Sans';
+      const tw = ctx.measureText(m.label).width;
+      const flip = x > x1 - 96;                 // too close to the right-edge legend
+      const lx = flip ? x - 3 : x + 3;
+      const boxX = flip ? x - tw - 4 : x + 2;
+      const boxY = base === 'top' ? ly - 1 : ly - 10;
+      ctx.fillStyle = col.bg || '#0b0e14'; ctx.globalAlpha = 0.82;
+      ctx.fillRect(boxX, boxY, tw + 3, 11); ctx.globalAlpha = 1;
+      text(ctx, m.label, lx, ly, m.color, '9px IBM Plex Sans', flip ? 'right' : 'left', base);
     });
 
     // legend
@@ -400,12 +417,21 @@ const HLD = (function () {
     dline(ctx, cx - R, cy, cx + R, cy, col.grid, 1, [4, 4]);
     dline(ctx, cx, cy - R, cx, cy + R, col.grid, 1, [4, 4]);
     // labels
-    text(ctx, 'ADV 90°', cx + R + 4, cy, col.dim, '10px IBM Plex Sans', 'left', 'middle');
+    // The right-side ADV label can be suppressed when the caller overlays its own
+    // ADV/RET bar chart in that gutter (tab 6) — avoids the bar clipping the text.
+    // RET (left) stays: nothing is drawn there.
+    if (!opts.hideAdvLabel) text(ctx, 'ADV 90°', cx + R + 4, cy, col.dim, '10px IBM Plex Sans', 'left', 'middle');
     text(ctx, 'RET 270°', cx - R - 4, cy, col.dim, '10px IBM Plex Sans', 'right', 'middle');
-    text(ctx, 'NOSE 180°', cx, cy - R - 6, col.dim, '10px IBM Plex Sans', 'center');
     text(ctx, 'TAIL 0°', cx, cy + R + 14, col.dim, '10px IBM Plex Sans', 'center');
-    // forward-flight direction
-    if (opts.V) arrow(ctx, cx, cy - R - 22, cx, cy - R - 6, col.accent, 2, 7);
+    // forward-flight direction arrow (points down toward the disc). When present it
+    // occupies the space directly above NOSE, so offset the NOSE label to the left
+    // to keep the arrow from piercing the text.
+    if (opts.V) {
+      arrow(ctx, cx, cy - R - 22, cx, cy - R - 6, col.accent, 2, 7);
+      text(ctx, 'NOSE 180°', cx - 30, cy - R - 6, col.dim, '10px IBM Plex Sans', 'right', 'middle');
+    } else {
+      text(ctx, 'NOSE 180°', cx, cy - R - 6, col.dim, '10px IBM Plex Sans', 'center');
+    }
   }
 
   /* map rotor azimuth ψ (0 aft, 90 adv) to canvas angle */
@@ -469,8 +495,25 @@ const HLD = (function () {
       ctx.stroke();
     }
     if (opts.label !== false) {
+      // keep only ONE label per level, and drop any that would sit too close to an
+      // already-placed label — otherwise several contour segments of the same level
+      // (and adjacent levels) bunch up on the retreating side into an illegible
+      // smudge (tab 8). One clean number per iso-ring is enough.
+      const placed = [];
+      const seen = new Set();
       for (const [lx, ly, L] of labelPts) {
-        text(ctx, (opts.fmt ? opts.fmt(L) : L + '°'), lx, ly, color, font, 'center', 'middle');
+        if (seen.has(L)) continue;
+        if (placed.some(([px, py]) => Math.abs(px - lx) < 18 && Math.abs(py - ly) < 12)) continue;
+        seen.add(L); placed.push([lx, ly]);
+        // knockout box so the number reads over the coloured disc + grid
+        ctx.font = font;
+        const s = (opts.fmt ? opts.fmt(L) : L + '\u00b0');
+        const tw = ctx.measureText(s).width;
+        ctx.fillStyle = COL().bg || '#0d1117'; ctx.globalAlpha = 0.85;
+        ctx.fillRect(lx - tw / 2 - 1, ly - 6, tw + 2, 12); ctx.globalAlpha = 1;
+        // label text uses a light ink (the iso-line stroke colour is deliberately
+        // dark for the coloured disc, but that is unreadable on the knockout box)
+        text(ctx, s, lx, ly, opts.labelColor || COL().ink, font, 'center', 'middle');
       }
     }
     ctx.restore();
