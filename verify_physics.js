@@ -33,7 +33,7 @@ load('helilab_core.js', ['HL']);
 
 const {
   BET_STATE, tipSpeed, advanceRatio, omega, inflowRatio, thrustCoeff,
-  localInflow, flappingCoeffs, flappingAngle, localVelocities, bladePitch,
+  localInflow, flappingCoeffs, flappingAngle, flappingRate, localVelocities, localVelocityDecomposition, bladePitch,
   inflowAngle, localAoA, profileVsPsi, profileVsR, computeTrimCyclic,
   discTiltAngles, sosAtAltFt, HL,
 } = ctx;
@@ -159,6 +159,36 @@ section('6. Coning angle a0 > 0 and increases with collective');
   const hi = discTiltAngles({ ...BET_STATE, theta0: 10, V: 0 }).a0_deg;
   check('a0 positive', lo > 0 && hi > 0, `a0(6°)=${lo.toFixed(2)}° a0(10°)=${hi.toFixed(2)}°`);
   check('a0 rises with collective', hi > lo, `${lo.toFixed(2)} → ${hi.toFixed(2)}`);
+}
+
+/* ── TEST 6b — coning/blade-motion decomposition signs ─────────────────── */
+section('6b. Coning contribution sign/zero conditions and UP decomposition');
+{
+  const stH = fwdState(0);
+  const cH = flappingCoeffs(stH);
+  const dH0 = localVelocityDecomposition(stH, cH, 0.75, 0);
+  const dH90 = localVelocityDecomposition(stH, cH, 0.75, Math.PI / 2);
+  check('coning term = 0 at hover (μ=0)', Math.abs(dH0.coningBladeNormal) < 1e-9 && Math.abs(dH90.coningBladeNormal) < 1e-9,
+    `tail=${dH0.coningBladeNormal.toFixed(6)} adv=${dH90.coningBladeNormal.toFixed(6)}`);
+
+  const st = fwdState(80);
+  const c = flappingCoeffs(st);
+  const dTail = localVelocityDecomposition(st, c, 0.75, 0);
+  const dNose = localVelocityDecomposition(st, c, 0.75, Math.PI);
+  const dAdv = localVelocityDecomposition(st, c, 0.75, Math.PI / 2);
+  const dRet = localVelocityDecomposition(st, c, 0.75, 3 * Math.PI / 2);
+  check('coning term flips sign TAIL↔NOSE (cosψ)', dTail.coningBladeNormal > 0 && dNose.coningBladeNormal < 0,
+    `tail=${dTail.coningBladeNormal.toFixed(5)} nose=${dNose.coningBladeNormal.toFixed(5)}`);
+  check('coning term ≈ 0 on ADV/RET (cos90=cos270=0)',
+    Math.abs(dAdv.coningBladeNormal) < 1e-6 && Math.abs(dRet.coningBladeNormal) < 1e-6,
+    `adv=${dAdv.coningBladeNormal.toExponential(2)} ret=${dRet.coningBladeNormal.toExponential(2)}`);
+
+  const lv = localVelocities(st, c, 0.75, Math.PI / 3);
+  const dd = localVelocityDecomposition(st, c, 0.75, Math.PI / 3);
+  check('UP decomposition sum is consistent', Math.abs(dd.UP - (dd.inflowNormal + dd.bladeMotionNormal)) < 1e-12,
+    `UP=${dd.UP.toFixed(6)} inflow+blade=${(dd.inflowNormal + dd.bladeMotionNormal).toFixed(6)}`);
+  check('localVelocities() matches decomposition UP', Math.abs(lv.UP - dd.UP) < 1e-12,
+    `localVel=${lv.UP.toFixed(6)} decomp=${dd.UP.toFixed(6)}`);
 }
 
 /* ── TEST 7 — hover symmetry (V=0): AoA azimuth-independent ─────────── */
@@ -366,6 +396,20 @@ section('Linear inflow model — gradient signs and consistency');
   const m40 = linearInflowModel(st40);
   check('\u03bb_c grows with forward speed (80 kt > 40 kt)', m80.lamc > m40.lamc,
     `lamc(80kt)=${m80.lamc.toFixed(4)} lamc(40kt)=${m40.lamc.toFixed(4)}`);
+
+  // (j) Coning/blade flapping terms can change local velocity triangle, but do not
+  //     alter the wake-induced inflow map itself (λ-model is independent of coeffs).
+  const cBase = flappingCoeffs(st80);
+  const cBoost = { ...cBase, a0: cBase.a0 * 1.6 };
+  const p = { r: 0.75, psi: 0.3 * Math.PI };
+  const dBase = localVelocityDecomposition(st80, cBase, p.r, p.psi);
+  const dBoost = localVelocityDecomposition(st80, cBoost, p.r, p.psi);
+  check('λ-induced term unchanged when only coning coeff is perturbed',
+    Math.abs(dBase.lamInduced - dBoost.lamInduced) < 1e-12,
+    `lamInduced base=${dBase.lamInduced.toFixed(6)} boost=${dBoost.lamInduced.toFixed(6)}`);
+  check('coning perturbation changes blade-motion normal term',
+    Math.abs(dBase.coningBladeNormal - dBoost.coningBladeNormal) > 1e-6,
+    `base=${dBase.coningBladeNormal.toFixed(6)} boost=${dBoost.coningBladeNormal.toFixed(6)}`);
 }
 
 console.log(`\n──────────────────────────────\nRESULT: ${pass} passed, ${fail} failed\n`);

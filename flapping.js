@@ -318,7 +318,7 @@ function flappingRate(coeffs, psi, Om) {
  * rBar  = r/R  (0…1)
  * psi   = azimuth [rad]
  */
-function localVelocities(st, coeffs, rBar, psi) {
+function localVelocityDecomposition(st, coeffs, rBar, psi) {
   const OmR = tipSpeed(st);
   const Om  = omega(st);
   const mu  = advanceRatio(st);
@@ -336,12 +336,36 @@ function localVelocities(st, coeffs, rBar, psi) {
 
   // Perpendicular (out-of-plane): uniform throughflow + azimuthally-varying
   // induced inflow (Drees wake-skew gradient applies to the INDUCED part only).
-  const lam_loc = muTan + localInflow(lam_i, rBar, psi, mu);
-  const UP = lam_loc
-    + (betaDot / Om) * rBar  // flapping velocity (normalised by OmR since betaDot/Om = dβ/dψ)
-    - (q_r * Math.cos(psi) + p_r * Math.sin(psi)) * rBar / Om * (Om / OmR) // body rates, normalised
-    + mu * Math.cos(psi) * beta; // free-stream × flapping
+  const lamUniform = muTan;
+  const lamInduced = localInflow(lam_i, rBar, psi, mu);
+  const inflowNormal = lamUniform + lamInduced;
 
+  // Blade-motion normal velocity terms (all normalised by ΩR):
+  //  - coning / flap-angle transport: μ cosψ · β(ψ)
+  //  - flap-rate contribution: (β̇/Ω) r̄
+  //  - body-rate contribution: p,q projection onto the blade station
+  const coningBladeNormal = mu * Math.cos(psi) * beta;
+  const flapRateNormal = (betaDot / Om) * rBar;
+  const bodyRateNormal = -(q_r * Math.cos(psi) + p_r * Math.sin(psi)) * rBar / Om * (Om / OmR);
+  const bladeMotionNormal = flapRateNormal + bodyRateNormal + coningBladeNormal;
+
+  return {
+    UT,
+    beta,
+    betaDot,
+    lamUniform,
+    lamInduced,
+    inflowNormal,
+    flapRateNormal,
+    bodyRateNormal,
+    coningBladeNormal,
+    bladeMotionNormal,
+    UP: inflowNormal + bladeMotionNormal,
+  };
+}
+
+function localVelocities(st, coeffs, rBar, psi) {
+  const { UT, UP } = localVelocityDecomposition(st, coeffs, rBar, psi);
   return { UT, UP };
 }
 

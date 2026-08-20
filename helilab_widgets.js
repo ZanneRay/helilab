@@ -959,7 +959,7 @@ const HLW = (function () {
     requestAnimationFrame(drawBet);
   }
 
-  /* Flapping & Roll Coupling: flapback phase lag, inflow asymmetry, compare mode
+  /* Flapback & Inflow Roll: longitudinal flapback, lateral inflow roll, compare mode
      Educational model — quasi-steady, prescribed first-harmonic (Pitt-Peters).
      NOT a free-wake or transient rotor-body coupling model. */
   function wFlappingRoll(host) {
@@ -973,8 +973,8 @@ const HLW = (function () {
     segmented(ui.controls, {
       label: 'Section',
       options: [
-        { v: 'flapback',   t: 'Flapback' },
-        { v: 'inflowroll', t: 'Inflow Roll' },
+        { v: 'flapback',   t: 'Flapback (longitudinal)' },
+        { v: 'inflowroll', t: 'Inflow Roll (lateral/TFE)' },
         { v: 'compare',    t: 'Compare' },
       ],
       val: mode,
@@ -994,11 +994,11 @@ const HLW = (function () {
       }
       if (mode === 'compare') {
         segmented(dynCtls, {
-          label: 'Inflow model',
+          label: 'Compare case',
           options: [
             { v: 'uniform', t: 'Uniform' },
-            { v: 'forward', t: 'Forward' },
-            { v: 'lateral', t: 'Lateral' },
+            { v: 'forward', t: 'Flapback / dynamic flapping' },
+            { v: 'lateral', t: 'Asymmetric inflow / inflow roll' },
           ],
           val: compareModel,
           on: v => { compareModel = v; draw(); },
@@ -1137,10 +1137,63 @@ const HLW = (function () {
       return { lamMin, lamMax, lamRange: Math.max(0.001, lamMax - lamMin) };
     }
 
+    // Convention: positive normal flow points DOWN through the rotor disc.
+    function inflowDecompAt(st, coeffs, model, r, psi) {
+      const mu = advanceRatio(st);
+      const Om = omega(st);
+      const beta = flappingAngle(coeffs, psi);
+      const betaDot = flappingRate(coeffs, psi, Om);
+      const UT = r + mu * Math.sin(psi);
+      const induced = HL.linearInflowAt(model, r, psi);
+      const coningNormal = mu * Math.cos(psi) * coeffs.a0;
+      const bladeMotionNormal = (betaDot / Om) * r + mu * Math.cos(psi) * beta;
+      const normalTotal = induced + bladeMotionNormal;
+      const phi = inflowAngle(UT, normalTotal);
+      const theta = bladePitch(st, r, psi);
+      const alpha = theta - phi;
+      const liftTendency = UT > 0 ? (UT * UT * alpha) : 0;
+      return { induced, coningNormal, bladeMotionNormal, normalTotal, phi, alpha, liftTendency };
+    }
+
+    function decompRows(st, coeffs, model) {
+      const r = 0.75;
+      return [
+        { name: 'ADV 90°', psi: Math.PI / 2 },
+        { name: 'RET 270°', psi: 3 * Math.PI / 2 },
+        { name: 'NOSE 180°', psi: Math.PI },
+        { name: 'TAIL 0°', psi: 0 },
+      ].map(p => ({ name: p.name, ...inflowDecompAt(st, coeffs, model, r, p.psi) }));
+    }
+
+    function decompTableHtml(rows) {
+      return '<div style="overflow-x:auto;margin-top:6px">'
+        + '<table style="width:100%;border-collapse:collapse;font-size:11px">'
+        + '<thead><tr>'
+        + '<th style="text-align:left;padding:2px 4px">pos</th>'
+        + '<th style="text-align:right;padding:2px 4px">λᵢ</th>'
+        + '<th style="text-align:right;padding:2px 4px">vₙ,blade</th>'
+        + '<th style="text-align:right;padding:2px 4px">vₙ,total</th>'
+        + '<th style="text-align:right;padding:2px 4px">φ</th>'
+        + '<th style="text-align:right;padding:2px 4px">α</th>'
+        + '<th style="text-align:right;padding:2px 4px">lift idx</th>'
+        + '</tr></thead><tbody>'
+        + rows.map(r => '<tr>'
+          + `<td style="padding:2px 4px">${r.name}</td>`
+          + `<td style="padding:2px 4px;text-align:right">${r.induced.toFixed(4)}</td>`
+          + `<td style="padding:2px 4px;text-align:right">${r.bladeMotionNormal.toFixed(4)}</td>`
+          + `<td style="padding:2px 4px;text-align:right">${r.normalTotal.toFixed(4)}</td>`
+          + `<td style="padding:2px 4px;text-align:right">${(r.phi * R2D).toFixed(1)}°</td>`
+          + `<td style="padding:2px 4px;text-align:right">${(r.alpha * R2D).toFixed(1)}°</td>`
+          + `<td style="padding:2px 4px;text-align:right">${r.liftTendency.toFixed(4)}</td>`
+          + '</tr>').join('')
+        + '</tbody></table></div>';
+    }
+
     /* ── Inflow Roll ─────────────────────────────────────────────────────── */
     function drawInflowRoll(ctx, W, H, col) {
       const st = HL.defaultState(); st.V = Vkt * 0.5144; st.Vlat = Vlat * 0.5144;
       const model = HL.linearInflowModel(st);
+      const coeffs = flappingCoeffs(st);
       const { lamAdv, lamRet, dLam } = HL.inflowRollIndicator(model);
 
       const discR = Math.min(W * 0.32, H * 0.44);
@@ -1169,6 +1222,10 @@ const HLW = (function () {
       HLD.text(ctx, 'Roll tendency: ' + rollTxt, W / 2, H - 8, col.warn,
                '10px IBM Plex Sans', 'center', 'bottom');
 
+      const rows = decompRows(st, coeffs, model);
+      const coningAdv = rows[0].coningNormal;
+      const coningRet = rows[1].coningNormal;
+
       ui.readout.innerHTML = kv([
         ['Forward speed',           Vkt.toFixed(0) + ' kt',  'var(--hl-ink)'],
         ['Lateral wind',            Vlat.toFixed(0) + ' kt', 'var(--hl-warn)'],
@@ -1179,12 +1236,16 @@ const HLW = (function () {
         ['\u03bb at RET r=0.75',    lamRet.toFixed(4),       'var(--hl-lift)'],
         ['\u0394\u03bb (ADV\u2212RET)', dLam.toFixed(4),
           Math.abs(dLam) > 0.001 ? 'var(--hl-bad)' : 'var(--hl-ink)'],
-      ]) + '<p class="hl-note">Disc coloured by local induced velocity \u03bb(r,\u03c8) \u2014 warm = high inflow. '
-         + '\u03bb_c (longitudinal gradient) is always present in forward flight: '
-         + 'more inflow at the tail than at the nose. '
-         + '\u03bb_s (lateral gradient) appears with lateral wind or sideslip. '
-         + 'Higher inflow \u2192 lower AoA \u2192 less lift \u2192 roll moment. '
-         + '<i>First-harmonic Pitt-Peters prescribed inflow; not a free-wake model.</i></p>';
+      ]) + '<p class="hl-note">In this course the pedagogical label <b>\u201cTransverse Flow Effect\u201d</b> refers to this '
+         + '<b>inflow-roll mechanism</b> (wake-induced \u03bb asymmetry), not to flapback.</p>'
+         + '<p class="hl-note">Disc colours show induced inflow \u03bb(r,\u03c8). The table decomposes the local velocity triangle '
+         + 'at 0.75R: induced \u03bb\u1d62, blade-motion normal velocity v\u2099,blade (including coning/blade motion), '
+         + 'resultant normal flow v\u2099,total, inflow angle \u03c6, AoA \u03b1, and lift tendency index U\u1d40\u00b2\u00b7\u03b1. '
+         + `Coning contribution example: ADV ${coningAdv.toFixed(4)}, RET ${coningRet.toFixed(4)}. `
+         + '<b>Coning does not create wake asymmetry</b>; it modifies the local velocity triangle and aerodynamic response.</p>'
+         + '<p class="hl-note"><i>Educational model limitation: prescribed first-harmonic Pitt-Peters inflow + quasi-steady '
+         + 'flapping terms; not a free-wake or transient rotor\u2013body-coupled solution.</i></p>'
+         + decompTableHtml(rows);
     }
 
     /* ── Compare ─────────────────────────────────────────────────────────── */
@@ -1194,22 +1255,22 @@ const HLW = (function () {
       if (compareModel === 'uniform') {
         const base = HL.linearInflowModel(st);
         model = { lam0: base.lam0, lamc: 0, lams: 0 };
-        title = 'Uniform inflow \u03bb\u2080 everywhere';
-        note  = 'Hover or simplified model: constant induced velocity. No roll or pitch imbalance '
-              + 'from inflow alone. Dissymmetry of lift still exists from U\u1d40 asymmetry.';
+        title = 'Uniform inflow baseline';
+        note  = 'Reference case: constant induced inflow \u03bb\u2080. No inflow-gradient pitch/roll tendency; useful baseline for velocity-triangle comparison.';
       } else if (compareModel === 'forward') {
         model = HL.linearInflowModel(st);
-        title = 'Forward-flight inflow (Pitt-Peters first harmonic)';
-        note  = 'Longitudinal gradient \u03bb_c: more inflow at the tail than the nose. '
-              + 'Creates a pitch-up moment trimmed by forward cyclic (adds to flapback). '
-              + 'No left\u2013right asymmetry in symmetric flight.';
+        title = 'Flapback / dynamic flapping context';
+        note  = 'Symmetric forward flight highlights longitudinal flapback response (phase-lag flapping) while the induced inflow remains a wake model quantity. '
+              + 'Do not treat this as transverse-flow/inflow-roll.';
       } else {
         const stLat = Object.assign({}, st, { Vlat: Math.max(10, Vkt) * 0.5144 * 0.35 });
         model = HL.linearInflowModel(stLat);
-        title = 'Lateral / skewed inflow';
-        note  = 'Lateral gradient \u03bb_s: more inflow on the advancing (starboard) side than the retreating. '
-              + 'Produces a roll moment trimmed with lateral cyclic. In practice from lateral wind, yaw rate, or sideslip.';
+        title = 'Asymmetric inflow / inflow roll';
+        note  = 'Wake-induced lateral inflow gradient (\u03bb_s) gives roll tendency in this pedagogical “Transverse Flow Effect” context. '
+              + 'Flapback remains a separate longitudinal mechanism.';
       }
+      const coeffs = flappingCoeffs(st);
+      const rows = decompRows(st, coeffs, model);
 
       const discR = Math.min(W * 0.36, H * 0.44);
       const cx = W / 2, cy = H / 2 + 6;
@@ -1228,6 +1289,10 @@ const HLW = (function () {
         ['\u03bb_c (long.)',      model.lamc.toFixed(4),  'var(--hl-lift)'],
         ['\u03bb_s (lat.)',       model.lams.toFixed(4),  'var(--hl-warn)'],
       ]) + '<p class="hl-note">' + note + '</p>'
+         + '<p class="hl-note">Representative 0.75R decomposition shown below for each azimuth: induced inflow, blade-motion normal velocity '
+         + '(coning/flapping contribution), resultant normal flow, \u03c6, \u03b1, and lift tendency index.</p>'
+         + decompTableHtml(rows)
+         + '<p class="hl-note">Sign convention used here: positive inflow points down through the disc; \u03c8 = 0\u00b0 tail, 90\u00b0 ADV, 180\u00b0 nose, 270\u00b0 RET.</p>'
          + '<p class="hl-note" style="margin-top:4px"><b>Model assumptions:</b> quasi-steady, '
          + 'prescribed first-harmonic (Pitt-Peters). Not a free-wake or transient '
          + 'rotor\u2013body coupling model. Educational tool only.</p>';
