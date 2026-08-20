@@ -412,5 +412,73 @@ section('Linear inflow model — gradient signs and consistency');
     `base=${dBase.coningBladeNormal.toFixed(6)} boost=${dBoost.coningBladeNormal.toFixed(6)}`);
 }
 
+/* ── TEST: Transverse Flow Effect — fore-aft inflow asymmetry (pedagogical model) ── */
+section('Transverse Flow Effect — fore-aft inflow asymmetry');
+{
+  const { linearInflowModel, linearInflowAt, defaultState } = HL;
+  const rBar = 0.75;
+
+  // (a) At hover: fore-aft inflow is symmetric (λ_c ≈ 0 → λ_FWD ≈ λ_AFT)
+  const st0  = defaultState(); st0.V = 0;
+  const m0   = linearInflowModel(st0);
+  const lFwd0 = linearInflowAt(m0, rBar, Math.PI);   // ψ=180° (nose/front)
+  const lAft0 = linearInflowAt(m0, rBar, 0);          // ψ=0° (tail/aft)
+  check('Hover: front inflow ≈ aft inflow (symmetric disc)',
+    Math.abs(lAft0 - lFwd0) < 0.002,
+    `FWD=${lFwd0.toFixed(5)} AFT=${lAft0.toFixed(5)} Δ=${(lAft0-lFwd0).toFixed(5)}`);
+
+  // (b) In forward flight: aft disc has more induced flow than front disc
+  const st80 = defaultState(); st80.V = 80 * 0.5144;
+  const m80  = linearInflowModel(st80);
+  const lFwd80 = linearInflowAt(m80, rBar, Math.PI);
+  const lAft80 = linearInflowAt(m80, rBar, 0);
+  check('Forward flight: λ(AFT) > λ(FWD) — core transverse-flow asymmetry',
+    lAft80 > lFwd80,
+    `FWD=${lFwd80.toFixed(4)} AFT=${lAft80.toFixed(4)} Δ=${(lAft80-lFwd80).toFixed(4)}`);
+
+  // (c) Fore-aft asymmetry grows monotonically with speed
+  const speeds = [0, 20, 40, 60, 80];
+  let prev = -Infinity, monotone = true;
+  speeds.forEach(V => {
+    const st = defaultState(); st.V = V * 0.5144;
+    const m  = linearInflowModel(st);
+    const dFA = linearInflowAt(m, rBar, 0) - linearInflowAt(m, rBar, Math.PI);
+    if (dFA < prev - 1e-6) monotone = false;
+    prev = dFA;
+  });
+  check('Fore-aft Δλ grows monotonically with speed', monotone,
+    `speeds checked: ${speeds.join(', ')} kt`);
+
+  // (d) At station A (front, ψ=π) in forward flight:
+  //     less inflow → smaller φ_A → larger α_A relative to station B (aft, ψ=0)
+  const phiA = inflowAngle(rBar, Math.max(0, lFwd80));
+  const phiB = inflowAngle(rBar, Math.max(0, lAft80));
+  check('φ_A (front) < φ_B (aft) in forward flight — TFE mechanism',
+    phiA < phiB,
+    `φ_A=${(phiA*180/Math.PI).toFixed(2)}° φ_B=${(phiB*180/Math.PI).toFixed(2)}°`);
+
+  const thetaA = bladePitch(st80, rBar, Math.PI);
+  const thetaB = bladePitch(st80, rBar, 0);
+  const alphaA = thetaA - phiA;
+  const alphaB = thetaB - phiB;
+  check('α_A (front) > α_B (aft) in forward flight — more lift at front',
+    alphaA > alphaB,
+    `α_A=${(alphaA*180/Math.PI).toFixed(2)}° α_B=${(alphaB*180/Math.PI).toFixed(2)}°`);
+
+  // (e) λ_s remains 0 in pure forward flight (no lateral wind)
+  check('λ_s = 0 in pure forward flight (no lateral wind)', Math.abs(m80.lams) < 1e-9,
+    `lams=${m80.lams}`);
+
+  // (f) Lateral wind adds λ_s but does NOT change λ_c (fore-aft gradient independent)
+  const stLat = defaultState(); stLat.V = 80 * 0.5144; stLat.Vlat = 20 * 0.5144;
+  const mLat  = linearInflowModel(stLat);
+  check('λ_c unchanged by lateral wind (fore-aft asymmetry is independent)',
+    Math.abs(mLat.lamc - m80.lamc) < 0.001,
+    `lamc(no lat wind)=${m80.lamc.toFixed(4)} lamc(with lat wind)=${mLat.lamc.toFixed(4)}`);
+  check('λ_s > 0 with positive lateral wind (separate roll input)',
+    mLat.lams > 0,
+    `lams=${mLat.lams.toFixed(4)}`);
+}
+
 console.log(`\n──────────────────────────────\nRESULT: ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

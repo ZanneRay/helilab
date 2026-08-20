@@ -28,11 +28,24 @@ cross-tab audit (§6) and one instructor/student review pass.
 - This is why the high-α region sits at the **retreating tip (ψ = 270°, r → 1)**.
 - For **Flapback & Inflow Roll**:
   - `Transverse Flow Effect` is used in-course as the pedagogical label for the
-    **inflow-roll** mechanism (wake-induced inflow asymmetry), not for flapback.
+    **inflow-roll** mechanism (fore-aft wake-induced inflow asymmetry), not for flapback.
+  - **Core mechanism (transverse-flow / inflow roll):** during the hover-to-forward-flight
+    transition the front disc encounters progressively less-downwashed air (lower λ) while
+    the aft disc remains in rotor downwash (higher λ). This is the λ_c fore-aft gradient.
+    Causal chain: Δλ → different U_P → different φ = atan2(U_P,U_T) → different α = θ−φ →
+    different lift → flapping with ~90° phase lag → roll tendency → countered by lateral cyclic.
+  - **λ_s (lateral gradient):** a separate, optional scenario from lateral wind, sideslip,
+    or yaw rate. It creates an ADV/RET inflow asymmetry and an additional roll component.
+    Must be labelled explicitly as "additional lateral inflow asymmetry", not as the core
+    definition of the Transverse Flow Effect.
   - Coning/blade-motion terms contribute to local normal velocity in the blade
     velocity triangle (`μ cosψ · β`, `(β̇/Ω)·r̄`, body-rate terms where active).
   - These terms modify local `U_P`, `φ`, and `α`, but do **not** by themselves
     create wake/inflow asymmetry (`λ_c`, `λ_s`).
+  - **Velocity Triangles visualisation:** station A = front (ψ=180°), station B = aft (ψ=0°).
+    At both stations sin(ψ)=0, so U_T = r̄ (no advance-ratio contribution). U_P_A = λ_A·ΩR
+    (smaller in fwd flight), U_P_B = λ_B·ΩR (larger). U_P amplified ×8 in display for clarity;
+    noted on diagram. Coning overlay shows μ·cos(ψ)·a₀ as a separate dashed contribution.
 
 ### Golden-state values (regression anchor)
 

@@ -533,7 +533,7 @@ const HL_LESSONS = [
 
   {
     id: 'flaproll', stage: 'Forward Flight', title: 'Flapback & Inflow Roll',
-    subtitle: 'Standalone longitudinal flapback and lateral inflow-roll mechanisms in forward flight',
+    subtitle: 'Longitudinal flapback and the fore-aft inflow-roll (transverse-flow effect) in forward flight',
     widget: 'wFlappingRoll',
     body: `
       <p>Three related phenomena shape how the rotor behaves in forward flight —
@@ -560,29 +560,60 @@ const HL_LESSONS = [
       Hingeless/bearingless rotors can be quite different. This widget uses a
       quasi-steady BET model.</em></p>
 
-      <h3 style="margin:0.7em 0 0.2em">3. Inflow Roll (lateral asymmetric inflow)</h3>
-      <p>The rotor's own induced velocity (downwash) is <strong>not uniform</strong>
-      in forward flight. The Pitt-Peters first-harmonic model captures two gradients:</p>
+      <h3 style="margin:0.7em 0 0.2em">3. Inflow Roll — the Transverse Flow Effect</h3>
+      <p>During the hover-to-forward-flight transition the rotor's own induced velocity
+      (downwash) becomes <strong>fore-aft asymmetric</strong>. The mechanism is
+      straightforward:</p>
       <ul>
-        <li><b>Longitudinal (λ_c):</b> more inflow at the tail than at the nose — the
-        wake is swept backward. Creates a pitch-up moment (trimmed by fwd cyclic).</li>
-        <li><b>Lateral (λ_s):</b> appears when there is a lateral wind, sideslip, or
-        yaw rate. More inflow on one side → lower local AoA → less lift there →
-        <em>roll moment</em>. Trimmed by lateral cyclic.</li>
+        <li><b>Front disc (near ψ = 180°, nose):</b> as the helicopter accelerates,
+        this part of the disc progressively encounters <em>cleaner, less-downwashed
+        air</em> — the wake is being swept backward and has not yet re-entered the front.
+        Local induced flow is <strong>smaller</strong>.</li>
+        <li><b>Aft disc (near ψ = 0°, tail):</b> this part of the disc remains more
+        immersed in the rotor's own downwash. Local induced flow is
+        <strong>larger</strong>.</li>
       </ul>
-      <p>In this course, the pedagogical label <em>Transverse Flow Effect</em> is used
-      for this <strong>inflow-roll mechanism</strong> (wake-induced inflow asymmetry).
-      It is <strong>not</strong> an alias for flapback.</p>
-      <p>This remains <em>distinct</em> from dissymmetry of lift (U_T asymmetry) and
-      from flapback (phase-lag flapping). The Inflow Roll section and Compare mode let
-      you compare uniform inflow, flapback/dynamic flapping context, and asymmetric
-      inflow/inflow roll.</p>`,
+      <p>The causal chain that leads to a roll follows from the velocity triangle at each
+      station:</p>
+      <ol>
+        <li><b>Different induced flow</b> at front vs aft → <b>different normal velocity
+        U_P</b> in the blade's local velocity triangle.</li>
+        <li>Different U_P → <b>different inflow angle φ</b> (φ = arctan U_P / U_T).</li>
+        <li>Different φ, same collective pitch θ → <b>different effective angle of
+        attack α</b> (α = θ − φ).</li>
+        <li>Different α → <b>different lift</b>: more lift over the front half, less
+        over the rear half.</li>
+        <li>Blade flapping responds to this azimuthal lift asymmetry with the same ~90°
+        phase lag as flapback. For a CCW rotor (H145 convention: ψ = 90° advancing),
+        peak forcing near the front (ψ ≈ 180°) produces peak up-flap ~90° later, near
+        the <strong>retreating side (ψ ≈ 270°)</strong>.</li>
+        <li>This tilts the disc toward the retreating side → <strong>roll tendency</strong>
+        that the pilot counters with <em>lateral cyclic</em>.</li>
+      </ol>
+      <p>In this course the pedagogical label <em>Transverse Flow Effect</em> refers to
+      this <strong>fore-aft induced-flow asymmetry</strong> and the roll it produces.
+      It is <strong>not</strong> an alias for flapback (which is longitudinal).</p>
+      <p>The <em>Velocity Triangles</em> section of the widget shows stations A (front)
+      and B (aft) side-by-side, with sliders to vary forward speed and transition
+      strength, so you can watch how the inflow difference grows and trace its effect
+      on φ, α, and lift at each station.</p>
+
+      <h4 style="margin:0.6em 0 0.2em">Advanced: additional lateral inflow asymmetry</h4>
+      <p>A separate, optional scenario: a lateral wind, sideslip, or yaw rate introduces
+      a <em>lateral</em> inflow gradient (λ_s in the Pitt-Peters first-harmonic model)
+      — more inflow on one side of the disc (ADV or RET) than the other. This creates an
+      <strong>additional roll moment</strong> that is trimmed by lateral cyclic, but it
+      is a <em>different</em> input from the fore-aft asymmetry described above.
+      The Inflow Roll and Compare modes let you explore both, clearly labelled.</p>
+      <p><em>Model limitation: this widget uses a prescribed first-harmonic inflow
+      (Pitt-Peters style) + quasi-steady flapping. It is a pedagogical tool, not a
+      free-wake or fully transient rotor–body-coupled simulation.</em></p>`,
     takeaways: [
-      'Flapback: the rotor disc tilts backward in forward flight because peak flapping lags peak aerodynamic forcing by ~90°.',
-      'Phase lag arises from gyroscopic / angular-momentum mechanics, not aerodynamics directly.',
-      'Inflow roll is a lateral mechanism from wake-induced inflow asymmetry (λ gradients), while flapback remains a separate longitudinal flapping response.',
-      'In this course, “Transverse Flow Effect” is the teaching label for the inflow-roll mechanism, not for flapback.',
-      'Dissymmetry of lift (U_T asymmetry), flapback (phase lag), and inflow roll (λ asymmetry) are distinct mechanisms that are trimmed separately.',
+      'Flapback: the rotor disc tilts backward in forward flight because peak flapping lags peak aerodynamic forcing by ~90° (gyroscopic / angular-momentum effect).',
+      'Transverse Flow Effect (inflow roll): during the hover-to-forward-flight transition the front disc encounters cleaner air (less induced flow) while the rear disc remains in downwash (more induced flow).',
+      'Causal chain: asymmetric induced flow → different U_P → different φ → different α → different lift → flapping with ~90° phase lag → roll tendency → countered with lateral cyclic.',
+      'Lateral wind, sideslip, or yaw rate add a separate lateral inflow gradient (λ_s) that can also produce a roll, but this is an additional, optional scenario — not the core definition of the Transverse Flow Effect.',
+      'Dissymmetry of lift (U_T asymmetry), flapback (phase lag), and inflow roll (fore-aft λ asymmetry) are distinct mechanisms that are trimmed separately.',
     ],
     check: {
       q: 'In forward flight the advancing blade produces maximum aerodynamic lift at ψ = 90°. Where does the blade reach its maximum up-flap angle?',
