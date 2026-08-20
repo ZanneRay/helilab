@@ -563,7 +563,38 @@ const HLD = (function () {
     ctx.restore();
   }
 
+  /* ── Rotor-disc 2-D heatmap ──────────────────────────────────────────────────
+     Colors every (r,ψ) cell of the disc by fieldFn(rNorm, psiRad) → value, then
+     mapFn(value) → CSS color string.  rMin: hub cutout (default 0.12).
+     NR radial rings × NP azimuth sectors tile the disc; each ring-sector is drawn
+     as a canvas arc path so no pixel-level iteration is needed. */
+  function discHeatmap(ctx, cx, cy, R, fieldFn, mapFn, opts) {
+    opts = opts || {};
+    const NR   = opts.NR   || 14;
+    const NP   = opts.NP   || 72;
+    const rMin = opts.rMin != null ? opts.rMin : 0.12;
+    for (let ir = 0; ir < NR; ir++) {
+      const r0 = rMin + (1 - rMin) * ir / NR;
+      const r1 = rMin + (1 - rMin) * (ir + 1) / NR;
+      const rm = (r0 + r1) / 2;
+      for (let ip = 0; ip < NP; ip++) {
+        const p0 = 2 * Math.PI * ip / NP;
+        const p1 = 2 * Math.PI * (ip + 1) / NP;
+        const pm = (p0 + p1) / 2;
+        ctx.fillStyle = mapFn(fieldFn(rm, pm));
+        ctx.beginPath();
+        ctx.arc(cx, cy, R * r1, polarToCanvas(p0), polarToCanvas(p1), true);
+        ctx.arc(cx, cy, R * r0, polarToCanvas(p1), polarToCanvas(p0), false);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    ctx.strokeStyle = opts.borderColor || 'rgba(120,140,170,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
+  }
+
   return { css, COL, setup, clear, grid, arrow, dline, arc, text, dot, hatchRect, tick,
-           chipLabel, bladeSection, nacaProfile, lineChart, discPolar, discIso, polarToCanvas, fmt,
-           drawHeliWire };
+           chipLabel, bladeSection, nacaProfile, lineChart, discPolar, discIso,
+           discHeatmap, polarToCanvas, fmt, drawHeliWire };
 })();
