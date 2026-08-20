@@ -15,7 +15,7 @@ cross-tab audit (§6) and one instructor/student review pass.
 
 - All aerodynamics follow Leishman, *Principles of Helicopter Aerodynamics*,
   Blade-Element Theory with momentum-theory inflow. **Never invent a cos/sin/sign.**
-  If unsure, stop and verify against `verify_physics.js` (37/37 must stay green).
+  If unsure, stop and verify against `verify_physics.js` (all checks must stay green).
 - Any equation change requires: (a) a citation to Leishman, (b) an updated
   `verify_physics.js` case, (c) this document updated in the same commit.
 
@@ -26,6 +26,13 @@ cross-tab audit (§6) and one instructor/student review pass.
 - Advancing blade (β̇ > 0) → `U_P` grows → inflow angle φ grows → **α shrinks**.
 - Retreating blade (β̇ < 0) → `U_P` shrinks → **α grows**.
 - This is why the high-α region sits at the **retreating tip (ψ = 270°, r → 1)**.
+- For **Flapback & Inflow Roll**:
+  - `Transverse Flow Effect` is used in-course as the pedagogical label for the
+    **inflow-roll** mechanism (wake-induced inflow asymmetry), not for flapback.
+  - Coning/blade-motion terms contribute to local normal velocity in the blade
+    velocity triangle (`μ cosψ · β`, `(β̇/Ω)·r̄`, body-rate terms where active).
+  - These terms modify local `U_P`, `φ`, and `α`, but do **not** by themselves
+    create wake/inflow asymmetry (`λ_c`, `λ_s`).
 
 ### Golden-state values (regression anchor)
 
@@ -167,7 +174,7 @@ state 2: ...
 1. **Feature freeze** — only correctness, consistency, didactic clarity.
 2. Any visual change must reference this contract's rule it obeys (or update the rule).
 3. Batch issues into one list per session; fix in focused passes, not piecemeal.
-4. Every commit: `verify_physics.js` stays 37/37; screenshot the affected tab(s).
+4. Every commit: `verify_physics.js` stays fully green; screenshot the affected tab(s).
 5. Deploy → wait for Pages `built` → live smoke-test the changed tab before done.
 
 ---

@@ -532,8 +532,8 @@ const HL_LESSONS = [
   },
 
   {
-    id: 'flaproll', stage: 'Forward Flight', title: 'Flapping & Roll Coupling',
-    subtitle: 'Flapback, inflow asymmetry, and the roll tendencies of a rotor in forward flight',
+    id: 'flaproll', stage: 'Forward Flight', title: 'Flapback & Inflow Roll',
+    subtitle: 'Standalone longitudinal flapback and lateral inflow-roll mechanisms in forward flight',
     widget: 'wFlappingRoll',
     body: `
       <p>Three related phenomena shape how the rotor behaves in forward flight —
@@ -560,7 +560,7 @@ const HL_LESSONS = [
       Hingeless/bearingless rotors can be quite different. This widget uses a
       quasi-steady BET model.</em></p>
 
-      <h3 style="margin:0.7em 0 0.2em">3. Inflow asymmetry &amp; roll coupling</h3>
+      <h3 style="margin:0.7em 0 0.2em">3. Inflow Roll (lateral asymmetric inflow)</h3>
       <p>The rotor's own induced velocity (downwash) is <strong>not uniform</strong>
       in forward flight. The Pitt-Peters first-harmonic model captures two gradients:</p>
       <ul>
@@ -570,14 +570,19 @@ const HL_LESSONS = [
         yaw rate. More inflow on one side → lower local AoA → less lift there →
         <em>roll moment</em>. Trimmed by lateral cyclic.</li>
       </ul>
-      <p>This is <em>distinct</em> from dissymmetry of lift (which is about U_T
-      asymmetry). The Inflow Roll section and the Compare mode let you switch between
-      uniform, forward-flight, and skewed-inflow models.</p>`,
+      <p>In this course, the pedagogical label <em>Transverse Flow Effect</em> is used
+      for this <strong>inflow-roll mechanism</strong> (wake-induced inflow asymmetry).
+      It is <strong>not</strong> an alias for flapback.</p>
+      <p>This remains <em>distinct</em> from dissymmetry of lift (U_T asymmetry) and
+      from flapback (phase-lag flapping). The Inflow Roll section and Compare mode let
+      you compare uniform inflow, flapback/dynamic flapping context, and asymmetric
+      inflow/inflow roll.</p>`,
     takeaways: [
       'Flapback: the rotor disc tilts backward in forward flight because peak flapping lags peak aerodynamic forcing by ~90°.',
       'Phase lag arises from gyroscopic / angular-momentum mechanics, not aerodynamics directly.',
-      'Non-uniform inflow (Pitt-Peters) creates a longitudinal pitch gradient (always present) and a lateral roll gradient (lateral wind / sideslip).',
-      'Dissymmetry of lift (U_T asymmetry), flapback (phase lag), and inflow roll (λ asymmetry) are three different mechanisms, each trimmed separately.',
+      'Inflow roll is a lateral mechanism from wake-induced inflow asymmetry (λ gradients), while flapback remains a separate longitudinal flapping response.',
+      'In this course, “Transverse Flow Effect” is the teaching label for the inflow-roll mechanism, not for flapback.',
+      'Dissymmetry of lift (U_T asymmetry), flapback (phase lag), and inflow roll (λ asymmetry) are distinct mechanisms that are trimmed separately.',
     ],
     check: {
       q: 'In forward flight the advancing blade produces maximum aerodynamic lift at ψ = 90°. Where does the blade reach its maximum up-flap angle?',
