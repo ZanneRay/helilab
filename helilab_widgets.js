@@ -965,16 +965,20 @@ const HLW = (function () {
   function wFlappingRoll(host) {
     const ui = scaffold(host);
 
-    let mode = 'flapback';     // 'flapback' | 'inflowroll' | 'compare'
+    let mode = 'flapback';     // 'flapback' | 'inflowroll' | 'vtriangles' | 'compare'
     let Vkt  = 80;
     let Vlat = 0;              // lateral wind [kt], positive = port→ADV
+    let vtrans = 1.0;          // vtriangles transition strength 0..1
+    let showCausal = false;    // vtriangles: show causal chain overlay
+    let showConing = false;    // vtriangles: show coning contribution overlay
     let compareModel = 'forward';
 
     segmented(ui.controls, {
       label: 'Section',
       options: [
-        { v: 'flapback',   t: 'Flapback (longitudinal)' },
-        { v: 'inflowroll', t: 'Inflow Roll (lateral/TFE)' },
+        { v: 'flapback',   t: 'Flapback' },
+        { v: 'vtriangles', t: 'Velocity Triangles' },
+        { v: 'inflowroll', t: 'Inflow Roll' },
         { v: 'compare',    t: 'Compare' },
       ],
       val: mode,
@@ -986,19 +990,42 @@ const HLW = (function () {
 
     function rebuildControls() {
       dynCtls.innerHTML = '';
-      slider(dynCtls, { label: 'Forward speed', min: 0, max: 160, step: 5, val: Vkt, unit: ' kt',
+      slider(dynCtls, { label: 'Forward speed', min: 0, max: 120, step: 5, val: Vkt, unit: ' kt',
         fmt: v => (+v).toFixed(0), on: v => { Vkt = v; draw(); } });
+      if (mode === 'vtriangles') {
+        slider(dynCtls, { label: 'Transition strength', min: 0, max: 1, step: 0.05, val: vtrans,
+          unit: '', fmt: v => (+v).toFixed(2), on: v => { vtrans = +v; draw(); } });
+        // presets row
+        const presets = el('div', 'hl-ctl');
+        presets.appendChild(el('span', 'hl-ctl-lab', 'Preset'));
+        const pbRow = el('div');
+        pbRow.style.cssText = 'display:flex;gap:4px;flex-wrap:wrap;margin-top:2px';
+        const mkP = (label, vkt, vtr) => {
+          const b = el('button', 'hl-seg-btn', label);
+          b.onclick = () => { Vkt = vkt; vtrans = vtr; rebuildControls(); draw(); };
+          pbRow.appendChild(b);
+        };
+        mkP('Hover', 0, 0);
+        mkP('Transition', 30, 0.5);
+        mkP('Cruise', 80, 1.0);
+        presets.appendChild(pbRow);
+        dynCtls.appendChild(presets);
+        toggle(dynCtls, { label: 'Show causal chain', val: showCausal,
+          on: v => { showCausal = v; draw(); } });
+        toggle(dynCtls, { label: 'Show coning contribution', val: showConing,
+          on: v => { showConing = v; draw(); } });
+      }
       if (mode === 'inflowroll') {
-        slider(dynCtls, { label: 'Lateral wind (\u2192ADV)', min: -40, max: 40, step: 5, val: Vlat,
-          unit: ' kt', fmt: v => (+v).toFixed(0), on: v => { Vlat = v; draw(); } });
+        slider(dynCtls, { label: 'Lateral wind (adv. scenario, \u2192ADV)', min: -40, max: 40, step: 5,
+          val: Vlat, unit: ' kt', fmt: v => (+v).toFixed(0), on: v => { Vlat = v; draw(); } });
       }
       if (mode === 'compare') {
         segmented(dynCtls, {
           label: 'Compare case',
           options: [
-            { v: 'uniform', t: 'Uniform' },
-            { v: 'forward', t: 'Flapback / dynamic flapping' },
-            { v: 'lateral', t: 'Asymmetric inflow / inflow roll' },
+            { v: 'uniform',  t: 'Uniform' },
+            { v: 'forward',  t: 'Forward flight (fore-aft \u03bb)' },
+            { v: 'lateral',  t: 'Lateral wind (\u03bb_s)' },
           ],
           val: compareModel,
           on: v => { compareModel = v; draw(); },
@@ -1121,6 +1148,325 @@ const HLW = (function () {
          + '<i>Quasi-steady BET model; hinge offset shortens the lag to ~75\u201385\u00b0 on real rotors.</i></p>';
     }
 
+    /* ── Front vs Aft Disc: Velocity Triangles ──────────────────────────── */
+    function drawVTriangles(ctx, W, H, col) {
+      const st = HL.defaultState(); st.V = Vkt * 0.5144;
+      const model = HL.linearInflowModel(st);
+      const coeffs = flappingCoeffs(st);
+      const mu = advanceRatio(st);
+
+      const lamc_eff = model.lamc * vtrans;
+      const lam0 = model.lam0;
+      const rBar = 0.75;
+      const UT = rBar;                      // sin(ψ)=0 at ψ=0 and ψ=π
+
+      // Station A: front (ψ=π, cos=-1) → less induced flow in forward flight
+      const lamA = lam0 - lamc_eff * rBar;
+      // Station B: aft (ψ=0, cos=+1) → more induced flow in forward flight
+      const lamB = lam0 + lamc_eff * rBar;
+
+      const thetaA = bladePitch(st, rBar, Math.PI);
+      const thetaB = bladePitch(st, rBar, 0);
+      const phiA = inflowAngle(UT, lamA);
+      const phiB = inflowAngle(UT, lamB);
+      const alphaA = thetaA - phiA;
+      const alphaB = thetaB - phiB;
+      const liftIdxA = UT * UT * Math.max(0, alphaA);
+      const liftIdxB = UT * UT * Math.max(0, alphaB);
+      const liftMax = Math.max(liftIdxA, liftIdxB, 1e-6);
+
+      // Coning contributions (optional overlay, sign per blade-motion convention)
+      // At ψ=π: coning = μ·cos(π)·a₀ = -μ·a₀  (reduces UP at front)
+      // At ψ=0:  coning = μ·cos(0)·a₀  = +μ·a₀  (adds to UP at aft)
+      const coningA = mu * Math.cos(Math.PI) * coeffs.a0;
+      const coningB = mu * Math.cos(0) * coeffs.a0;
+
+      // Layout: left disc panel + right two-triangle panel
+      const discW  = Math.min(W * 0.30, H * 0.82);
+      const discCX = discW * 0.50 + 4;
+      const discCY = H * 0.50;
+      const discR  = discW * 0.38;
+      const rpX    = discW + 10;
+      const rpW    = W - rpX - 4;
+      const triW   = rpW / 2 - 6;
+      const triH   = H * 0.80;
+      const triY   = H * 0.10;
+      const triAX  = rpX;
+      const triBX  = rpX + triW + 12;
+
+      // ── Helper: draw one velocity triangle box ──────────────────────
+      function triBox(ox, oy, tw, th, stLabel, stName, lamVal, lamConing,
+                      thetaRad, phiRad, alphaRad, liftNorm) {
+        const utPx  = Math.min(tw * 0.58, 68);
+        const AMP   = 6;                   // visual amplification of UP for clarity
+        // U_P goes UPWARD in the diagram (induced flow downward through disc
+        // = air approaches blade from above = perpendicular component points up)
+        const upPx  = Math.min(Math.max(0, lamVal) / UT * utPx * AMP, utPx * 0.85);
+        const upConPx = Math.max(-22, Math.min(22, lamConing / UT * utPx * AMP));
+
+        // Disc plane is the horizontal reference; triangle is above it
+        const bx = ox + (tw - utPx) / 2;
+        const by = oy + th * 0.62;   // disc plane baseline
+        // O = origin (left), T = end of U_T (right), C = end of U_P (upper-right)
+        const Ox = bx, Oy = by;
+        const Tx = bx + utPx, Ty = by;
+        const Cx = bx + utPx, Cy = by - upPx;    // UPWARD from disc plane
+
+        // Station header (top of box)
+        HLD.text(ctx, stLabel, ox + tw / 2, oy + 5,
+                 col.ink, 'bold 10px IBM Plex Sans', 'center', 'top');
+        HLD.text(ctx, stName, ox + tw / 2, oy + 17,
+                 col.dim, '8px IBM Plex Sans', 'center', 'top');
+
+        // Disc-plane dashed line (baseline)
+        HLD.dline(ctx, ox + 2, by, ox + tw - 2, by, col.grid, 1, [4, 3]);
+        HLD.text(ctx, 'disc plane', ox + tw - 3, by + 3, col.dim,
+                 '8px IBM Plex Sans', 'right', 'top');
+
+        // U_T arrow (horizontal right, on disc plane)
+        HLD.arrow(ctx, Ox, Oy, Tx, Ty, col.chord, 2, 6);
+        HLD.text(ctx, 'U\u1d40', bx + utPx * 0.5, by + 13,
+                 col.chord, '9px IBM Plex Sans', 'center', 'top');
+
+        // U_P arrow (upward from T → C: air approaches from above due to induced flow)
+        if (upPx > 2) {
+          HLD.arrow(ctx, Tx, Ty, Cx, Cy, col.accent, 2, 6);
+          HLD.text(ctx, 'U\u209a', Tx + 4, (Ty + Cy) / 2,
+                   col.accent, '9px IBM Plex Sans', 'left', 'middle');
+        } else if (lamVal < -0.002) {
+          // First-harmonic model predicts near-zero/upwash at this station
+          HLD.text(ctx, '(\u03bb\u2248 0 at A)', Tx + 4, Ty - 8,
+                   col.dim, '8px IBM Plex Sans', 'left', 'middle');
+        }
+
+        // W resultant arrow (from O to C, diagonal upward-right)
+        // W = resultant incoming relative wind = (U_T, U_P) direction
+        if (upPx > 0) {
+          HLD.arrow(ctx, Ox, Oy, Cx, Cy, col.lift, 2, 6);
+          HLD.text(ctx, 'W', Cx + 3, Cy - 2,
+                   col.lift, '9px IBM Plex Sans', 'left', 'bottom');
+        } else {
+          // No U_P: W = U_T (horizontal)
+          HLD.arrow(ctx, Ox, Oy, Tx, Ty, col.lift, 2, 6);
+          HLD.text(ctx, 'W', Tx + 3, Ty,
+                   col.lift, '9px IBM Plex Sans', 'left', 'middle');
+        }
+
+        // φ arc at O: from disc plane (horizontal) to W (upward)
+        // Counterclockwise in canvas (anticlockwise=true) sweeps UPWARD from 0 to -phiDisp
+        const phiDisp = upPx > 0 ? Math.atan2(upPx, utPx) : 0;
+        if (phiDisp > 0.06 && upPx > 4) {
+          const arcR = utPx * 0.36;
+          ctx.strokeStyle = col.dim; ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(Ox, Oy, arcR, 0, -phiDisp, true);
+          ctx.stroke();
+          const midAng = -phiDisp / 2;
+          HLD.text(ctx, '\u03c6', Ox + arcR * Math.cos(midAng) + 3,
+                   Oy + arcR * Math.sin(midAng) - 2,
+                   col.dim, '9px IBM Plex Sans', 'left', 'bottom');
+        }
+
+        // Blade chord (at angle θ above disc plane, going upper-right in canvas)
+        const cl   = utPx * 0.95;
+        const cosT = Math.cos(thetaRad);
+        const sinT = Math.sin(thetaRad);
+        const chCX = bx + utPx * 0.5, chCY = by;
+        ctx.strokeStyle = col.ink; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(chCX - cl / 2 * cosT, chCY + cl / 2 * sinT);
+        ctx.lineTo(chCX + cl / 2 * cosT, chCY - cl / 2 * sinT);
+        ctx.stroke();
+        HLD.text(ctx, '\u03b8', chCX + cl / 2 * cosT + 3, chCY - cl / 2 * sinT,
+                 col.ink, '9px IBM Plex Sans', 'left', 'bottom');
+
+        // Coning overlay: dashed extension of U_P (optional)
+        // Positive coning = more U_P = extends arrow further upward in diagram
+        if (showConing && Math.abs(upConPx) > 1) {
+          const CyAdj = Cy - upConPx;   // positive upConPx → further up (smaller y)
+          ctx.save();
+          ctx.setLineDash([3, 3]);
+          ctx.strokeStyle = col.warn; ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.moveTo(Cx, Cy); ctx.lineTo(Cx, CyAdj); ctx.stroke();
+          ctx.setLineDash([]);
+          HLD.text(ctx, upConPx > 0 ? '+coning' : '\u2212coning', Cx + 4,
+                   (Cy + CyAdj) / 2, col.warn, '8px IBM Plex Sans', 'left', 'middle');
+          ctx.setLineDash([4, 3]);
+          ctx.strokeStyle = col.dim; ctx.lineWidth = 1.2;
+          ctx.beginPath(); ctx.moveTo(Ox, Oy); ctx.lineTo(Cx, CyAdj); ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.restore();
+        }
+
+        // α arc at O: from chord direction (-thetaRad) to W direction (-phiDisp)
+        // anticlockwise=false sweeps downward (CW in math), spanning α = θ - φ
+        if (alphaRad > 0.02 && upPx > 4) {
+          const arcR2 = utPx * 0.20;
+          ctx.strokeStyle = col.warn; ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.arc(Ox, Oy, arcR2, -thetaRad, -phiDisp, false);
+          ctx.stroke();
+          const aMid = -(thetaRad + phiDisp) / 2;
+          HLD.text(ctx, '\u03b1', Ox + arcR2 * Math.cos(aMid) - 2,
+                   Oy + arcR2 * Math.sin(aMid) - 5,
+                   col.warn, '9px IBM Plex Sans', 'center', 'bottom');
+        }
+
+        // Qualitative lift indicator (coloured arrow pointing upward above disc plane)
+        const liftPxMax = Math.min(th * 0.15, 38);
+        const liftPx    = liftNorm * liftPxMax;
+        if (liftPx > 3) {
+          const lax = chCX - 10, lay = by - cl / 2 * sinT - 8;
+          HLD.arrow(ctx, lax, lay, lax, lay - liftPx, col.lift, 2.5, 7);
+          const ltxt = liftNorm > 0.9 ? 'lift\u2191\u2191' : (liftNorm > 0.5 ? 'lift\u2191' : 'lift');
+          HLD.text(ctx, ltxt, lax - 3, lay - liftPx / 2,
+                   col.lift, '8px IBM Plex Sans', 'right', 'middle');
+        }
+
+        // φ / α numeric readout below the disc plane
+        const fmt1 = v => (v * R2D).toFixed(1) + '\u00b0';
+        HLD.text(ctx, '\u03c6\u2248' + fmt1(phiRad) + '  \u03b1\u2248' + fmt1(alphaRad),
+                 ox + tw / 2, by + 25, col.dim, '9px IBM Plex Sans', 'center', 'top');
+        HLD.text(ctx, '(U\u209a \u00d7' + AMP + ' for clarity)',
+                 ox + tw / 2, by + 37, col.dim, '8px IBM Plex Sans', 'center', 'top');
+      }
+
+      // ── Disc plan view (left panel) ─────────────────────────────────
+      // Inflow heatmap (fore-aft asymmetry only, based on λ_c)
+      const lamScaleMin = lam0 - Math.abs(lamc_eff) * 0.75;
+      const lamScaleMax = lam0 + Math.abs(lamc_eff) * 0.75;
+      const lamScaleRange = Math.max(lamScaleMax - lamScaleMin, 0.001);
+      HLD.discHeatmap(ctx, discCX, discCY, discR,
+        (r, psi) => lam0 + lamc_eff * r * Math.cos(psi),
+        v => ramp(Math.max(0, Math.min(1, (v - lamScaleMin) / lamScaleRange))));
+      ctx.strokeStyle = col.dim; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(discCX, discCY, discR, 0, 2 * Math.PI); ctx.stroke();
+
+      // Cross-hair
+      HLD.dline(ctx, discCX, discCY - discR - 3, discCX, discCY + discR + 3,
+                col.grid, 1, [3, 3]);
+      HLD.dline(ctx, discCX - discR - 3, discCY, discCX + discR + 3, discCY,
+                col.grid, 1, [3, 3]);
+
+      // Station A marker (front, ψ=180° → top of disc in canvas)
+      const cAngleA = HLD.polarToCanvas(Math.PI);   // = -π/2 = pointing up
+      const axA = discCX + discR * 0.75 * Math.cos(cAngleA);
+      const ayA = discCY + discR * 0.75 * Math.sin(cAngleA);
+      HLD.dot(ctx, axA, ayA, 5, col.lift);
+      HLD.text(ctx, 'A', axA + 7, ayA, col.lift, 'bold 9px IBM Plex Sans', 'left', 'middle');
+
+      // Downwash indicator at A
+      const arrowScale = Math.min(discR * 0.45, 26);
+      const normBothMax = Math.max(Math.abs(lamA), Math.abs(lamB), 0.001);
+      if (lamA > 0.001)
+        HLD.arrow(ctx, axA, ayA + 4, axA, ayA + 4 + (lamA / normBothMax) * arrowScale,
+                  col.accent, 1.5, 5);
+
+      // Station B marker (aft, ψ=0° → bottom of disc in canvas)
+      const cAngleB = HLD.polarToCanvas(0);          // = π/2 = pointing down
+      const axB = discCX + discR * 0.75 * Math.cos(cAngleB);
+      const ayB = discCY + discR * 0.75 * Math.sin(cAngleB);
+      HLD.dot(ctx, axB, ayB, 5, col.chord);
+      HLD.text(ctx, 'B', axB + 7, ayB, col.chord, 'bold 9px IBM Plex Sans', 'left', 'middle');
+
+      // Downwash indicator at B
+      if (lamB > 0.001)
+        HLD.arrow(ctx, axB, ayB + 4, axB, ayB + 4 + (lamB / normBothMax) * arrowScale,
+                  col.accent, 1.5, 5);
+
+      // Direction labels
+      HLD.text(ctx, 'FRONT', discCX, discCY - discR - 14,
+               col.lift, '9px IBM Plex Sans', 'center', 'bottom');
+      HLD.text(ctx, '(less inflow)', discCX, discCY - discR - 4,
+               col.dim, '8px IBM Plex Sans', 'center', 'bottom');
+      HLD.text(ctx, 'AFT', discCX, discCY + discR + 4,
+               col.chord, '9px IBM Plex Sans', 'center', 'top');
+      HLD.text(ctx, '(more inflow)', discCX, discCY + discR + 14,
+               col.dim, '8px IBM Plex Sans', 'center', 'top');
+
+      // Forward-flight direction arrow
+      if (Vkt > 1) {
+        HLD.arrow(ctx, discCX - discR * 0.25, discCY - discR - 32,
+                  discCX + discR * 0.25, discCY - discR - 32, col.wind, 2, 6);
+        HLD.text(ctx, 'fwd', discCX + discR * 0.25 + 5, discCY - discR - 32,
+                 col.wind, '8px IBM Plex Sans', 'left', 'middle');
+      }
+      HLD.text(ctx, '\u2190 less \u03bb   more \u03bb \u2192',
+               discCX, discCY + discR + 26, col.dim, '8px IBM Plex Sans', 'center', 'top');
+
+      // ── Velocity triangles (right panel) ───────────────────────────
+      HLD.text(ctx,
+               'Front vs Aft Disc \u2014 Velocity Triangles (r\u0305=0.75, qualitative)',
+               rpX + rpW / 2, 5, col.ink, 'bold 9px IBM Plex Sans', 'center', 'top');
+
+      triBox(triAX, triY, triW, triH,
+             'A \u2014 Front (\u03c8=180\u00b0)', 'less induced flow',
+             lamA, coningA, thetaA, phiA, alphaA, liftIdxA / liftMax);
+      triBox(triBX, triY, triW, triH,
+             'B \u2014 Aft (\u03c8=0\u00b0)', 'more induced flow',
+             lamB, coningB, thetaB, phiB, alphaB, liftIdxB / liftMax);
+
+      // ── Causal chain overlay ────────────────────────────────────────
+      if (showCausal) {
+        const chain = [
+          'A: \u2193 inflow \u2192 \u2193 U\u209a \u2192 \u2193 \u03c6 \u2192 \u2191 \u03b1 \u2192 \u2191 Lift',
+          'B: \u2191 inflow \u2192 \u2191 U\u209a \u2192 \u2191 \u03c6 \u2192 \u2193 \u03b1 \u2192 \u2193 Lift',
+          'Lift\u2090 > Lift\u2071 \u2192 force peak near front (\u03c8\u2248180\u00b0)',
+          '\u223c90\u00b0 phase lag \u2192 peak flap near \u03c8\u2248270\u00b0 (retreating)',
+          '\u2192 roll toward retreating side \u2014 countered by lateral cyclic',
+        ];
+        const bh = chain.length * 13 + 10;
+        const bw = rpW * 0.94;
+        const bx0 = rpX + (rpW - bw) / 2;
+        const by0 = H - bh - 4;
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(bx0, by0, bw, bh);
+        chain.forEach((line, i) => {
+          HLD.text(ctx, line, rpX + rpW * 0.5, by0 + 5 + i * 13,
+                   i >= 2 ? col.warn : col.accent,
+                   '9px IBM Plex Sans', 'center', 'top');
+        });
+      }
+
+      // Coning note (when overlay is on)
+      if (showConing && !showCausal) {
+        HLD.text(ctx,
+          '\u26a0 Coning (dashed) modifies local U\u209a but does NOT create wake/inflow asymmetry',
+          rpX + rpW / 2, H - 4, col.warn, '8px IBM Plex Sans', 'center', 'bottom');
+      }
+
+      // ── Readout ─────────────────────────────────────────────────────
+      const dLamFA = lamB - lamA;
+      ui.readout.innerHTML = kv([
+        ['Forward speed',              Vkt.toFixed(0) + ' kt',  'var(--hl-ink)'],
+        ['Transition strength',        vtrans.toFixed(2),        'var(--hl-accent)'],
+        ['\u03bb\u2080 (base inflow)', lam0.toFixed(4),         'var(--hl-accent)'],
+        ['\u03bb_c (fore-aft grad.)',  model.lamc.toFixed(4),   'var(--hl-lift)'],
+        ['\u03bb at A (front)',        lamA.toFixed(4),          'var(--hl-lift)'],
+        ['\u03bb at B (aft)',          lamB.toFixed(4),          'var(--hl-chord)'],
+        ['\u0394\u03bb (B\u2212A)',    dLamFA.toFixed(4),
+          dLamFA > 0.002 ? 'var(--hl-bad)' : 'var(--hl-ink)'],
+        ['\u03c6_A',    (phiA * R2D).toFixed(2) + '\u00b0', 'var(--hl-lift)'],
+        ['\u03c6_B',    (phiB * R2D).toFixed(2) + '\u00b0', 'var(--hl-chord)'],
+        ['\u03b1_A',   (alphaA * R2D).toFixed(2) + '\u00b0', 'var(--hl-lift)'],
+        ['\u03b1_B',   (alphaB * R2D).toFixed(2) + '\u00b0', 'var(--hl-chord)'],
+      ]) + '<p class="hl-note"><b>Transverse Flow Effect (inflow roll):</b> as forward speed '
+         + 'builds, the front disc (A) encounters progressively less-downwashed air '
+         + '(\u03bb\u2090 &lt; \u03bb\u2071). This creates a fore-aft lift asymmetry \u2192 '
+         + 'flapping with ~90\u00b0 phase lag \u2192 roll tendency (countered by lateral cyclic). '
+         + 'Use "Show causal chain" for the step-by-step mechanism.</p>'
+         + (lamA < 0 ? '<p class="hl-note">\u26a0 \u03bb_A &lt; 0: the first-harmonic (Pitt-Peters) '
+                     + 'model predicts upwash at the front disc at this speed. This is a limitation '
+                     + 'of the linearised inflow model at high advance ratio \u2014 it still shows '
+                     + 'the correct TFE trend (\u03b1_A &gt; \u03b1_B), but the absolute values '
+                     + 'are not physical at high \u03bc.</p>' : '')
+         + '<p class="hl-note">Diagram: U\u209a amplitude amplified \u00d78 for visual '
+         + 'clarity (not to scale). Station A = front (\u03c8=180\u00b0), B = aft (\u03c8=0\u00b0). '
+         + 'At these azimuths sin\u03c8=0, so U\u1d40=r\u0305=0.75 with no advance-ratio contribution. '
+         + '<i>Prescribed first-harmonic (Pitt-Peters style) + quasi-steady BET \u2014 '
+         + 'educational model, not free-wake.</i></p>';
+    }
+
     /* Shared helper: scan the inflow field on a coarse polar grid to find the
        colour-mapping range.  Used by both Inflow Roll and Compare sections. */
     function sampleInflowRange(model) {
@@ -1196,6 +1542,12 @@ const HLW = (function () {
       const coeffs = flappingCoeffs(st);
       const { lamAdv, lamRet, dLam } = HL.inflowRollIndicator(model);
 
+      // Primary: fore-aft asymmetry (the core transverse-flow mechanism)
+      const rBar  = 0.75;
+      const lamFront = HL.linearInflowAt(model, rBar, Math.PI);   // ψ=180° (nose)
+      const lamAft   = HL.linearInflowAt(model, rBar, 0);         // ψ=0° (tail)
+      const dLamFA   = lamAft - lamFront;
+
       const discR = Math.min(W * 0.32, H * 0.44);
       const cx = W * 0.48, cy = H / 2;
 
@@ -1206,45 +1558,61 @@ const HLW = (function () {
         v => ramp(Math.max(0, Math.min(1, (v - lamMin) / lamRange))));
       discAnnotations(ctx, cx, cy, discR, col, Vkt > 1);
 
-      // ADV vs RET average inflow bars
+      // Primary bars: FRONT vs AFT (core mechanism)
       const bx = W - 42, bh = H * 0.45, by = H * 0.5 - bh / 2, bw = 14;
-      const lAll = Math.max(Math.abs(lamAdv), Math.abs(lamRet), 0.001);
+      const lAll = Math.max(Math.abs(lamFront), Math.abs(lamAft), 0.001);
       HLD.text(ctx, '\u03bb bars', bx, by - 14, col.dim, '9px IBM Plex Sans', 'center');
-      ctx.fillStyle = ramp(0.85);
-      ctx.fillRect(bx - bw - 3, by + bh - bh * lamAdv / lAll, bw, bh * lamAdv / lAll);
-      ctx.fillStyle = ramp(0.3);
-      ctx.fillRect(bx + 3, by + bh - bh * lamRet / lAll, bw, bh * lamRet / lAll);
-      HLD.text(ctx, 'ADV', bx - bw / 2 - 3, by + bh + 10, col.dim, '9px IBM Plex Sans', 'center');
-      HLD.text(ctx, 'RET', bx + bw / 2 + 3, by + bh + 10, col.dim, '9px IBM Plex Sans', 'center');
+      ctx.fillStyle = ramp(0.35);   // front = lower inflow = cooler
+      ctx.fillRect(bx - bw - 3, by + bh - bh * Math.max(0, lamFront) / lAll, bw,
+                   bh * Math.max(0, lamFront) / lAll);
+      ctx.fillStyle = ramp(0.80);   // aft = higher inflow = warmer
+      ctx.fillRect(bx + 3, by + bh - bh * Math.max(0, lamAft) / lAll, bw,
+                   bh * Math.max(0, lamAft) / lAll);
+      HLD.text(ctx, 'FWD', bx - bw / 2 - 3, by + bh + 10,
+               col.lift, '9px IBM Plex Sans', 'center');
+      HLD.text(ctx, 'AFT', bx + bw / 2 + 3,  by + bh + 10,
+               col.chord, '9px IBM Plex Sans', 'center');
 
-      const rollTxt = dLam > 0.001  ? '\u2192 roll toward ADV (starboard)' :
-                      dLam < -0.001 ? '\u2190 roll toward RET (port)' : 'symmetric \u2014 no roll from inflow';
-      HLD.text(ctx, 'Roll tendency: ' + rollTxt, W / 2, H - 8, col.warn,
-               '10px IBM Plex Sans', 'center', 'bottom');
+      // Roll tendency label (fore-aft mechanism is primary; lateral wind adds to it)
+      const rollFA = dLamFA > 0.002 ? 'fore-aft \u2206\u03bb \u2192 roll tendency (use lat. cyclic)' :
+                     'fore-aft \u2206\u03bb \u2248 0 (near hover)';
+      HLD.text(ctx, rollFA, W / 2, H - 8, col.warn, '10px IBM Plex Sans', 'center', 'bottom');
 
       const rows = decompRows(st, coeffs, model);
-      const coningAdv = rows[0].coningNormal;
-      const coningRet = rows[1].coningNormal;
+      const coningFwd  = rows[2].coningNormal;   // NOSE 180°
+      const coningTail = rows[3].coningNormal;   // TAIL 0°
+
+      const latNote = Math.abs(Vlat) > 0.5
+        ? '<p class="hl-note"><b>Advanced \u2014 lateral wind active (' + Vlat.toFixed(0) + ' kt):</b> '
+          + 'this adds \u03bb_s = ' + model.lams.toFixed(4) + ' (lateral gradient), '
+          + 'creating an <em>additional</em> roll component from ADV/RET inflow asymmetry '
+          + '(\u0394\u03bb_ADV\u2212RET = ' + dLam.toFixed(4) + '). '
+          + 'This is a <em>separate</em> input from the fore-aft mechanism above.</p>'
+        : '<p class="hl-note"><em>Optional: use the "Lateral wind (adv. scenario)" slider to explore how '
+          + 'sideslip/yaw-rate adds a \u03bb_s gradient as an additional roll input '
+          + '(set to zero here).</em></p>';
 
       ui.readout.innerHTML = kv([
-        ['Forward speed',           Vkt.toFixed(0) + ' kt',  'var(--hl-ink)'],
-        ['Lateral wind',            Vlat.toFixed(0) + ' kt', 'var(--hl-warn)'],
-        ['\u03bb\u2080 (uniform)',  model.lam0.toFixed(4),   'var(--hl-accent)'],
-        ['\u03bb_c (long. grad.)',  model.lamc.toFixed(4),   'var(--hl-lift)'],
-        ['\u03bb_s (lat. grad.)',   model.lams.toFixed(4),   'var(--hl-warn)'],
-        ['\u03bb at ADV r=0.75',    lamAdv.toFixed(4),       'var(--hl-chord)'],
-        ['\u03bb at RET r=0.75',    lamRet.toFixed(4),       'var(--hl-lift)'],
-        ['\u0394\u03bb (ADV\u2212RET)', dLam.toFixed(4),
-          Math.abs(dLam) > 0.001 ? 'var(--hl-bad)' : 'var(--hl-ink)'],
-      ]) + '<p class="hl-note">In this course the pedagogical label <b>\u201cTransverse Flow Effect\u201d</b> refers to this '
-         + '<b>inflow-roll mechanism</b> (wake-induced \u03bb asymmetry), not to flapback.</p>'
-         + '<p class="hl-note">Disc colours show induced inflow \u03bb(r,\u03c8). The table decomposes the local velocity triangle '
-         + 'at 0.75R: induced \u03bb\u1d62, blade-motion normal velocity v\u2099,blade (including coning/blade motion), '
-         + 'resultant normal flow v\u2099,total, inflow angle \u03c6, AoA \u03b1, and lift tendency index U\u1d40\u00b2\u00b7\u03b1. '
-         + `Coning contribution example: ADV ${coningAdv.toFixed(4)}, RET ${coningRet.toFixed(4)}. `
-         + '<b>Coning does not create wake asymmetry</b>; it modifies the local velocity triangle and aerodynamic response.</p>'
-         + '<p class="hl-note"><i>Educational model limitation: prescribed first-harmonic Pitt-Peters inflow + quasi-steady '
-         + 'flapping terms; not a free-wake or transient rotor\u2013body-coupled solution.</i></p>'
+        ['Forward speed',             Vkt.toFixed(0) + ' kt',  'var(--hl-ink)'],
+        ['Lateral wind (adv.)',        Vlat.toFixed(0) + ' kt', 'var(--hl-warn)'],
+        ['\u03bb\u2080 (base)',        model.lam0.toFixed(4),   'var(--hl-accent)'],
+        ['\u03bb_c (fore-aft grad.)',  model.lamc.toFixed(4),   'var(--hl-lift)'],
+        ['\u03bb at FWD r=0.75',       lamFront.toFixed(4),     'var(--hl-lift)'],
+        ['\u03bb at AFT r=0.75',       lamAft.toFixed(4),       'var(--hl-chord)'],
+        ['\u0394\u03bb (AFT\u2212FWD)', dLamFA.toFixed(4),
+          dLamFA > 0.002 ? 'var(--hl-bad)' : 'var(--hl-ink)'],
+        ['\u03bb_s (lat. grad.)',      model.lams.toFixed(4),
+          Math.abs(model.lams) > 0.001 ? 'var(--hl-warn)' : 'var(--hl-ink)'],
+      ]) + '<p class="hl-note"><b>Core mechanism:</b> in forward flight the front disc encounters '
+         + 'less-downwashed air (\u03bb_c creates fore-aft asymmetry). Front sees lower \u03bb \u2192 '
+         + 'smaller \u03c6 \u2192 larger \u03b1 \u2192 more lift. ~90\u00b0 phase lag \u2192 roll tendency. '
+         + 'Lateral cyclic corrects it. Use the <b>Velocity Triangles</b> section for the step-by-step diagram.</p>'
+         + latNote
+         + '<p class="hl-note">Disc colours: induced inflow \u03bb(r,\u03c8). Table decomposes the '
+         + 'velocity triangle at 0.75R for each azimuth. '
+         + `Coning at NOSE=${coningFwd.toFixed(4)}, TAIL=${coningTail.toFixed(4)} `
+         + '(modifies local triangle, does NOT create wake asymmetry). '
+         + '<i>Prescribed first-harmonic Pitt-Peters + quasi-steady BET.</i></p>'
          + decompTableHtml(rows);
     }
 
@@ -1256,17 +1624,21 @@ const HLW = (function () {
         const base = HL.linearInflowModel(st);
         model = { lam0: base.lam0, lamc: 0, lams: 0 };
         title = 'Uniform inflow baseline';
-        note  = 'Reference case: constant induced inflow \u03bb\u2080. No inflow-gradient pitch/roll tendency; useful baseline for velocity-triangle comparison.';
+        note  = 'Reference case: constant induced inflow \u03bb\u2080. No inflow gradients; useful baseline for comparing the effect of fore-aft asymmetry.';
       } else if (compareModel === 'forward') {
         model = HL.linearInflowModel(st);
-        title = 'Flapback / dynamic flapping context';
-        note  = 'Symmetric forward flight highlights longitudinal flapback response (phase-lag flapping) while the induced inflow remains a wake model quantity. '
-              + 'Do not treat this as transverse-flow/inflow-roll.';
+        title = 'Forward flight \u2014 fore-aft inflow asymmetry (\u03bb_c)';
+        note  = 'In forward flight the wake is swept backward: the aft disc has more downwash than the front disc (\u03bb_c > 0). '
+              + 'This is the core <em>Transverse Flow Effect</em> mechanism. '
+              + 'A separate longitudinal flapback also occurs (phase-lag flapping). '
+              + 'Use the Velocity Triangles section to trace the fore-aft mechanism step by step.';
       } else {
         const stLat = Object.assign({}, st, { Vlat: Math.max(10, Vkt) * 0.5144 * 0.35 });
         model = HL.linearInflowModel(stLat);
-        title = 'Asymmetric inflow / inflow roll';
-        note  = 'Wake-induced lateral inflow gradient (\u03bb_s) gives roll tendency in this pedagogical “Transverse Flow Effect” context. '
+        title = 'Advanced: lateral wind / sideslip (\u03bb_s)';
+        note  = 'An additional lateral inflow gradient (\u03bb_s) from sideslip or yaw rate creates '
+              + 'an ADV/RET inflow asymmetry and an extra roll component. '
+              + 'This is <em>distinct from and additional to</em> the core fore-aft transverse-flow mechanism. '
               + 'Flapback remains a separate longitudinal mechanism.';
       }
       const coeffs = flappingCoeffs(st);
@@ -1303,6 +1675,7 @@ const HLW = (function () {
       HLD.clear(ctx, W, H, col);
       HLD.grid(ctx, W, H, col, 30);
       if      (mode === 'flapback')   drawFlapback(ctx, W, H, col);
+      else if (mode === 'vtriangles') drawVTriangles(ctx, W, H, col);
       else if (mode === 'inflowroll') drawInflowRoll(ctx, W, H, col);
       else                            drawCompare(ctx, W, H, col);
     };
