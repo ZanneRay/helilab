@@ -959,6 +959,292 @@ const HLW = (function () {
     requestAnimationFrame(drawBet);
   }
 
+  /* Flapping & Roll Coupling: flapback phase lag, inflow asymmetry, compare mode
+     Educational model — quasi-steady, prescribed first-harmonic (Pitt-Peters).
+     NOT a free-wake or transient rotor-body coupling model. */
+  function wFlappingRoll(host) {
+    const ui = scaffold(host);
+
+    let mode = 'flapback';     // 'flapback' | 'inflowroll' | 'compare'
+    let Vkt  = 80;
+    let Vlat = 0;              // lateral wind [kt], positive = port→ADV
+    let compareModel = 'forward';
+
+    segmented(ui.controls, {
+      label: 'Section',
+      options: [
+        { v: 'flapback',   t: 'Flapback' },
+        { v: 'inflowroll', t: 'Inflow Roll' },
+        { v: 'compare',    t: 'Compare' },
+      ],
+      val: mode,
+      on: v => { mode = v; rebuildControls(); draw(); },
+    });
+
+    const dynCtls = el('div');
+    ui.controls.appendChild(dynCtls);
+
+    function rebuildControls() {
+      dynCtls.innerHTML = '';
+      slider(dynCtls, { label: 'Forward speed', min: 0, max: 160, step: 5, val: Vkt, unit: ' kt',
+        fmt: v => (+v).toFixed(0), on: v => { Vkt = v; draw(); } });
+      if (mode === 'inflowroll') {
+        slider(dynCtls, { label: 'Lateral wind (\u2192ADV)', min: -40, max: 40, step: 5, val: Vlat,
+          unit: ' kt', fmt: v => (+v).toFixed(0), on: v => { Vlat = v; draw(); } });
+      }
+      if (mode === 'compare') {
+        segmented(dynCtls, {
+          label: 'Inflow model',
+          options: [
+            { v: 'uniform', t: 'Uniform' },
+            { v: 'forward', t: 'Forward' },
+            { v: 'lateral', t: 'Lateral' },
+          ],
+          val: compareModel,
+          on: v => { compareModel = v; draw(); },
+        });
+      }
+    }
+    rebuildControls();
+
+    /* Draw azimuth labels and cross-lines shared by all disc views */
+    function discAnnotations(ctx, cx, cy, R, col, showFwdArrow) {
+      HLD.dline(ctx, cx - R, cy, cx + R, cy, col.grid, 1, [3, 3]);
+      HLD.dline(ctx, cx, cy - R, cx, cy + R, col.grid, 1, [3, 3]);
+      ctx.strokeStyle = col.dim; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
+      HLD.text(ctx, 'ADV 90°',   cx + R + 4,  cy,          col.dim, '9px IBM Plex Sans', 'left',   'middle');
+      HLD.text(ctx, 'RET 270°',  cx - R - 4,  cy,          col.dim, '9px IBM Plex Sans', 'right',  'middle');
+      HLD.text(ctx, 'NOSE 180°', cx,           cy - R - 6,  col.dim, '9px IBM Plex Sans', 'center', 'bottom');
+      HLD.text(ctx, 'TAIL 0°',   cx,           cy + R + 12, col.dim, '9px IBM Plex Sans', 'center', 'top');
+      if (showFwdArrow) HLD.arrow(ctx, cx, cy - R - 22, cx, cy - R - 6, col.accent, 2, 7);
+    }
+
+    /* ── Flapback ─────────────────────────────────────────────────────────── */
+    function drawFlapback(ctx, W, H, col) {
+      const st = HL.defaultState(); st.V = Vkt * 0.5144;
+      const c   = flappingCoeffs(st);
+      const mu  = advanceRatio(st);
+      const a0d = c.a0 * R2D;
+      const a1d = -c.a1c * R2D;   // flapback: positive = disc tilts aft
+      const b1d = -c.a1s * R2D;   // lateral tilt
+
+      const discR = Math.min(W * 0.23, H * 0.40);
+      const cx = discR + 36, cy = H / 2;
+
+      // Disc coloured by aerodynamic forcing \u221d U_T\u00b2 (normalized to advancing peak)
+      const utMax2 = Math.max(0.01, (0.75 + Math.abs(mu)) * (0.75 + Math.abs(mu)));
+      HLD.discPolar(ctx, cx, cy, discR, psi => {
+        const ut = 0.75 + mu * Math.sin(psi);
+        return ut < 0 ? 'rgba(180,60,200,0.40)'
+                      : ramp(Math.max(0, Math.min(1, ut * ut / utMax2)));
+      }, col, { V: st.V, hideAdvLabel: true });
+      discAnnotations(ctx, cx, cy, discR, col, Vkt > 1);
+
+      // Find azimuth of maximum flapping \u03b2(\u03c8) (= peak up-flap after phase lag)
+      let betaPeak = -Infinity, psiPeak = 0;
+      for (let i = 0; i < 720; i++) {
+        const p = (i / 720) * 2 * Math.PI;
+        const b = flappingAngle(c, p);
+        if (b > betaPeak) { betaPeak = b; psiPeak = p; }
+      }
+      const psiPeakDeg = psiPeak * R2D;
+
+      // Orange arrow: peak aerodynamic forcing at \u03c8=90\u00b0 (ADV)
+      const prAdv = HLD.polarToCanvas(Math.PI / 2);
+      HLD.arrow(ctx, cx, cy, cx + discR * 0.88 * Math.cos(prAdv),
+                cy + discR * 0.88 * Math.sin(prAdv), col.chord, 2.5, 8);
+      HLD.text(ctx, 'max U\u1d40\u00b2', cx + (discR + 10) * Math.cos(prAdv),
+               cy + (discR + 10) * Math.sin(prAdv), col.chord, '9px IBM Plex Sans', 'left', 'middle');
+
+      // Cyan arrow: peak flap (~90\u00b0 after peak force for ideal articulated rotor)
+      const prFlap = HLD.polarToCanvas(psiPeak);
+      HLD.arrow(ctx, cx, cy, cx + discR * 0.88 * Math.cos(prFlap),
+                cy + discR * 0.88 * Math.sin(prFlap), col.accent, 2.5, 8);
+      HLD.text(ctx, 'max flap', cx + (discR + 8) * Math.cos(prFlap),
+               cy + (discR + 8) * Math.sin(prFlap), col.accent, '9px IBM Plex Sans', 'right', 'middle');
+
+      // Phase-lag arc around hub
+      // anticlockwise (in canvas) = CCW in rotor convention (increasing ψ);
+      // correct flag: go anticlockwise when prFlap is at a lower canvas angle than prAdv
+      if (mu > 0.01) {
+        const arcR2 = discR * 0.35;
+        ctx.strokeStyle = col.dim; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, arcR2, prAdv, prFlap, prFlap < prAdv);
+        ctx.stroke(); ctx.setLineDash([]);
+        const arcMid = (prAdv + prFlap) / 2;
+        HLD.text(ctx, 'lag', cx + arcR2 * Math.cos(arcMid), cy + arcR2 * Math.sin(arcMid),
+                 col.dim, '9px IBM Plex Sans', 'center', 'middle');
+      }
+
+      // Right panel: mini line-chart of L(\u03c8) and normalised \u03b2(\u03c8) on same x-axis
+      const chX = cx + discR + 52, chW = W - chX - 6, chH = H - 12;
+      if (chW > 70) {
+        const liftPts = [], flapPts = [];
+        let bMin = Infinity, bMax = -Infinity;
+        for (let i = 0; i <= 72; i++) {
+          const pd = i * 5, psi = pd * D2R;
+          const ut  = 0.75 + mu * Math.sin(psi);
+          const l   = Math.max(0, ut * ut) / utMax2;
+          const bv  = (flappingAngle(c, psi) - c.a0) * R2D;
+          if (bv < bMin) bMin = bv; if (bv > bMax) bMax = bv;
+          liftPts.push({ x: pd, y: l });
+          flapPts.push({ x: pd, y: bv });
+        }
+        const bRange = Math.max(0.01, bMax - bMin);
+        const flapNorm = flapPts.map(p => ({ x: p.x, y: (p.y - bMin) / bRange }));
+        ctx.save(); ctx.translate(chX, 6);
+        HLD.lineChart(ctx, chW, chH, [
+          { pts: liftPts,  color: col.chord,  width: 2,   label: 'lift \u221d U\u1d40\u00b2 (norm)' },
+          { pts: flapNorm, color: col.accent, width: 2,   label: '\u03b2(\u03c8) deviation (norm)' },
+        ], { xmin: 0, xmax: 360, ymin: 0, ymax: 1,
+             xlab: '\u03c8 (deg)', ylab: 'normalised' }, col,
+          [{ x: 90, color: col.chord, label: 'ADV' },
+           { x: ((psiPeakDeg % 360) + 360) % 360, color: col.accent, label: 'peak \u03b2' }]);
+        ctx.restore();
+      }
+
+      const lagDeg = (((psiPeakDeg - 90) % 360) + 360) % 360;
+      ui.readout.innerHTML = kv([
+        ['Forward speed',          Vkt.toFixed(0) + ' kt',      'var(--hl-ink)'],
+        ['Advance ratio \u03bc',   mu.toFixed(3),               'var(--hl-accent)'],
+        ['Coning a\u2080',          a0d.toFixed(1) + '\u00b0',  'var(--hl-lift)'],
+        ['Flapback a\u2081 (aft tilt)', a1d.toFixed(1) + '\u00b0', 'var(--hl-chord)'],
+        ['Lateral tilt b\u2081',   b1d.toFixed(1) + '\u00b0',  'var(--hl-warn)'],
+        ['Peak-flap azimuth',      psiPeakDeg.toFixed(0) + '\u00b0', 'var(--hl-accent)'],
+        ['Phase lag \u2248',       lagDeg.toFixed(0) + '\u00b0', 'var(--hl-accent)'],
+      ]) + '<p class="hl-note">Disc coloured by aerodynamic forcing \u221d U\u1d40\u00b2 \u2014 hot on advancing side. '
+         + 'Orange arrow = where peak force acts (\u03c8\u00a090\u00b0). Cyan arrow = where the blade peaks '
+         + 'its flap (~90\u00b0 later for an ideal articulated rotor). That lag tilts the disc '
+         + 'backward (flapback a\u2081). The pilot adds forward cyclic to re-level it. '
+         + '<i>Quasi-steady BET model; hinge offset shortens the lag to ~75\u201385\u00b0 on real rotors.</i></p>';
+    }
+
+    /* Shared helper: scan the inflow field on a coarse polar grid to find the
+       colour-mapping range.  Used by both Inflow Roll and Compare sections. */
+    function sampleInflowRange(model) {
+      let lamMin = Infinity, lamMax = -Infinity;
+      for (let ir = 0; ir < 12; ir++) {
+        const r = 0.12 + 0.88 * (ir + 0.5) / 12;
+        for (let ip = 0; ip < 36; ip++) {
+          const p = (ip + 0.5) / 36 * 2 * Math.PI;
+          const lv = HL.linearInflowAt(model, r, p);
+          if (lv < lamMin) lamMin = lv;
+          if (lv > lamMax) lamMax = lv;
+        }
+      }
+      return { lamMin, lamMax, lamRange: Math.max(0.001, lamMax - lamMin) };
+    }
+
+    /* ── Inflow Roll ─────────────────────────────────────────────────────── */
+    function drawInflowRoll(ctx, W, H, col) {
+      const st = HL.defaultState(); st.V = Vkt * 0.5144; st.Vlat = Vlat * 0.5144;
+      const model = HL.linearInflowModel(st);
+      const { lamAdv, lamRet, dLam } = HL.inflowRollIndicator(model);
+
+      const discR = Math.min(W * 0.32, H * 0.44);
+      const cx = W * 0.48, cy = H / 2;
+
+      const { lamMin, lamRange } = sampleInflowRange(model);
+
+      HLD.discHeatmap(ctx, cx, cy, discR,
+        (r, psi) => HL.linearInflowAt(model, r, psi),
+        v => ramp(Math.max(0, Math.min(1, (v - lamMin) / lamRange))));
+      discAnnotations(ctx, cx, cy, discR, col, Vkt > 1);
+
+      // ADV vs RET average inflow bars
+      const bx = W - 42, bh = H * 0.45, by = H * 0.5 - bh / 2, bw = 14;
+      const lAll = Math.max(Math.abs(lamAdv), Math.abs(lamRet), 0.001);
+      HLD.text(ctx, '\u03bb bars', bx, by - 14, col.dim, '9px IBM Plex Sans', 'center');
+      ctx.fillStyle = ramp(0.85);
+      ctx.fillRect(bx - bw - 3, by + bh - bh * lamAdv / lAll, bw, bh * lamAdv / lAll);
+      ctx.fillStyle = ramp(0.3);
+      ctx.fillRect(bx + 3, by + bh - bh * lamRet / lAll, bw, bh * lamRet / lAll);
+      HLD.text(ctx, 'ADV', bx - bw / 2 - 3, by + bh + 10, col.dim, '9px IBM Plex Sans', 'center');
+      HLD.text(ctx, 'RET', bx + bw / 2 + 3, by + bh + 10, col.dim, '9px IBM Plex Sans', 'center');
+
+      const rollTxt = dLam > 0.001  ? '\u2192 roll toward ADV (starboard)' :
+                      dLam < -0.001 ? '\u2190 roll toward RET (port)' : 'symmetric \u2014 no roll from inflow';
+      HLD.text(ctx, 'Roll tendency: ' + rollTxt, W / 2, H - 8, col.warn,
+               '10px IBM Plex Sans', 'center', 'bottom');
+
+      ui.readout.innerHTML = kv([
+        ['Forward speed',           Vkt.toFixed(0) + ' kt',  'var(--hl-ink)'],
+        ['Lateral wind',            Vlat.toFixed(0) + ' kt', 'var(--hl-warn)'],
+        ['\u03bb\u2080 (uniform)',  model.lam0.toFixed(4),   'var(--hl-accent)'],
+        ['\u03bb_c (long. grad.)',  model.lamc.toFixed(4),   'var(--hl-lift)'],
+        ['\u03bb_s (lat. grad.)',   model.lams.toFixed(4),   'var(--hl-warn)'],
+        ['\u03bb at ADV r=0.75',    lamAdv.toFixed(4),       'var(--hl-chord)'],
+        ['\u03bb at RET r=0.75',    lamRet.toFixed(4),       'var(--hl-lift)'],
+        ['\u0394\u03bb (ADV\u2212RET)', dLam.toFixed(4),
+          Math.abs(dLam) > 0.001 ? 'var(--hl-bad)' : 'var(--hl-ink)'],
+      ]) + '<p class="hl-note">Disc coloured by local induced velocity \u03bb(r,\u03c8) \u2014 warm = high inflow. '
+         + '\u03bb_c (longitudinal gradient) is always present in forward flight: '
+         + 'more inflow at the tail than at the nose. '
+         + '\u03bb_s (lateral gradient) appears with lateral wind or sideslip. '
+         + 'Higher inflow \u2192 lower AoA \u2192 less lift \u2192 roll moment. '
+         + '<i>First-harmonic Pitt-Peters prescribed inflow; not a free-wake model.</i></p>';
+    }
+
+    /* ── Compare ─────────────────────────────────────────────────────────── */
+    function drawCompare(ctx, W, H, col) {
+      const st = HL.defaultState(); st.V = Vkt * 0.5144;
+      let model, title, note;
+      if (compareModel === 'uniform') {
+        const base = HL.linearInflowModel(st);
+        model = { lam0: base.lam0, lamc: 0, lams: 0 };
+        title = 'Uniform inflow \u03bb\u2080 everywhere';
+        note  = 'Hover or simplified model: constant induced velocity. No roll or pitch imbalance '
+              + 'from inflow alone. Dissymmetry of lift still exists from U\u1d40 asymmetry.';
+      } else if (compareModel === 'forward') {
+        model = HL.linearInflowModel(st);
+        title = 'Forward-flight inflow (Pitt-Peters first harmonic)';
+        note  = 'Longitudinal gradient \u03bb_c: more inflow at the tail than the nose. '
+              + 'Creates a pitch-up moment trimmed by forward cyclic (adds to flapback). '
+              + 'No left\u2013right asymmetry in symmetric flight.';
+      } else {
+        const stLat = Object.assign({}, st, { Vlat: Math.max(10, Vkt) * 0.5144 * 0.35 });
+        model = HL.linearInflowModel(stLat);
+        title = 'Lateral / skewed inflow';
+        note  = 'Lateral gradient \u03bb_s: more inflow on the advancing (starboard) side than the retreating. '
+              + 'Produces a roll moment trimmed with lateral cyclic. In practice from lateral wind, yaw rate, or sideslip.';
+      }
+
+      const discR = Math.min(W * 0.36, H * 0.44);
+      const cx = W / 2, cy = H / 2 + 6;
+
+      const { lamMin, lamRange } = sampleInflowRange(model);
+
+      HLD.discHeatmap(ctx, cx, cy, discR,
+        (r, psi) => HL.linearInflowAt(model, r, psi),
+        v => ramp(Math.max(0, Math.min(1, (v - lamMin) / lamRange))));
+      discAnnotations(ctx, cx, cy, discR, col, Vkt > 1);
+      HLD.text(ctx, title, W / 2, 10, col.ink, '10px IBM Plex Sans', 'center', 'top');
+
+      ui.readout.innerHTML = kv([
+        ['Forward speed',         Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
+        ['\u03bb\u2080',          model.lam0.toFixed(4),  'var(--hl-accent)'],
+        ['\u03bb_c (long.)',      model.lamc.toFixed(4),  'var(--hl-lift)'],
+        ['\u03bb_s (lat.)',       model.lams.toFixed(4),  'var(--hl-warn)'],
+      ]) + '<p class="hl-note">' + note + '</p>'
+         + '<p class="hl-note" style="margin-top:4px"><b>Model assumptions:</b> quasi-steady, '
+         + 'prescribed first-harmonic (Pitt-Peters). Not a free-wake or transient '
+         + 'rotor\u2013body coupling model. Educational tool only.</p>';
+    }
+
+    const draw = () => {
+      const { ctx, W, H, col } = HLD.setup(ui.canvas);
+      HLD.clear(ctx, W, H, col);
+      HLD.grid(ctx, W, H, col, 30);
+      if      (mode === 'flapback')   drawFlapback(ctx, W, H, col);
+      else if (mode === 'inflowroll') drawInflowRoll(ctx, W, H, col);
+      else                            drawCompare(ctx, W, H, col);
+    };
+
+    ui.onDraw(draw);
+  }
+
   /* 9 — Retreating stall & envelope: AoA / %-critical-α / lift contour over disc */
   function wEnvelope(host) {
     const ui = scaffold(host);
@@ -3592,7 +3878,7 @@ const HLW = (function () {
 
   return {
     wBigPicture, wBladeElement, wSpanwise, wHover, wVertical, wGroundEffect,
-    wDissymmetry, wFlapping, wEnvelope, wCoriolis, wDynamicRollover, wLTE,
+    wDissymmetry, wFlapping, wFlappingRoll, wEnvelope, wCoriolis, wDynamicRollover, wLTE,
     wAutorotation, wPerformance, wBetDiagram, wBetVelocity, wBetModel,
     wSandbox,
 

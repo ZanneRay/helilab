@@ -314,5 +314,59 @@ section('12. Autorotation: driving zone migrates toward retreating (ψ→270°) 
     `mean sinψ: 0kt=${s0.toFixed(4)} → 80kt=${s80.toFixed(4)}`);
 }
 
+/* ── TEST: linear inflow model (HL.linearInflowModel / HL.linearInflowAt) ── */
+section('Linear inflow model — gradient signs and consistency');
+{
+  const { linearInflowModel, linearInflowAt, inflowRollIndicator, defaultState } = HL;
+
+  // Forward flight only (no lateral wind)
+  const st80 = defaultState(); st80.V = 80 * 0.5144;
+  const m80 = linearInflowModel(st80);
+
+  // (a) λ₀ should be positive (downward induced velocity)
+  check('λ₀ > 0 at 80 kt', m80.lam0 > 0, `lam0=${m80.lam0.toFixed(4)}`);
+
+  // (b) λ_c (longitudinal gradient) should be positive in forward flight
+  //     (more inflow at AFT than FWD, as wake tilts aft)
+  check('λ_c > 0 in forward flight', m80.lamc > 0, `lamc=${m80.lamc.toFixed(4)}`);
+
+  // (c) λ_s = 0 when there is no lateral wind
+  check('λ_s = 0 with no lateral wind', Math.abs(m80.lams) < 1e-9, `lams=${m80.lams}`);
+
+  // (d) λ at AFT (ψ=0) > λ at FWD (ψ=π) due to positive λ_c
+  const lamAft = linearInflowAt(m80, 0.75, 0);
+  const lamFwd = linearInflowAt(m80, 0.75, Math.PI);
+  check('λ(AFT,r=0.75) > λ(FWD,r=0.75) in fwd flight', lamAft > lamFwd,
+    `AFT=${lamAft.toFixed(4)} FWD=${lamFwd.toFixed(4)}`);
+
+  // (e) At hover (V=0): λ_c should be ~0 (symmetric wake)
+  const st0 = defaultState(); st0.V = 0;
+  const m0 = linearInflowModel(st0);
+  check('λ_c \u2248 0 at hover', Math.abs(m0.lamc) < 0.01, `lamc=${m0.lamc.toFixed(5)}`);
+
+  // (f) Lateral wind creates a lateral gradient of the correct sign
+  //     Positive Vlat (port→ADV) → more inflow on ADV side → λ_s > 0
+  const stLat = defaultState(); stLat.V = 80 * 0.5144; stLat.Vlat = 20 * 0.5144;
+  const mLat = linearInflowModel(stLat);
+  check('Positive Vlat → λ_s > 0 (more inflow on ADV side)', mLat.lams > 0,
+    `lams=${mLat.lams.toFixed(4)}`);
+
+  // (g) inflowRollIndicator: with positive λ_s, ADV has more inflow than RET → dLam > 0
+  const roll = inflowRollIndicator(mLat);
+  check('inflowRollIndicator: dLam > 0 with positive λ_s', roll.dLam > 0,
+    `lamAdv=${roll.lamAdv.toFixed(4)} lamRet=${roll.lamRet.toFixed(4)} dLam=${roll.dLam.toFixed(4)}`);
+
+  // (h) Symmetric case: no lateral wind → dLam \u2248 0
+  const rollSym = inflowRollIndicator(m80);
+  check('inflowRollIndicator: dLam \u2248 0 with no lateral wind', Math.abs(rollSym.dLam) < 1e-9,
+    `dLam=${rollSym.dLam}`);
+
+  // (i) Gradients grow with forward speed (more pronounced inflow asymmetry at higher \u03bc)
+  const st40 = defaultState(); st40.V = 40 * 0.5144;
+  const m40 = linearInflowModel(st40);
+  check('\u03bb_c grows with forward speed (80 kt > 40 kt)', m80.lamc > m40.lamc,
+    `lamc(80kt)=${m80.lamc.toFixed(4)} lamc(40kt)=${m40.lamc.toFixed(4)}`);
+}
+
 console.log(`\n──────────────────────────────\nRESULT: ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

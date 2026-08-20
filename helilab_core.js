@@ -206,10 +206,53 @@ const HL = (function () {
   }
   function cdOf(st, cl) { return st.cd0 + st.kDrag * cl * cl; }
 
+  /* ── Linear inflow (Pitt-Peters first harmonic) ─────────────────────────────
+     Educational model: steady, prescribed first-harmonic inflow (quasi-steady,
+     not a free-wake or transient rotor-body coupling model).
+
+     λ(r,ψ) = λ₀  +  λ_c·r·cos(ψ)  +  λ_s·r·sin(ψ)
+
+     Convention (matches flapping.js): ψ=0 AFT, ψ=90 ADV, ψ=180 FWD, ψ=270 RET.
+       λ_c > 0  →  more inflow at AFT than FWD (forward-flight longitudinal gradient)
+       λ_s > 0  →  more inflow at ADV than RET (lateral / skewed-inflow gradient)
+
+     st.Vlat [m/s] (optional): lateral wind into the advancing (starboard) side.
+     Reference: Pitt & Peters (1981); simplified Mangler–Squire approximation. */
+  function linearInflowModel(st) {
+    const OmR = omR(st);
+    if (OmR < 1) return { lam0: 0, lamc: 0, lams: 0 };
+    const lam0  = inflowRatio(st);
+    const mu    = advanceRatio(st);
+    const muLat = (st.Vlat || 0) / OmR;
+    const denom = Math.sqrt(mu * mu + lam0 * lam0);
+    // Mangler–Squire / Pitt-Peters: gradients scale with wake-skew angle χ.
+    // The compact form (4/3π)·component/√(μ²+λ₀²) is numerically stable at hover.
+    const lamc = denom > 1e-6 ? (4 / (3 * Math.PI)) * mu    / denom : 0;
+    const lams = denom > 1e-6 ? (4 / (3 * Math.PI)) * muLat / denom : 0;
+    return { lam0, lamc, lams };
+  }
+
+  /** Local induced-velocity ratio at normalised radius r and azimuth ψ [rad]. */
+  function linearInflowAt(model, r, psiRad) {
+    return model.lam0 + model.lamc * r * Math.cos(psiRad)
+                      + model.lams * r * Math.sin(psiRad);
+  }
+
+  /** Lateral inflow roll indicator.
+   *  dLam = λ(0.75, ADV) − λ(0.75, RET): positive means more inflow on the advancing
+   *  (starboard) side → reduced AoA → less lift there → roll toward advancing side. */
+  function inflowRollIndicator(model) {
+    const r   = 0.75;
+    const adv = linearInflowAt(model, r, Math.PI / 2);
+    const ret = linearInflowAt(model, r, 3 * Math.PI / 2);
+    return { lamAdv: adv, lamRet: ret, dLam: adv - ret };
+  }
+
   return {
     D2R, R2D,
     defaultState, solidity, area, rho, omR, weightN, viHover,
     ctAxial, axialSolve, groundEffect,
     powerCurve, powerMarkers, clOf, cdOf,
+    linearInflowModel, linearInflowAt, inflowRollIndicator,
   };
 })();

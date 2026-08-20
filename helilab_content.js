@@ -531,6 +531,66 @@ const HL_LESSONS = [
     },
   },
 
+  {
+    id: 'flaproll', stage: 'Forward Flight', title: 'Flapping & Roll Coupling',
+    subtitle: 'Flapback, inflow asymmetry, and the roll tendencies of a rotor in forward flight',
+    widget: 'wFlappingRoll',
+    body: `
+      <p>Three related phenomena shape how the rotor behaves in forward flight —
+      but they are <em>different mechanisms</em> that are easy to confuse:</p>
+
+      <h3 style="margin:0.7em 0 0.2em">1. Dissymmetry of lift</h3>
+      <p>The advancing blade moves through the air faster than the retreating blade
+      (Lesson 7). Left uncorrected this would roll the helicopter. Flapping solves it
+      automatically (Lesson 8).</p>
+
+      <h3 style="margin:0.7em 0 0.2em">2. Flapback — the 90° phase lag</h3>
+      <p>In forward flight the advancing blade (ψ = 90°) sees the highest relative
+      velocity and wants to produce the most lift. But the flapping response of an
+      articulated rotor <strong>lags the forcing by ~90°</strong> (conservation of
+      angular momentum — the same mechanism as a gyroscope precessing). So the peak
+      up-flap occurs at ψ ≈ 180° (the nose), not at ψ = 90°. The disc tilts
+      <strong>backward</strong> (nose up) — this is <em>flapback</em>, or the
+      longitudinal flapping coefficient a₁.</p>
+      <p>The pilot (or AFCS) counters it with forward cyclic (B₁/θ₁ₛ). The interactive
+      shows the disc coloured by aerodynamic forcing and a line chart with L(ψ) and
+      β(ψ) on the same axis — the orange peak (max force) and the cyan peak (max flap)
+      are ~90° apart.</p>
+      <p><em>Real articulated rotors with hinge offset lag a little less (~75–85°).
+      Hingeless/bearingless rotors can be quite different. This widget uses a
+      quasi-steady BET model.</em></p>
+
+      <h3 style="margin:0.7em 0 0.2em">3. Inflow asymmetry &amp; roll coupling</h3>
+      <p>The rotor's own induced velocity (downwash) is <strong>not uniform</strong>
+      in forward flight. The Pitt-Peters first-harmonic model captures two gradients:</p>
+      <ul>
+        <li><b>Longitudinal (λ_c):</b> more inflow at the tail than at the nose — the
+        wake is swept backward. Creates a pitch-up moment (trimmed by fwd cyclic).</li>
+        <li><b>Lateral (λ_s):</b> appears when there is a lateral wind, sideslip, or
+        yaw rate. More inflow on one side → lower local AoA → less lift there →
+        <em>roll moment</em>. Trimmed by lateral cyclic.</li>
+      </ul>
+      <p>This is <em>distinct</em> from dissymmetry of lift (which is about U_T
+      asymmetry). The Inflow Roll section and the Compare mode let you switch between
+      uniform, forward-flight, and skewed-inflow models.</p>`,
+    takeaways: [
+      'Flapback: the rotor disc tilts backward in forward flight because peak flapping lags peak aerodynamic forcing by ~90°.',
+      'Phase lag arises from gyroscopic / angular-momentum mechanics, not aerodynamics directly.',
+      'Non-uniform inflow (Pitt-Peters) creates a longitudinal pitch gradient (always present) and a lateral roll gradient (lateral wind / sideslip).',
+      'Dissymmetry of lift (U_T asymmetry), flapback (phase lag), and inflow roll (λ asymmetry) are three different mechanisms, each trimmed separately.',
+    ],
+    check: {
+      q: 'In forward flight the advancing blade produces maximum aerodynamic lift at ψ = 90°. Where does the blade reach its maximum up-flap angle?',
+      options: [
+        'At ψ ≈ 180° (nose) — ~90° after the peak force (phase lag)',
+        'At ψ ≈ 90° (advancing side) — same azimuth as peak force',
+        'At ψ ≈ 270° (retreating side) — opposite the peak force',
+        'At ψ ≈ 0° (tail) — 180° after the peak force',
+      ], answer: 0,
+      explain: 'The flapping response of an articulated rotor lags the aerodynamic forcing by approximately 90° — a gyroscopic effect. Peak force at ψ = 90° (ADV) produces peak up-flap at ψ ≈ 180° (FWD/nose). This tilts the disc backward (flapback a₁). The pilot corrects with forward cyclic.',
+    },
+  },
+
   /* ──────────────────────── STAGE 4 — SAFETY & LIMITS ──────────────────── */
   {
     id: 'dynamicrollover', stage: 'Safety & Limits', title: 'Dynamic Rollover',
