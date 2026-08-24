@@ -441,3 +441,131 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
   }
   .hl-main { scroll-behavior: auto; }
 }
+
+/* ── course map (phase 1) ───────────────────────────────────────────────── */
+.course-map {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(260px, 0.9fr);
+  gap: 18px;
+}
+.stage-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 4px 16px var(--shadow);
+  margin-bottom: 12px;
+}
+.stage-card.locked { opacity: 0.58; }
+.stage-top { display: flex; justify-content: space-between; gap: 14px; align-items: center; }
+.stage-kicker { color: var(--brand); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.stage-card h2 { margin: 4px 0 2px; font-size: 15px; font-weight: 600; color: var(--text); }
+.stage-card p { margin: 0; color: var(--text2); font-size: 12px; }
+.stage-ring {
+  --stage-pct: 0%;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: conic-gradient(var(--good) var(--stage-pct), var(--panel2) 0);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.stage-ring span {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 600;
+}
+.stage-lessons, .review-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.lesson-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel2);
+  color: var(--text2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.lesson-chip:disabled { cursor: not-allowed; }
+.lesson-chip .chip-state { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; }
+.lesson-chip.not-started .chip-state::before { content: ''; }
+.lesson-chip.in-progress { border-color: color-mix(in srgb, var(--brand) 45%, transparent); color: var(--text); }
+.lesson-chip.in-progress .chip-state::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+.lesson-chip.practiced { border-color: color-mix(in srgb, var(--good) 60%, transparent); color: var(--text); }
+.lesson-chip.practiced .chip-state::before {
+  content: '✓';
+  color: var(--good);
+  border: 1px solid var(--good);
+  border-radius: 50%;
+  width: 12px;
+  height: 12px;
+  line-height: 12px;
+  text-align: center;
+  font-size: 10px;
+}
+.lesson-chip.mastered {
+  background: color-mix(in srgb, var(--good) 22%, var(--panel2));
+  border-color: var(--good);
+  color: var(--text);
+}
+.lesson-chip.mastered .chip-state::before {
+  content: '✓';
+  color: #04240f;
+  background: var(--good);
+  border-radius: 50%;
+  width: 13px;
+  height: 13px;
+  line-height: 13px;
+  text-align: center;
+  font-size: 10px;
+}
+.cta-next {
+  width: 100%;
+  border: 1px solid var(--brand2);
+  background: linear-gradient(180deg, var(--brand), var(--brand2));
+  color: #052033;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+.rail-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--text3); }
+.concept-list { display: grid; gap: 8px; margin-top: 10px; }
+.concept-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--text); }
+.mastery-dot {
+  border-radius: 999px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  font-size: 11px;
+  text-transform: capitalize;
+  color: var(--text2);
+}
+.mastery-dot.exposure { color: var(--text3); border-color: var(--text3); }
+.mastery-dot.practiced { color: var(--brand); border-color: var(--brand); }
+.mastery-dot.developing { color: var(--warn); border-color: var(--warn); }
+.mastery-dot.proficient { color: var(--good); border-color: var(--good); }
+.mastery-dot.mastered { color: #04240f; border-color: var(--good); background: var(--good); }
+@media (max-width: 768px) {
+  .course-map { grid-template-columns: 1fr; }
+}
