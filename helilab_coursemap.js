@@ -5,6 +5,11 @@
   const LS_CONCEPT_STATES = 'helilab_concept_states';
   const LS_CONCEPT_META = 'helilab_concept_meta';
   const DAY_MS = 24 * 60 * 60 * 1000;
+  const MASTERY_PRACTICED_MIN = 1;
+  const MASTERY_DEVELOPING_MIN = 2;
+  const MASTERY_PROFICIENT_MIN = 4;
+  const MASTERY_SEPARATE_SESSION_DAYS = 2;
+  const MASTERY_GAP_CORRECT_MIN = 1;
 
   const STAGE_META = [
     { key: 'Basics', label: 'Stage 1 — Basics', desc: 'Core rotor ideas, blade-element fundamentals, and lift basics.' },
@@ -92,9 +97,9 @@
   function recalcConceptState(conceptKey) {
     const m = conceptMeta[conceptKey];
     let state = 'exposure';
-    if (m.correctCount >= 1) state = 'practiced';
-    if (m.correctCount >= 2 && (m.sessionDays || []).length >= 2) state = 'developing';
-    if (m.correctCount >= 4 && m.gapCorrectCount >= 1) state = 'proficient';
+    if (m.correctCount >= MASTERY_PRACTICED_MIN) state = 'practiced';
+    if (m.correctCount >= MASTERY_DEVELOPING_MIN && (m.sessionDays || []).length >= MASTERY_SEPARATE_SESSION_DAYS) state = 'developing';
+    if (m.correctCount >= MASTERY_PROFICIENT_MIN && m.gapCorrectCount >= MASTERY_GAP_CORRECT_MIN) state = 'proficient';
     if (state === 'proficient' && m.transferCorrect) state = 'mastered';
     conceptStates[conceptKey] = state;
   }
@@ -272,6 +277,8 @@
       const chip = document.createElement('button');
       chip.className = `lesson-chip ${conceptStates[concept.key]}`;
       chip.innerHTML = `<span>${concept.label}</span><span class="chip-state" aria-hidden="true"></span>`;
+      chip.title = `Review ${concept.label}`;
+      chip.setAttribute('aria-label', `Review ${concept.label}`);
       chip.onclick = () => openLesson(concept.lessons[0]);
       strip.appendChild(chip);
     });
