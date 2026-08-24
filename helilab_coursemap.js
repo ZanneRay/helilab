@@ -160,6 +160,17 @@
     return practicedRatio(STAGE_META[index - 1].key) >= 0.5;
   }
 
+  function lessonUnlocked(lessonId) {
+    const lesson = lessonById(lessonId);
+    if (!lesson) return false;
+    const stageIndex = STAGE_META.findIndex((s) => s.key === lesson.stage);
+    return stageIndex >= 0 ? stageUnlocked(stageIndex) : false;
+  }
+
+  function firstUnlockedLesson(lessonIds) {
+    return (lessonIds || []).find((lessonId) => lessonUnlocked(lessonId)) || null;
+  }
+
   function nextAssessStage() {
     for (let i = 0; i < STAGE_META.length; i++) {
       if (!stageUnlocked(i)) break;
@@ -177,7 +188,7 @@
     const reviewConcept = CONCEPTS.find((concept) =>
       conceptStates[concept.key] === 'developing' && hrsSince(conceptMeta[concept.key].lastTouchedAt) > 24);
     if (reviewConcept) {
-      return { type: 'review', label: `Review ${reviewConcept.label}`, lessonId: reviewConcept.lessons[0] };
+      return { type: 'review', label: `Review ${reviewConcept.label}`, lessonId: firstUnlockedLesson(reviewConcept.lessons) };
     }
 
     const assessStage = nextAssessStage();
@@ -274,12 +285,14 @@
     const due = dueForReview();
     if (!due.length) strip.textContent = 'No concepts due right now.';
     due.forEach((concept) => {
+      const targetLesson = firstUnlockedLesson(concept.lessons);
+      if (!targetLesson) return;
       const chip = document.createElement('button');
       chip.className = `lesson-chip ${conceptStates[concept.key]}`;
       chip.innerHTML = `<span>${concept.label}</span><span class="chip-state" aria-hidden="true"></span>`;
       chip.title = `Review ${concept.label}`;
       chip.setAttribute('aria-label', `Review ${concept.label}`);
-      chip.onclick = () => openLesson(concept.lessons[0]);
+      chip.onclick = () => openLesson(targetLesson);
       strip.appendChild(chip);
     });
     right.appendChild(reviewBox);
