@@ -44,6 +44,7 @@
   const saveProgress = () => { try { HLS.setItem(LS_PROGRESS, JSON.stringify(progress)); } catch (e) {} };
 
   let current = HL_LESSONS[0].id;
+  let inHome = true;
 
   /* Cross-references between related lessons (coherence A→Z). Each value is a
      list of lesson ids; the reader renders them as a "Related lessons" chip-row
@@ -82,7 +83,7 @@
       const ci = HL_LESSONS.indexOf(r) + 1;
       const b = el('button', 'hl-seg-btn', ci + '. ' + r.title);
       b.title = r.stage + ' — ' + r.subtitle;
-      b.onclick = () => { inSandbox = false; inMaths = false; current = rid; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+      b.onclick = () => { inHome = false; inSandbox = false; inMaths = false; current = rid; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); };
       chips.appendChild(b);
     });
     rel.appendChild(chips);
@@ -98,6 +99,12 @@
     // a11y: expose the lesson list as a navigation landmark
     nav.setAttribute('role', 'navigation');
     nav.setAttribute('aria-label', 'Lessons');
+    const homeBtn = el('button', 'hl-nav-item' + (inHome ? ' on' : ''));
+    homeBtn.innerHTML = '<span class="hl-nav-mark">⌂</span><span class="hl-nav-text"><b>Home</b><small>Course map & mastery</small></span>';
+    if (inHome) homeBtn.setAttribute('aria-current', 'page');
+    homeBtn.onclick = () => { inHome = true; inSandbox = false; inMaths = false; render(); };
+    nav.appendChild(homeBtn);
+
     HL_STAGES.forEach(stage => {
       const lessons = HL_LESSONS.filter(l => l.stage === stage);
       const done = lessons.filter(l => progress[l.id] === 'done').length;
@@ -107,7 +114,7 @@
       lessons.forEach(l => {
         const idx = HL_LESSONS.indexOf(l) + 1;
         const st = progress[l.id];
-        const active = !inSandbox && !inMaths && l.id === current;
+        const active = !inHome && !inSandbox && !inMaths && l.id === current;
         const item = el('button', 'hl-nav-item' + (active ? ' on' : ''));
         item.innerHTML =
           `<span class="hl-nav-mark ${st || ''}">${st === 'done' ? '✓' : idx}</span>` +
@@ -117,7 +124,7 @@
           `Lesson ${idx}: ${l.title}. ${l.subtitle}.` +
           (st === 'done' ? ' Completed.' : st === 'seen' ? ' Started.' : ''));
         if (active) item.setAttribute('aria-current', 'page');
-        item.onclick = () => { inSandbox = false; inMaths = false; current = l.id; render(); };
+        item.onclick = () => { inHome = false; inSandbox = false; inMaths = false; current = l.id; render(); };
         grp.appendChild(item);
       });
       nav.appendChild(grp);
@@ -125,14 +132,14 @@
     // sandbox entry
     const sbBtn = el('button', 'hl-nav-sandbox' + (inSandbox ? ' on' : ''),
       '<span>🛠</span><span class="hl-nav-text"><b>Sandbox</b><small>Free exploration — all controls</small></span>');
-    sbBtn.onclick = () => { inSandbox = true; inMaths = false; render(); };
+    sbBtn.onclick = () => { inHome = false; inSandbox = true; inMaths = false; render(); };
     nav.appendChild(sbBtn);
 
     // maths / deep-dive entry (optional, not part of the exam theory) — for
     // verification and the students who want to see the model underneath.
     const mBtn = el('button', 'hl-nav-sandbox hl-nav-maths' + (inMaths ? ' on' : ''),
       '<span>∑</span><span class="hl-nav-text"><b>The Maths</b><small>Behind the diagrams — for the curious</small></span>');
-    mBtn.onclick = () => { inMaths = true; inSandbox = false; render(); };
+    mBtn.onclick = () => { inHome = false; inMaths = true; inSandbox = false; render(); };
     nav.appendChild(mBtn);
 
     // overall progress
@@ -144,8 +151,10 @@
 
   /* ── lesson view ──────────────────────────────────────────────────────── */
   function renderLesson(lesson) {
+    inHome = false;
     const idx = HL_LESSONS.indexOf(lesson);
     if (progress[lesson.id] !== 'done') { progress[lesson.id] = 'seen'; saveProgress(); }
+    if (window.HLCourseMap) window.HLCourseMap.touchLesson(lesson.id);
     const main = $('#hlMain');
     main.innerHTML = '';
 
@@ -220,13 +229,14 @@
     const foot = el('div', 'hl-lesson-foot');
     const prev = el('button', 'hl-foot-btn', '← Previous');
     prev.disabled = idx === 0;
-    prev.onclick = () => { current = HL_LESSONS[idx - 1].id; render(); };
+    prev.onclick = () => { inHome = false; current = HL_LESSONS[idx - 1].id; render(); };
     const next = el('button', 'hl-foot-btn primary',
       idx === HL_LESSONS.length - 1 ? 'Finish → Sandbox' : 'Next lesson →');
     next.onclick = () => {
       progress[lesson.id] = 'done'; saveProgress();
       if (idx === HL_LESSONS.length - 1) { inSandbox = true; }
-      else current = HL_LESSONS[idx + 1].id;
+      else { inSandbox = false; current = HL_LESSONS[idx + 1].id; }
+      inHome = false; inMaths = false;
       render();
     };
     foot.appendChild(prev); foot.appendChild(next);
@@ -260,6 +270,7 @@
         fb.setAttribute('aria-live', 'polite');
         box.appendChild(fb);
         if (correct && progress[lesson.id] !== 'done') { progress[lesson.id] = 'done'; saveProgress(); buildSidebar(); }
+        if (window.HLCourseMap) window.HLCourseMap.recordCheck(lesson.id, correct);
       };
       opts.appendChild(b);
     });
@@ -269,6 +280,7 @@
 
   /* ── sandbox view ─────────────────────────────────────────────────────── */
   function renderSandbox() {
+    inHome = false;
     const main = $('#hlMain');
     main.innerHTML = '';
     const head = el('div', 'hl-lesson-head');
@@ -285,6 +297,7 @@
 
   /* ── maths view (deep-dive, optional) ─────────────────────────────────── */
   function renderMaths() {
+    inHome = false;
     const main = $('#hlMain');
     main.innerHTML = '';
     const head = el('div', 'hl-lesson-head');
@@ -312,7 +325,10 @@
   /* ── render dispatch ──────────────────────────────────────────────────── */
   function render() {
     buildSidebar();
-    if (inMaths) renderMaths();
+    if (inHome && window.HLCourseMap) window.HLCourseMap.renderHome({
+      openLesson: (lessonId) => { inHome = false; inSandbox = false; inMaths = false; current = lessonId; render(); },
+    });
+    else if (inMaths) renderMaths();
     else if (inSandbox) renderSandbox();
     else renderLesson(HL_LESSONS.find(l => l.id === current));
   }
@@ -343,7 +359,12 @@
       }
     }, true);
     $('#hlResetBtn').onclick = () => {
-      if (confirm('Reset all lesson progress?')) { progress = {}; saveProgress(); render(); }
+      if (confirm('Reset all lesson progress?')) {
+        progress = {}; saveProgress();
+        if (window.HLCourseMap) window.HLCourseMap.resetProgress();
+        inHome = true; inSandbox = false; inMaths = false;
+        render();
+      }
     };
     // hamburger for narrow screens
     const sidebar = $('#hlSidebar');
