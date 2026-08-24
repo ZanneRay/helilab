@@ -93,7 +93,7 @@
     const m = conceptMeta[conceptKey];
     let state = 'exposure';
     if (m.correctCount >= 1) state = 'practiced';
-    if (m.correctCount >= 2 && m.correctCount <= 3 && (m.sessionDays || []).length >= 2) state = 'developing';
+    if (m.correctCount >= 2 && (m.sessionDays || []).length >= 2) state = 'developing';
     if (m.correctCount >= 4 && m.gapCorrectCount >= 1) state = 'proficient';
     if (state === 'proficient' && m.transferCorrect) state = 'mastered';
     conceptStates[conceptKey] = state;
@@ -270,7 +270,7 @@
     if (!due.length) strip.textContent = 'No concepts due right now.';
     due.forEach((concept) => {
       const chip = document.createElement('button');
-      chip.className = 'lesson-chip practiced';
+      chip.className = `lesson-chip ${conceptStates[concept.key]}`;
       chip.innerHTML = `<span>${concept.label}</span><span class="chip-state" aria-hidden="true"></span>`;
       chip.onclick = () => openLesson(concept.lessons[0]);
       strip.appendChild(chip);
