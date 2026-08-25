@@ -91,7 +91,8 @@
   }
 
   function getLessonState(lessonId) {
-    return (lessonStates[lessonId] && lessonStates[lessonId].state) || 'not-started';
+    const states = safeGet(LS_LESSON_STATES, {});
+    return states[lessonId] || { state: 'not-started' };
   }
 
   function recalcConceptState(conceptKey) {
@@ -151,7 +152,7 @@
   function practicedRatio(stageKey) {
     const lessons = HL_LESSONS.filter((l) => l.stage === stageKey);
     if (!lessons.length) return 0;
-    const practiced = lessons.filter((l) => ['practiced', 'mastered'].includes(getLessonState(l.id))).length;
+    const practiced = lessons.filter((l) => ['practiced', 'mastered'].includes(getLessonState(l.id).state)).length;
     return practiced / lessons.length;
   }
 
@@ -175,14 +176,14 @@
     for (let i = 0; i < STAGE_META.length; i++) {
       if (!stageUnlocked(i)) break;
       const lessons = HL_LESSONS.filter((l) => l.stage === STAGE_META[i].key);
-      const practiced = lessons.filter((l) => ['practiced', 'mastered'].includes(getLessonState(l.id))).length;
+      const practiced = lessons.filter((l) => ['practiced', 'mastered'].includes(getLessonState(l.id).state)).length;
       if (practiced < lessons.length) return STAGE_META[i];
     }
     return STAGE_META[STAGE_META.length - 1];
   }
 
   function recommendedAction() {
-    const inProgress = HL_LESSONS.find((lesson) => getLessonState(lesson.id) === 'in-progress');
+    const inProgress = HL_LESSONS.find((lesson) => getLessonState(lesson.id).state === 'in-progress');
     if (inProgress) return { type: 'continue', label: `Continue ${inProgress.title}`, lessonId: inProgress.id };
 
     const reviewConcept = CONCEPTS.find((concept) =>
@@ -198,7 +199,7 @@
 
   function createStageCard(stageMeta, index, openLesson) {
     const stageLessons = HL_LESSONS.filter((l) => l.stage === stageMeta.key);
-    const practiced = stageLessons.filter((l) => ['practiced', 'mastered'].includes(getLessonState(l.id))).length;
+    const practiced = stageLessons.filter((l) => ['practiced', 'mastered'].includes(getLessonState(l.id).state)).length;
     const pct = Math.round((practiced / Math.max(stageLessons.length, 1)) * 100);
     const locked = !stageUnlocked(index);
     const wrap = document.createElement('section');
@@ -220,7 +221,7 @@
     const chips = wrap.querySelector('.stage-lessons');
     stageLessons.forEach((lesson) => {
       const chip = document.createElement('button');
-      const state = getLessonState(lesson.id);
+      const state = getLessonState(lesson.id).state;
       chip.className = `lesson-chip ${state}`;
       chip.disabled = locked;
       chip.innerHTML = `<span>${lesson.title}</span><span class="chip-state" aria-hidden="true"></span>`;
