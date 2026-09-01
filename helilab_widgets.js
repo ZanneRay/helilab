@@ -1889,7 +1889,7 @@ const HLW = (function () {
         : modeNote}</p><p class="hl-note">${modelNote}</p>`;
     };
     slider(ui.controls, { label: 'Forward speed', min: 0, max: 180, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
-    segmented(ui.controls, { label: 'Model assumptions (toggle assumptions)', val: discModel, options: [
+    segmented(ui.controls, { label: 'Model assumptions — toggle assumptions', val: discModel, options: [
       { v: 'exam', t: 'Exam-simplified' }, { v: 'real', t: 'Full-physics' },
     ], on: v => { discModel = v; draw(); } });
     segmented(ui.controls, { label: 'Plot', val: plotMode, options: [
@@ -2827,7 +2827,7 @@ const HLW = (function () {
         font-weight:700;text-align:center;color:#fff;background:${verdict.c};
         letter-spacing:.02em">${verdict.t}</div>`;
       const modelBadge = discModel === 'exam'
-        ? '<div class="hl-kv-banner">Exam-simplified model — this is the simplified exam model.</div>'
+        ? '<div class="hl-kv-banner">This is the simplified exam model (Exam-simplified).</div>'
         : '<div class="hl-kv-banner">Full-physics model — includes twist, trim cyclic, and lateral inflow.</div>';
       ui.readout.innerHTML = banner + modelBadge + kv([
         ['Azimuth ψ', psiDeg.toFixed(0) + '°  (' + side + ')', 'var(--hl-ink)'],
