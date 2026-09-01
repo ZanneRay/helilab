@@ -728,31 +728,47 @@ const HL_LESSONS = [
     subtitle: 'When the tail rotor can no longer hold the yaw',
     widget: 'wLTE',
     body: `
-      <p>The tail rotor must produce enough sideways thrust to balance main-rotor
-      torque. <b>Loss of Tail-rotor Effectiveness (LTE)</b> is an uncommanded,
-      often rapid yaw that happens when the tail rotor's anti-torque thrust is
-      degraded — usually at <b>low airspeed, high power, and out of ground
-      effect</b>, where a relative wind from certain directions upsets it.</p>
-      <p>Three classic wind-azimuth regions (for a CCW main rotor / anti-torque
-      pedal = left) drive it:</p>
-      <ul>
-        <li><b>Weathercock / tail-rotor vortex-ring (≈210–330°):</b> the tail
-            rotor runs in its own vortex ring — thrust becomes erratic.</li>
-        <li><b>Main-rotor disc-vortex interference (≈285–315°):</b> the main-rotor
-            tip vortex washes the tail rotor, cutting its thrust.</li>
-        <li><b>Weathervane instability (≈120–240°):</b> a tailwind tries to swing
-            the nose around.</li>
-      </ul>
-      <p>The danger multiplies with <b>high power</b> (more torque to react) and
-      <b>low speed</b> (no fin authority yet). <b>Recovery:</b> apply <b>full
-      anti-torque pedal</b>, lower collective to cut the torque demand, and gain
-      <b>forward airspeed</b> so the vertical fin and clean airflow restore
-      control. Rotate the wind arrow in the widget and watch the tail-rotor margin
-      collapse in the critical sectors.</p>`,
+      <p>LTE (Loss of Tail Rotor Effectiveness) is not a specific wind direction —
+      it is a condition where the tail rotor can no longer produce enough thrust to
+      maintain yaw control. Three distinct aerodynamic mechanisms can trigger it,
+      each associated with a different relative wind sector. Understanding
+      <em>why</em> each mechanism reduces tail rotor thrust is more important than
+      memorising the sectors.</p>
+
+      <h4>Mechanism 1 — Tail Rotor Vortex Ring State (wind from ≈210°–330°)</h4>
+      <p>Wind from the left-rear quadrant opposes and then recirculates tail rotor
+      downwash. The tail rotor enters its own vortex ring — thrust becomes erratic
+      and reduced. This is the most insidious form: it can occur even with
+      apparently adequate pedal input already applied.</p>
+
+      <h4>Mechanism 2 — Main Rotor Disc Vortex Interference (wind from ≈285°–315°)</h4>
+      <p>Main rotor tip vortices are swept directly across the tail rotor disc.
+      This disrupts inflow and reduces the effective angle of attack on tail rotor
+      blades, causing a thrust loss. This sector overlaps mechanism 1, making the
+      worst-case combination particularly dangerous.</p>
+
+      <h4>Mechanism 3 — Weathercock Instability (wind from ≈120°–240°)</h4>
+      <p>A tailwind component reduces tail rotor inflow velocity, which reduces
+      thrust. Simultaneously the fuselage weathercocks into the wind, generating a
+      yaw rate that develops faster than pedal input can correct. This is more of a
+      handling quality degradation than a sudden thrust loss, but it can escalate
+      rapidly at high power.</p>
+
+      <p class="hl-note">LTE risk increases with: <b>low airspeed</b> (below ETL),
+      <b>high power setting</b> (high torque = high tail rotor demand), <b>high
+      density altitude</b> (reduced tail rotor thrust available), and <b>right yaw
+      inputs</b> (for CCW main rotor systems) that increase load on the tail rotor.
+      No single wind direction is dangerous — it is the combination of conditions.</p>
+
+      <p><b>Recovery:</b> increase airspeed — translational lift restores tail rotor
+      inflow effectiveness. Apply full anti-torque pedal and lower collective to
+      reduce torque demand. Rotate the wind arrow in the widget and observe how
+      each sector degrades the tail-rotor margin.</p>`,
     takeaways: [
-      'LTE = uncommanded yaw when tail-rotor anti-torque thrust is degraded.',
-      'Worst at low speed, high power, OGE, with wind in the critical azimuth sectors.',
-      'Recover: full anti-torque pedal, lower collective, gain forward airspeed.',
+      'LTE has three distinct mechanisms — vortex ring state, disc vortex interference, and weathercock instability — each in a different wind sector.',
+      'The dangerous combination is low IAS + high power + critical wind sector + high DA. Any one factor alone is manageable; together they are not.',
+      'Recovery: increase airspeed (pedal to the stop is secondary) — translational lift restores tail rotor inflow effectiveness.',
+      'LTE is preventable: avoid slow, high-power, low-altitude manoeuvres in wind conditions that put you in a critical sector.',
     ],
     check: {
       q: 'LTE is most likely to occur in which regime?',
