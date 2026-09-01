@@ -225,6 +225,13 @@
     const relIds = HL_RELATED[lesson.id] || [];
     if (relIds.length) main.appendChild(buildRelated(relIds));
 
+    // optional bridge sentence to next lesson
+    if (lesson.bridge) {
+      const br = el('div', 'hl-bridge');
+      br.innerHTML = '→ ' + lesson.bridge;
+      main.appendChild(br);
+    }
+
     // footer nav
     const foot = el('div', 'hl-lesson-foot');
     const prev = el('button', 'hl-foot-btn', '← Previous');
