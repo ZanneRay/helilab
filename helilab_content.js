@@ -51,30 +51,59 @@ const HL_LESSONS = [
   },
   {
     id: 'bladeelement', stage: 'Basics', title: 'The Blade Element',
-    subtitle: 'Where lift is actually born — θ, φ and α',
+    subtitle: 'Where lift is actually born — pitch angle θ, inflow angle φ, and angle of attack α',
     widget: 'wBladeElement',
     body: `
       <p><b>Blade Element Theory (BET)</b> says: to understand the whole rotor,
       look at one thin slice of one blade and add up all the slices. This single
       slice is the heart of everything you will draw on your exam.</p>
-      <p>The slice sees a <b>relative wind</b> — the air coming at it. Three angles
-      describe its world:</p>
+
+      <p>Build the picture one step at a time:</p>
+      <ol>
+        <li><b>Step 1 — tangential velocity U<sub>T</sub>:</b> the blade sweeps
+            through the air. The dominant velocity at the element is tangential —
+            perpendicular to the blade span, parallel to the rotor plane.</li>
+        <li><b>Step 2 — induced inflow U<sub>P</sub>:</b> the rotor is pulling air
+            downward. This adds a perpendicular (axial) component to the velocity
+            seen by the blade.</li>
+        <li><b>Step 3 — resultant relative airflow:</b> combine U<sub>T</sub> and
+            U<sub>P</sub> vectorially. The blade does not see purely tangential flow;
+            it sees a resultant that is angled slightly downward from the rotor
+            plane.</li>
+        <li><b>Step 4 — three distinct angles:</b> now you can place θ, φ, and α
+            precisely on the diagram.</li>
+      </ol>
+
+      <p>The three angles, each defined once:</p>
       <ul>
-        <li><b>θ (pitch)</b> — the angle you set with the collective, between the
-            chord and the rotor plane.</li>
-        <li><b>φ (inflow angle)</b> — how far the relative wind is tilted below the
-            rotor plane, because the rotor is pulling air down through itself.</li>
-        <li><b>α (angle of attack)</b> = <b>θ − φ</b> — the angle the blade actually
-            "feels". This is what makes lift.</li>
+        <li><b>Pitch angle θ</b> — the angle between the blade chord and the rotor
+            plane. You set this with the collective (or cyclic). It is a
+            <em>mechanical</em> setting, independent of airflow.</li>
+        <li><b>Inflow angle φ</b> (phi) — the angle between the resultant relative
+            airflow and the rotor plane. It exists because U<sub>P</sub> tilts the
+            flow downward. φ = arctan(U<sub>P</sub> / U<sub>T</sub>).</li>
+        <li><b>Angle of attack α</b> — the angle between the chord and the
+            resultant relative airflow. This is the angle the blade
+            <em>aerodynamically feels</em>: <b>α = θ − φ</b>. Lift and drag depend
+            on α, not on θ.</li>
       </ul>
-      <p>The crucial pilot insight: <b>α is not θ</b>. You set θ, but the induced
-      inflow steals some of it away as φ. Pull pitch and α rises; let the inflow
-      build and α falls back. Drag the sliders and watch lift grow — until α
-      reaches the stall and lift collapses.</p>`,
+
+      <p class="hl-note"><b>Common student confusion — read this carefully:</b><br>
+      <b>Pitch angle θ is NOT angle of attack α.</b> They are equal only in the
+      unrealistic case of zero inflow (U<sub>P</sub> = 0). In every real rotor
+      there is induced inflow, so φ &gt; 0, and therefore α &lt; θ.<br>
+      <b>Inflow increases φ, which reduces α even when θ is held constant.</b>
+      You set θ with your controls; the airflow environment determines φ; the
+      blade responds to α.</p>
+
+      <p>Drag the sliders to raise θ and watch α and lift grow — until α reaches
+      the stall angle and lift collapses. Notice that increasing the inflow
+      (raising U<sub>P</sub>) reduces α for the same θ, demonstrating why induced
+      velocity limits how much thrust a given pitch setting can produce.</p>`,
     takeaways: [
-      'α = θ − φ. You command θ; the airflow decides φ; the blade feels α.',
-      'Lift ∝ α (until stall). Inflow φ always eats into your commanded pitch.',
-      'One blade element, repeated around the disc, is the whole rotor.',
+      'α = θ − φ: you command pitch angle θ, the induced inflow sets inflow angle φ, and the blade feels angle of attack α — these are three separate quantities.',
+      'Lift depends on α, not θ. More inflow (larger φ) reduces α and therefore reduces lift, even if you have not touched the collective.',
+      'One blade element, repeated spanwise and azimuthally around the disc, is the whole rotor — mastering this slice means mastering everything.',
     ],
     check: {
       q: 'You raise collective (θ) but the induced velocity also increases. Why does lift rise less than you might expect?',
@@ -86,6 +115,7 @@ const HL_LESSONS = [
       ], answer: 0,
       explain: 'More thrust pulls more air down → bigger induced velocity → bigger φ. Since α = θ − φ, part of your extra pitch is offset by the extra inflow. This self-limiting behaviour is why rotors are stable in thrust.',
     },
+    bridge: 'Next — <b>Hover &amp; Induced Flow</b> shows how induced velocity v<sub>i</sub> and inflow ratio λ are calculated from first principles, putting numbers on φ and completing the hover picture.',
   },
   {
     id: 'spanwise', stage: 'Basics', title: 'Speed Along the Blade',
