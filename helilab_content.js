@@ -161,7 +161,7 @@ const HL_LESSONS = [
       <b>thrust</b> on the helicopter. The speed of that downward airflow at the
       disc is the <b>induced velocity v<sub>i</sub></b> — the faster the air moves,
       the more momentum (and therefore thrust) the rotor can produce.</p>
-      <p><b>Causal chain — thrust → v<sub>i</sub> → φ → power:</b></p>
+      <p><b>Causal chain — thrust → v<sub>i</sub> → λ → φ → power:</b></p>
       <ol>
         <li>More thrust needed (heavier aircraft, thinner air) → rotor must
             accelerate air faster → <b>v<sub>i</sub> rises</b>.</li>
