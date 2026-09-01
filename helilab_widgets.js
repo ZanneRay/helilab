@@ -3208,7 +3208,7 @@ const HLW = (function () {
       const px = W * 0.66, pw = W * 0.32, py = H * 0.14, ph = H * 0.72;
       // mini-axes
       HLD.dline(ctx, px, py + ph / 2, px + pw, py + ph / 2, col.grid, 1, [3, 3]);
-      HLD.text(ctx, 'lead / lag ζ(ψ)', W < 420 ? px : px + pw / 2, W < 420 ? py - 10 : py - 4, col.dim, (W < 420 ? '9px ' : '10px ') + 'IBM Plex Sans', W < 420 ? 'left' : 'center');
+      HLD.text(ctx, 'lead/lag (in-plane) ζ(ψ)', W < 420 ? px : px + pw / 2, W < 420 ? py - 10 : py - 4, col.dim, (W < 420 ? '9px ' : '10px ') + 'IBM Plex Sans', W < 420 ? 'left' : 'center');
       HLD.text(ctx, '+lead', px, py + 8, col.good, '9px IBM Plex Sans', 'left');
       HLD.text(ctx, '−lag', px, py + ph - 4, '#c060d0', '9px IBM Plex Sans', 'left');
       ctx.strokeStyle = col.accent; ctx.lineWidth = 2; ctx.beginPath();
@@ -3220,8 +3220,8 @@ const HLW = (function () {
       ui.readout.innerHTML = kv([
         ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
         ['Head type', articulated ? 'Articulated (lead–lag hinge)' : 'Underslung (teetering/rigid)', 'var(--hl-accent)'],
-        ['Flap β at ψ=' + psiDeg.toFixed(0) + '°', beta.toFixed(1) + '°', 'var(--hl-lift)'],
-        ['Hunting ζ at ψ=' + psiDeg.toFixed(0) + '°', (zDeg >= 0 ? '+' : '') + zDeg.toFixed(2) + '° ' + (zDeg >= 0 ? '(lead)' : '(lag)'),
+        ['Flap β (out-of-plane) at ψ=' + psiDeg.toFixed(0) + '°', beta.toFixed(1) + '°', 'var(--hl-lift)'],
+        ['Lead/lag ζ (in-plane) at ψ=' + psiDeg.toFixed(0) + '°', (zDeg >= 0 ? '+' : '') + zDeg.toFixed(2) + '° ' + (zDeg >= 0 ? '(lead)' : '(lag)'),
           zDeg >= 0 ? 'var(--hl-good)' : '#c060d0'],
       ]) + `<p class="hl-note">Coriolis: as the blade flaps <b>up</b> its mass moves
         <b>in</b> toward the shaft, so it <b>speeds up and leads</b>; flapping down it
