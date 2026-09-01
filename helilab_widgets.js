@@ -451,9 +451,9 @@ const HLW = (function () {
     host.insertBefore(stepBar, host.firstChild);
 
     const CAPTIONS = [
-      'Rotor plane + blade chord. U\u209C = \u03A9\u00B7r is the tangential velocity — how fast the blade moves through the air.',
-      'Now add U\u209A — the axial / induced inflow that pushes air downward through the rotor disc.',
-      'U\u209C and U\u209A combine to give the resultant relative airflow V_rel. Its angle to the rotor plane is \u03C6.',
+      'Rotor plane + blade chord. v_rot = \u03A9\u00B7r is the tangential velocity — how fast the blade moves through the air.',
+      'Now add v_i — the axial / induced inflow that pushes air downward through the rotor disc.',
+      'v_rot and v_i combine to give the resultant relative airflow V_rel. Its angle to the rotor plane is \u03C6.',
       'Full picture: \u03B8 is the blade pitch, \u03C6 the inflow angle, and \u03B1 = \u03B8 \u2212 \u03C6 is the angle of attack.',
     ];
 
@@ -512,7 +512,7 @@ const HLW = (function () {
       // U_T is visible in steps 1, 2, and 3 (as a leg of the triangle)
       if (step >= 1 && step <= 2) {
         HLD.arrow(ctx, fX, fY, ox, fY, col.accent, 2.5, 9);
-        HLD.chipLabel(ctx, 'U\u209C  tangential velocity (= \u03A9\u00B7r)', (fX + ox) / 2, fY + 15, col.accent, 'bold 10px IBM Plex Sans', 'center');
+        HLD.chipLabel(ctx, 'v_rot  tangential velocity (= \u03A9\u00B7r)', (fX + ox) / 2, fY + 15, col.accent, 'bold 10px IBM Plex Sans', 'center');
       }
       if (step === 2) {
         // U_P leg: induced inflow, perpendicular downward (only if nonzero)
@@ -521,7 +521,7 @@ const HLW = (function () {
           const sq = 5;
           HLD.dline(ctx, fX - sq, fY - sq, fX, fY - sq, col.dim, 1);
           HLD.dline(ctx, fX - sq, fY - sq, fX - sq, fY, col.dim, 1);
-          HLD.chipLabel(ctx, 'U\u209A  induced inflow (= v\u1D35)', fX - 12, (wty + fY) / 2, col.wind, 'bold 10px IBM Plex Sans', 'right');
+          HLD.chipLabel(ctx, 'v_i  induced inflow', fX - 12, (wty + fY) / 2, col.wind, 'bold 10px IBM Plex Sans', 'right');
         }
       }
       if (step === 3) {
@@ -532,9 +532,9 @@ const HLW = (function () {
           const sq = 5;
           HLD.dline(ctx, fX - sq, fY - sq, fX, fY - sq, col.dim, 1);
           HLD.dline(ctx, fX - sq, fY - sq, fX - sq, fY, col.dim, 1);
-          HLD.chipLabel(ctx, 'U\u209A', fX - 7, (wty + fY) / 2, col.wind, 'bold 10px IBM Plex Sans', 'right');
+          HLD.chipLabel(ctx, 'v_i', fX - 7, (wty + fY) / 2, col.wind, 'bold 10px IBM Plex Sans', 'right');
         }
-        HLD.chipLabel(ctx, 'U\u209C', (fX + ox) / 2, fY + 12, col.accent, 'bold 10px IBM Plex Sans', 'center');
+        HLD.chipLabel(ctx, 'v_rot', (fX + ox) / 2, fY + 12, col.accent, 'bold 10px IBM Plex Sans', 'center');
         // re-stamp rotor-plane label so it is not overwritten by U_P leg
         HLD.chipLabel(ctx, 'rotor plane', ox + len * 1.12, oy - 9, col.dim, '10px IBM Plex Sans', 'right');
       }
@@ -547,8 +547,8 @@ const HLW = (function () {
           ['Inflow φ', phi.toFixed(1) + '°' + (linked ? ' (from θ)' : ''), 'var(--hl-wind)'],
           ['AoA α = θ − φ', aoaDeg.toFixed(1) + '°', stall ? 'var(--hl-bad)' : 'var(--hl-good)'],
           ['Lift coeff C_l', stall ? 'collapsed' : cl.toFixed(2), stall ? 'var(--hl-bad)' : 'var(--hl-ink)'],
-          ['v_rot (U_T)', vrot.toFixed(0) + ' m/s', 'var(--hl-wind)'],
-          ['v_i (U_P)', vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+          ['v_rot', vrot.toFixed(0) + ' m/s', 'var(--hl-wind)'],
+          ['v_i', vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
         ]) + `<p class="hl-note">${stall
           ? '⚠ Past the stall angle the flow separates and lift collapses — exactly what limits the retreating blade.'
           : linked
@@ -558,9 +558,9 @@ const HLW = (function () {
         ui.readout.innerHTML = kv([
           ['Pitch θ', theta.toFixed(1) + '°', 'var(--hl-chord)'],
           ['Inflow φ', phi.toFixed(1) + '°', 'var(--hl-wind)'],
-          ['v_rot (U_T)', vrot.toFixed(0) + ' m/s', 'var(--hl-accent)'],
-          ['v_i (U_P)', vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
-        ]) + '<p class="hl-note">tan φ = U_P / U_T — drag the sliders to see the triangle change.</p>';
+          ['v_rot', vrot.toFixed(0) + ' m/s', 'var(--hl-accent)'],
+          ['v_i', vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+        ]) + '<p class="hl-note">tan φ = v_i / v_rot — drag the sliders to see the triangle change.</p>';
       } else {
         ui.readout.innerHTML = kv([
           ['Pitch θ', theta.toFixed(1) + '°', 'var(--hl-chord)'],
