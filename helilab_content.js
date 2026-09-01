@@ -77,14 +77,14 @@ const HL_LESSONS = [
       'One blade element, repeated around the disc, is the whole rotor.',
     ],
     check: {
-      q: 'You raise collective (θ) but the induced inflow also increases. Why does lift rise less than you might expect?',
+      q: 'You raise collective (θ) but the induced velocity also increases. Why does lift rise less than you might expect?',
       options: [
         'Because more inflow means a larger φ, so α = θ − φ rises less than θ did',
         'Because the blade slows down',
         'Because drag becomes lift',
         'Because θ has no effect on α',
       ], answer: 0,
-      explain: 'More thrust pulls more air down → bigger induced inflow → bigger φ. Since α = θ − φ, part of your extra pitch is offset by the extra inflow. This self-limiting behaviour is why rotors are stable in thrust.',
+      explain: 'More thrust pulls more air down → bigger induced velocity → bigger φ. Since α = θ − φ, part of your extra pitch is offset by the extra inflow. This self-limiting behaviour is why rotors are stable in thrust.',
     },
   },
   {
@@ -145,7 +145,7 @@ const HL_LESSONS = [
       (σ·c<sub>lα</sub>/6), giving exactly (σ·c<sub>lα</sub>/6)(θ₀ − 3λ/2). Same
       physics, two forms; the numbers you see come from the full equation.</p>
       <p>We solve them together for the inflow ratio <b>λ = v<sub>i</sub>/ΩR</b>.
-      The pilot story: pull collective → θ₀ up → thrust up → but induced inflow
+      The pilot story: pull collective → θ₀ up → thrust up → but induced velocity
       also rises, raising φ and trimming α back. Watch thrust, v<sub>i</sub> and
       <b>power</b> all climb together as you raise the collective.</p>`,
     takeaways: [
@@ -342,12 +342,12 @@ const HL_LESSONS = [
       rigid-blade beam-element model with the full Drees inflow. The <b>Blade
       twist</b> switch changes just one input:</p>
       <ul>
-        <li><b>No twist (exam)</b> — the default. An untwisted blade keeps full
+        <li><b>Exam-simplified (no twist)</b> — the default. This is the simplified exam model. An untwisted blade keeps full
             pitch out to the tip, so the high-α zone sits <b>outboard on the
             retreating side and the tip stalls first</b> (≈0.9–1.0 R, ψ≈270°),
             spreading inboard as speed, weight, g or density altitude rise. This
             is the clean ATPL/POF plate and the 082 exam answer.</li>
-        <li><b>With twist (real)</b> — the aircraft's real −8° washout unloads
+        <li><b>Full-physics (with twist)</b> — the aircraft's real −8° washout unloads
             the tip and loads the mid-span, so the α peak slides a little
             <b>inboard (≈0.7 R)</b> and the tip is no longer strictly the first to
             go. Nothing is faked — only the twist input changes.</li>
@@ -568,15 +568,15 @@ const HL_LESSONS = [
         <li><b>Front disc (near ψ = 180°, nose):</b> as the helicopter accelerates,
         this part of the disc progressively encounters <em>cleaner, less-downwashed
         air</em> — the wake is being swept backward and has not yet re-entered the front.
-        Local induced flow is <strong>smaller</strong>.</li>
+        Local induced velocity is <strong>smaller</strong>.</li>
         <li><b>Aft disc (near ψ = 0°, tail):</b> this part of the disc remains more
-        immersed in the rotor's own downwash. Local induced flow is
+        immersed in the rotor's own downwash. Local induced velocity is
         <strong>larger</strong>.</li>
       </ul>
       <p>The causal chain that leads to a roll follows from the velocity triangle at each
       station:</p>
       <ol>
-        <li><b>Different induced flow</b> at front vs aft → <b>different normal velocity
+        <li><b>Different induced velocity</b> at front vs aft → <b>different normal velocity
         U_P</b> in the blade's local velocity triangle.</li>
         <li>Different U_P → <b>different inflow angle φ</b> (φ = arctan U_P / U_T).</li>
         <li>Different φ, same collective pitch θ → <b>different effective angle of
@@ -610,8 +610,8 @@ const HL_LESSONS = [
       free-wake or fully transient rotor–body-coupled simulation.</em></p>`,
     takeaways: [
       'Flapback: the rotor disc tilts backward in forward flight because peak flapping lags peak aerodynamic forcing by ~90° (gyroscopic / angular-momentum effect).',
-      'Transverse Flow Effect (inflow roll): during the hover-to-forward-flight transition the front disc encounters cleaner air (less induced flow) while the rear disc remains in downwash (more induced flow).',
-      'Causal chain: asymmetric induced flow → different U_P → different φ → different α → different lift → flapping with ~90° phase lag → roll tendency → countered with lateral cyclic.',
+      'Transverse Flow Effect (inflow roll): during the hover-to-forward-flight transition the front disc encounters cleaner air (less induced velocity) while the rear disc remains in downwash (more induced velocity).',
+      'Causal chain: asymmetric induced velocity → different U_P → different φ → different α → different lift → flapping with ~90° phase lag → roll tendency → countered with lateral cyclic.',
       'Lateral wind, sideslip, or yaw rate add a separate lateral inflow gradient (λ_s) that can also produce a roll, but this is an additional, optional scenario — not the core definition of the Transverse Flow Effect.',
       'Dissymmetry of lift (U_T asymmetry), flapback (phase lag), and inflow roll (fore-aft λ asymmetry) are distinct mechanisms that are trimmed separately.',
     ],

@@ -131,7 +131,7 @@
     });
     // sandbox entry
     const sbBtn = el('button', 'hl-nav-sandbox' + (inSandbox ? ' on' : ''),
-      '<span>🛠</span><span class="hl-nav-text"><b>Sandbox</b><small>Free exploration — all controls</small></span>');
+      '<span>🛠</span><span class="hl-nav-text"><b>Sandbox</b><small>Sandbox mode · 3D free exploration</small></span>');
     sbBtn.onclick = () => { inHome = false; inSandbox = true; inMaths = false; render(); };
     nav.appendChild(sbBtn);
 
@@ -160,7 +160,7 @@
 
     const head = el('div', 'hl-lesson-head');
     head.innerHTML =
-      `<div class="hl-lesson-stage">${lesson.stage} · Lesson ${idx + 1} of ${HL_LESSONS.length}</div>` +
+      `<div class="hl-lesson-stage">${lesson.stage} · Guided mode · Lesson ${idx + 1} of ${HL_LESSONS.length}</div>` +
       `<h1>${lesson.title}</h1><div class="hl-lesson-sub">${lesson.subtitle}</div>`;
     main.appendChild(head);
 
@@ -248,8 +248,8 @@
     const box = el('div', 'hl-check');
     // a11y: expose the whole check as a labelled group
     box.setAttribute('role', 'group');
-    box.setAttribute('aria-label', 'Comprehension check');
-    box.appendChild(el('div', 'hl-check-h', '✎ Quick check'));
+    box.setAttribute('aria-label', 'Quick check');
+    box.appendChild(el('div', 'hl-check-h', '✎ Quick check — predict first, then reveal'));
     box.appendChild(el('div', 'hl-check-q', lesson.check.q));
     const opts = el('div', 'hl-check-opts');
     let answered = false;
@@ -284,7 +284,7 @@
     const main = $('#hlMain');
     main.innerHTML = '';
     const head = el('div', 'hl-lesson-head');
-    head.innerHTML = `<div class="hl-lesson-stage">Free exploration</div>
+    head.innerHTML = `<div class="hl-lesson-stage">Sandbox mode · 3D</div>
       <h1>Sandbox</h1><div class="hl-lesson-sub">Drive every control and watch the
       whole rotor respond at once — disc AoA, a blade element, the power curve and flapping.</div>`;
     main.appendChild(head);

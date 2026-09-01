@@ -214,7 +214,7 @@ const HLW = (function () {
        trim cyclic (θ₁c AND θ₁s), Drees linear inflow (longitudinal κ AND
        lateral k_y = −2μ, Leishman "Principles" §3.5.2), coning/flapping term in
        U_P, atan2 inflow angle. This is the honest picture. Because the lateral
-       inflow raises the induced angle on the retreating side and the washout
+       inflow raises the inflow angle φ on the retreating side and the washout
        unloads the tip, the α peak sits INBOARD (≈0.7 R) and a little BEFORE
        ψ=270° (≈235–240°) — exactly what measurements show.
 
@@ -471,11 +471,11 @@ const HLW = (function () {
       ]) + `<p class="hl-note">${stall
         ? '⚠ Past the stall angle the flow separates and lift collapses — exactly what limits the retreating blade.'
         : linked
-          ? 'Realistic mode: raising θ also raises the induced inflow φ, so α grows much more slowly than θ — the rotor self-limits its thrust.'
+          ? 'Realistic mode: raising θ also raises the inflow angle φ, so α grows much more slowly than θ — the rotor self-limits its thrust.'
           : 'Lift rises with α. Now switch on “link φ to θ” to see that in reality φ grows with θ, eating into your extra pitch.'}</p>`;
     };
     slider(ui.controls, { label: 'Pitch θ (collective)', min: 0, max: 18, step: 0.5, val: theta, unit: '°', on: v => { theta = v; draw(); } });
-    phiCtl = slider(ui.controls, { label: 'Induced inflow angle φ', min: 0, max: 12, step: 0.5, val: phi, unit: '°', on: v => { if (!linked) { phi = v; draw(); } } });
+    phiCtl = slider(ui.controls, { label: 'Inflow angle φ', min: 0, max: 12, step: 0.5, val: phi, unit: '°', on: v => { if (!linked) { phi = v; draw(); } } });
     toggle(ui.controls, { label: 'Link φ to θ (realistic)', val: false, on: v => { linked = v; draw(); } });
     ui.onDraw(draw);
   }
@@ -570,7 +570,7 @@ const HLW = (function () {
         HLD.arrow(ctx, x, discY + 8, x, discY + 8 + viLen, col.wind, 2, 7);
       }
       ctx.globalAlpha = 1;
-      HLD.text(ctx, 'induced flow v_i = ' + sol.vi.toFixed(1) + ' m/s',
+      HLD.text(ctx, 'induced velocity v_i = ' + sol.vi.toFixed(1) + ' m/s',
         cx, discY + 24 + viLen, col.wind, '11px IBM Plex Sans', 'center');
       // thrust vs weight bars (right)
       const bx = W - 70, bTop = discY - 10, bH = H * 0.42;
@@ -720,7 +720,7 @@ const HLW = (function () {
       HLD.hatchRect(ctx, xa, ch.y1, xb - xa, ch.y0 - ch.y1, 'rgba(248,113,113,0.22)', 7);
       HLD.text(ctx, 'VRS', (xa + xb) / 2, ch.y1 + 8, col.bad, 'bold 9px IBM Plex Sans', 'center', 'top');
       HLD.dline(ctx, ch.x0, ch.sy(0), ch.x1, ch.sy(0), col.ink, 1.2, [4, 4]);
-      HLD.text(ctx, 'flow reverses (upflow)', ch.x1 - 2, ch.sy(0) + 10, col.dim, '8px IBM Plex Sans', 'right', 'top');
+      HLD.text(ctx, 'flow reverses (negative U_P)', ch.x1 - 2, ch.sy(0) + 10, col.dim, '8px IBM Plex Sans', 'right', 'top');
       HLD.text(ctx, 'WINDMILL / autorotation', ch.sx(-2.45), ch.sy(-1.55), col.wind, 'bold 9px IBM Plex Sans', 'center');
       HLD.text(ctx, 'CLIMB', ch.sx(0.55), ch.sy(1.75), col.good, 'bold 9px IBM Plex Sans', 'center');
       const px = ch.sx(Math.max(-3, Math.min(1, VcMs / vh))), py = ch.sy(Math.max(-2.2, Math.min(2.2, UP / vh)));
@@ -747,7 +747,7 @@ const HLW = (function () {
       if (phase === 'ACCELERATING ↑') return 'Collective raised → <b>T &gt; W</b> → accelerating up. As the climb builds, <b>U_P = v_i + V_c grows</b> → φ grows → α shrinks, pulling T back toward W.';
       if (phase === 'ACCELERATING ↓') return 'Collective lowered → <b>T &lt; W</b> → accelerating down. The descent <b>shrinks U_P</b> (v_i + V_c ↓) → φ shrinks → α grows, pushing T back up toward W.';
       if (phase === 'STEADY CLIMB') return '✔ <b>T = W</b> again at a steady rate of climb. U_P sits above its hover value, so α is back near hover — the extra collective went into beating the higher inflow, not into more AoA. That is why climbing costs collective/power.';
-      if (phase === 'STEADY DESCENT') return '✔ <b>T = W</b> at a steady rate of descent. In a fast/steep descent <b>U_P reverses</b> (upflow through the disc) — the clean windmill / autorotative state the rotor must reach by passing <i>through</i> VRS. (Engine-off autorotation lives in this regime — Lesson 15.)';
+      if (phase === 'STEADY DESCENT') return '✔ <b>T = W</b> at a steady rate of descent. In a fast/steep descent <b>U_P reverses</b> (negative perpendicular inflow) — the clean windmill / autorotative state the rotor must reach by passing <i>through</i> VRS. (Engine-off autorotation lives in this regime — Lesson 15.)';
       if (phase.indexOf('manual') >= 0) return 'Manual scrub. Press <b>Climb</b> or <b>Descent</b> to watch the transient: T momentarily ≠ W, the aircraft accelerates, and the changing inflow trims it back to T = W.';
       return 'Hover: thrust exactly balances weight. Press <b>Climb</b> or <b>Descent</b> to see how the rotor settles into a steady rate of climb/descent.';
     };
@@ -1160,9 +1160,9 @@ const HLW = (function () {
       const rBar = 0.75;
       const UT = rBar;                      // sin(ψ)=0 at ψ=0 and ψ=π
 
-      // Station A: front (ψ=π, cos=-1) → less induced flow in forward flight
+      // Station A: front (ψ=π, cos=-1) → less induced velocity in forward flight
       const lamA = lam0 - lamc_eff * rBar;
-      // Station B: aft (ψ=0, cos=+1) → more induced flow in forward flight
+      // Station B: aft (ψ=0, cos=+1) → more induced velocity in forward flight
       const lamB = lam0 + lamc_eff * rBar;
 
       const thetaA = bladePitch(st, rBar, Math.PI);
@@ -1199,7 +1199,7 @@ const HLW = (function () {
                       thetaRad, phiRad, alphaRad, liftNorm) {
         const utPx  = Math.min(tw * 0.58, 68);
         const AMP   = 6;                   // visual amplification of UP for clarity
-        // U_P goes UPWARD in the diagram (induced flow downward through disc
+        // U_P goes UPWARD in the diagram (induced velocity downward through disc
         // = air approaches blade from above = perpendicular component points up)
         const upPx  = Math.min(Math.max(0, lamVal) / UT * utPx * AMP, utPx * 0.85);
         const upConPx = Math.max(-22, Math.min(22, lamConing / UT * utPx * AMP));
@@ -1228,7 +1228,7 @@ const HLW = (function () {
         HLD.text(ctx, 'U\u1d40', bx + utPx * 0.5, by + 13,
                  col.chord, '9px IBM Plex Sans', 'center', 'top');
 
-        // U_P arrow (upward from T → C: air approaches from above due to induced flow)
+        // U_P arrow (upward from T → C: air approaches from above due to induced velocity)
         if (upPx > 2) {
           HLD.arrow(ctx, Tx, Ty, Cx, Cy, col.accent, 2, 6);
           HLD.text(ctx, 'U\u209a', Tx + 4, (Ty + Cy) / 2,
@@ -1400,10 +1400,10 @@ const HLW = (function () {
                rpX + rpW / 2, 5, col.ink, 'bold 9px IBM Plex Sans', 'center', 'top');
 
       triBox(triAX, triY, triW, triH,
-             'A \u2014 Front (\u03c8=180\u00b0)', 'less induced flow',
+             'A \u2014 Front (\u03c8=180\u00b0)', 'less induced velocity',
              lamA, coningA, thetaA, phiA, alphaA, liftIdxA / liftMax);
       triBox(triBX, triY, triW, triH,
-             'B \u2014 Aft (\u03c8=0\u00b0)', 'more induced flow',
+             'B \u2014 Aft (\u03c8=0\u00b0)', 'more induced velocity',
              lamB, coningB, thetaB, phiB, alphaB, liftIdxB / liftMax);
 
       // ── Causal chain overlay ────────────────────────────────────────
@@ -1608,7 +1608,7 @@ const HLW = (function () {
          + 'smaller \u03c6 \u2192 larger \u03b1 \u2192 more lift. ~90\u00b0 phase lag \u2192 roll tendency. '
          + 'Lateral cyclic corrects it. Use the <b>Velocity Triangles</b> section for the step-by-step diagram.</p>'
          + latNote
-         + '<p class="hl-note">Disc colours: induced inflow \u03bb(r,\u03c8). Table decomposes the '
+         + '<p class="hl-note">Disc colours: inflow ratio \u03bb(r,\u03c8). Table decomposes the '
          + 'velocity triangle at 0.75R for each azimuth. '
          + `Coning at NOSE=${coningFwd.toFixed(4)}, TAIL=${coningTail.toFixed(4)} `
          + '(modifies local triangle, does NOT create wake asymmetry). '
@@ -1624,7 +1624,7 @@ const HLW = (function () {
         const base = HL.linearInflowModel(st);
         model = { lam0: base.lam0, lamc: 0, lams: 0 };
         title = 'Uniform inflow baseline';
-        note  = 'Reference case: constant induced inflow \u03bb\u2080. No inflow gradients; useful baseline for comparing the effect of fore-aft asymmetry.';
+        note  = 'Reference case: constant inflow ratio \u03bb\u2080. No inflow gradients; useful baseline for comparing the effect of fore-aft asymmetry.';
       } else if (compareModel === 'forward') {
         model = HL.linearInflowModel(st);
         title = 'Forward flight \u2014 fore-aft inflow asymmetry (\u03bb_c)';
@@ -1661,7 +1661,7 @@ const HLW = (function () {
         ['\u03bb_c (long.)',      model.lamc.toFixed(4),  'var(--hl-lift)'],
         ['\u03bb_s (lat.)',       model.lams.toFixed(4),  'var(--hl-warn)'],
       ]) + '<p class="hl-note">' + note + '</p>'
-         + '<p class="hl-note">Representative 0.75R decomposition shown below for each azimuth: induced inflow, blade-motion normal velocity '
+         + '<p class="hl-note">Representative 0.75R decomposition shown below for each azimuth: inflow ratio, blade-motion normal velocity '
          + '(coning/flapping contribution), resultant normal flow, \u03c6, \u03b1, and lift tendency index.</p>'
          + decompTableHtml(rows)
          + '<p class="hl-note">Sign convention used here: positive inflow points down through the disc; \u03c8 = 0\u00b0 tail, 90\u00b0 ADV, 180\u00b0 nose, 270\u00b0 RET.</p>'
@@ -1848,21 +1848,21 @@ const HLW = (function () {
         HLD.text(ctx, '■ high load', lx, 20, 'rgb(235,70,50)', '10px IBM Plex Sans');
         HLD.text(ctx, '■ mid load', lx, 34, 'rgb(60,200,90)', '10px IBM Plex Sans');
         HLD.text(ctx, '■ low / none', lx, 48, 'rgb(40,90,200)', '10px IBM Plex Sans');
-        HLD.text(ctx, '╱ stalled tip', lx, 62, STALL_MARK, '10px IBM Plex Sans');
-        HLD.text(ctx, '■ reverse', lx, 76, '#c46ee0', '10px IBM Plex Sans');
+        HLD.text(ctx, '╱ stalled', lx, 62, STALL_MARK, '10px IBM Plex Sans');
+        HLD.text(ctx, '■ reverse flow', lx, 76, '#c46ee0', '10px IBM Plex Sans');
       } else if (plotMode === 'aoa') {
         // continuous raw-α scale: low (blue) → high (red)
         HLD.text(ctx, '■ low α', lx, 20, 'rgb(40,90,200)', '10px IBM Plex Sans');
         HLD.text(ctx, '■ mid α', lx, 34, col.good, '10px IBM Plex Sans');
         HLD.text(ctx, '■ high α', lx, 48, col.warn, '10px IBM Plex Sans');
         HLD.text(ctx, '╱ stalled', lx, 62, STALL_MARK, '10px IBM Plex Sans');
-        HLD.text(ctx, '■ reverse', lx, 76, '#c46ee0', '10px IBM Plex Sans');
+        HLD.text(ctx, '■ reverse flow', lx, 76, '#c46ee0', '10px IBM Plex Sans');
       } else { // pctcrit
         HLD.text(ctx, '■ ok (<80%)', lx, 20, col.good, '10px IBM Plex Sans');
         HLD.text(ctx, '■ near stall', lx, 34, col.warn, '10px IBM Plex Sans');
         HLD.text(ctx, '■ ≥100% crit', lx, 48, col.bad, '10px IBM Plex Sans');
         HLD.text(ctx, '╱ stalled', lx, 62, STALL_MARK, '10px IBM Plex Sans');
-        HLD.text(ctx, '■ reverse', lx, 76, '#c46ee0', '10px IBM Plex Sans');
+        HLD.text(ctx, '■ reverse flow', lx, 76, '#c46ee0', '10px IBM Plex Sans');
       }
       const stalled = maxRetAoA >= st.stallAoA;
       const machHigh = tipMach > 0.85;
@@ -1877,8 +1877,8 @@ const HLW = (function () {
         lift: 'Normalised <b>load</b> dL/dr ∝ U_T²·C_l — the actual airload. It is dominated by the fast outboard blade and collapses inboard where U_T→0. The load hole opens on the retreating side as speed rises; stalled tip cells are flagged red.'
       }[plotMode];
       const modelNote = discModel === 'exam'
-        ? '<b>Exam plate (textbook simplification):</b> untwisted blade, no lateral cyclic and uniform inflow — the classic ATPL/POF assumptions. The high-α zone sits squarely on the <b>retreating tip at ψ=270°</b> and the <b>tip is the first to stall</b>, spreading inboard as speed, weight, g or altitude rise. This is the clean 082 exam answer.'
-        : '<b>Real blade (full physics):</b> the aircraft\'s −8° washout, full trim cyclic and the disc\'s lateral inflow gradient all act together. Washout unloads the tip, so the α peak slides <i>inboard (≈0.7 R)</i>, and the lateral inflow pulls it a little <i>before 270° (≈235°)</i> — the honest picture measurements show. Switch back to the exam plate for the clean tip-at-270° teaching view.';
+        ? '<b>Exam-simplified model:</b> this is the simplified exam model. Untwisted blade, no lateral cyclic and uniform inflow — the classic ATPL/POF assumptions. The high-α zone sits squarely on the <b>retreating tip at ψ=270°</b> and the <b>tip is the first to stall</b>, spreading inboard as speed, weight, g or altitude rise. This is the clean 082 exam answer.'
+        : '<b>Full-physics model:</b> the aircraft\'s −8° washout, full trim cyclic and the disc\'s lateral inflow gradient all act together. Washout unloads the tip, so the α peak slides <i>inboard (≈0.7 R)</i>, and the lateral inflow pulls it a little <i>before 270° (≈235°)</i> — the honest picture measurements show. Switch back to the exam-simplified model for the clean tip-at-270° teaching view.';
       ui.readout.innerHTML = kv([
         ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
         ['Max retreating α', maxRetAoA.toFixed(1) + '° / ' + st.stallAoA.toFixed(0) + '°', stalled ? 'var(--hl-bad)' : 'var(--hl-warn)'],
@@ -1889,8 +1889,8 @@ const HLW = (function () {
         : modeNote}</p><p class="hl-note">${modelNote}</p>`;
     };
     slider(ui.controls, { label: 'Forward speed', min: 0, max: 180, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
-    segmented(ui.controls, { label: 'Blade twist', val: discModel, options: [
-      { v: 'exam', t: 'No twist (exam)' }, { v: 'real', t: 'With twist (real)' },
+    segmented(ui.controls, { label: 'Model assumptions — toggle assumptions', val: discModel, options: [
+      { v: 'exam', t: 'Exam-simplified' }, { v: 'real', t: 'Full-physics' },
     ], on: v => { discModel = v; draw(); } });
     segmented(ui.controls, { label: 'Plot', val: plotMode, options: [
       { v: 'aoa', t: 'Angle of attack' }, { v: 'pctcrit', t: '% of critical α' }, { v: 'lift', t: 'Lift (load)' },
@@ -1999,7 +1999,7 @@ const HLW = (function () {
       HLD.text(ctx, '■ driving', W - 74, 20, colReg.driving, '10px IBM Plex Sans');
       HLD.text(ctx, '■ driven', W - 74, 34, colReg.driven, '10px IBM Plex Sans');
       HLD.text(ctx, '■ stall', W - 74, 48, colReg.stall, '10px IBM Plex Sans');
-      HLD.text(ctx, '■ reverse', W - 74, 62, colReg.reverse, '10px IBM Plex Sans');
+      HLD.text(ctx, '■ reverse flow', W - 74, 62, colReg.reverse, '10px IBM Plex Sans');
       HLD.chipLabel(ctx, 'tap disc to pick a station', 12, H - 8, col.dim, '10px IBM Plex Sans', 'left', col.bg);
       return { cnt, net };
     };
@@ -2064,7 +2064,7 @@ const HLW = (function () {
       ui.readout.innerHTML = kv([
         ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
         ['Collective θ₀', coll.toFixed(1) + '°', 'var(--hl-chord)'],
-        ['Up-flow through disc', upflow.toFixed(0) + ' m/s', 'var(--hl-wind)'],
+        ['Perpendicular inflow U_P', upflow.toFixed(0) + ' m/s', 'var(--hl-wind)'],
         ['Element region', regChip[rg.reg] + (rg.reg === 'reverse' ? '' : ` · α=${(rg.a * R2D).toFixed(1)}°`),
           rg.reg === 'driving' ? 'var(--hl-good)' : rg.reg === 'driven' ? 'var(--hl-warn)' : rg.reg === 'stall' ? 'var(--hl-bad)' : 'var(--hl-dim)'],
         ['F_H direction', rg.reg === 'reverse' ? 'undefined (reverse)' : (rg.fx < 0 ? 'forward → drives rotor' : 'aft → brakes rotor'),
@@ -2084,7 +2084,7 @@ const HLW = (function () {
 
     slider(ui.controls, { label: 'Forward speed', min: 0, max: 80, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
     slider(ui.controls, { label: 'Collective θ₀ (RRPM control)', min: 1, max: 9, step: 0.5, val: coll, unit: '°', on: v => { coll = v; draw(); } });
-    slider(ui.controls, { label: 'Up-flow through disc', min: 3, max: 12, step: 0.5, val: upflow, unit: ' m/s', fmt: v => v.toFixed(1), on: v => { upflow = v; draw(); } });
+    slider(ui.controls, { label: 'Perpendicular inflow U_P', min: 3, max: 12, step: 0.5, val: upflow, unit: ' m/s', fmt: v => v.toFixed(1), on: v => { upflow = v; draw(); } });
     const rbarCtrl = slider(ui.controls, { label: 'Blade station r/R', min: 0.20, max: 0.97, step: 0.01, val: rBar, fmt: v => v.toFixed(2), on: v => { rBar = v; draw(); } });
     const azCtrl = slider(ui.controls, { label: 'Azimuth ψ', min: 0, max: 355, step: 5, val: psiDeg, unit: '°', on: v => { psiDeg = v; draw(); } });
 
@@ -2198,7 +2198,7 @@ const HLW = (function () {
           fH < 0 ? 'var(--hl-good)' : 'var(--hl-warn)'],
       ]) + `<p class="hl-note">This is the triangle you draw on the exam. F_H is the
         in-plane force: ${fH < 0 ? 'here it points with rotation, the autorotation driving case.' : 'here it opposes rotation — powered/driven flight.'}
-        ${cse === 'auto' ? 'The up-flow used is the net flow through the disc (induced flow already accounted for). ' : ''}F_H is drawn ×6 for visibility — its direction is exact.
+        ${cse === 'auto' ? 'The up-flow used is the net flow through the disc (induced velocity already accounted for). ' : ''}F_H is drawn ×6 for visibility — its direction is exact.
         Practise drawing it by hand.</p>
         `;
     };
@@ -2264,7 +2264,7 @@ const HLW = (function () {
       // ── EASA exam-plate convention (clean blade-element diagram) ─────────────
       // U_T is ALWAYS the true tangential speed r̄ + μ·sinψ, so advancing vs.
       // retreating and the reverse-flow guard stay physically honest.
-      // U_P is the INDUCED DOWNWASH λ_i only — the momentum-theory downwash that
+      // U_P is the induced-velocity downwash λ_i only — the momentum-theory downwash that
       // makes blade lift. It is ALWAYS positive (down THROUGH the disc), so the
       // relative wind is always depressed BELOW the rotor plane and the inflow
       // angle φ is always a positive number. This is the standard ATPL(H)/POF
@@ -2547,10 +2547,10 @@ const HLW = (function () {
       // V_flap segment: the flapping-velocity term. Its ARROW shows the PHYSICAL
       // airflow direction the flapping induces, and its sign tells the stack what to do:
       //   • ADVANCING (v_flap>0, blade flaps UP): the section chases the downwash, so
-      //     the induced flow it sees points DOWN — it ADDS to U_P. Drawn IN the stack,
+      //     the induced velocity it sees points DOWN — it ADDS to U_P. Drawn IN the stack,
       //     head DOWN, extending the stack up from yVn to yTop (taller → φ↑ → α↓).
       //   • RETREATING (v_flap<0, blade flaps DOWN): the section drops away from the
-      //     downwash, so the induced flow it sees points UP — it SUBTRACTS from U_P.
+      //     downwash, so the induced velocity it sees points UP — it SUBTRACTS from U_P.
       //     The physical airflow arrow must therefore point UP. We draw it as its OWN
       //     up-pointing arrow just to the SIDE of the stack (small offset, like V_T),
       //     spanning the amount it removes (from yVn up to yTop, which is ABOVE yVn).
@@ -2581,7 +2581,7 @@ const HLW = (function () {
           if (showDetailLabels) HLD.chipLabel(ctx, flTxt, xBase, yTop - 11, flCol,
             FSM, 'center');
         } else {
-          // subtracts: the down-flapping blade sees UPWARD induced flow, so the
+          // subtracts: the down-flapping blade sees UPWARD induced velocity, so the
           // PHYSICAL airflow arrow must point UP. yTop is BELOW yVn on the retreating
           // side (U_P shrank / went up-flow), so drawing tail=yTop (low) → head=yVn
           // (high) makes the head sit at the TOP = pointing UP, exactly the physical
@@ -2826,7 +2826,10 @@ const HLW = (function () {
       const banner = `<div style="margin:0 0 8px;padding:7px 10px;border-radius:6px;
         font-weight:700;text-align:center;color:#fff;background:${verdict.c};
         letter-spacing:.02em">${verdict.t}</div>`;
-      ui.readout.innerHTML = banner + kv([
+      const modelBadge = discModel === 'exam'
+        ? '<div class="hl-kv-banner">This is the simplified exam model (Exam-simplified).</div>'
+        : '<div class="hl-kv-banner">Full-physics model — includes twist, trim cyclic, and lateral inflow.</div>';
+      ui.readout.innerHTML = banner + modelBadge + kv([
         ['Azimuth ψ', psiDeg.toFixed(0) + '°  (' + side + ')', 'var(--hl-ink)'],
         ['V_rot = Ω·r', VrotMS.toFixed(0) + ' m/s', 'var(--hl-lift)'],
         ['V_T = μ·sinψ', (VtMS >= 0 ? '+' : '') + VtMS.toFixed(0) + ' m/s', Vt < 0 ? 'var(--hl-bad)' : 'var(--hl-accent)'],
@@ -2893,10 +2896,10 @@ const HLW = (function () {
         the rotor plane, and <b>α = θ − φ</b>. U_P is drawn ×${AMP} for visibility —
         its direction and the resulting α are exact.</p>
         <p class="hl-note" style="border-left:0;opacity:.9"><b>Model note — uniform
-        inflow:</b> this BET uses a <b>uniform induced inflow</b> (V_i taken
+        inflow:</b> this BET uses a <b>uniform inflow ratio</b> (V_i taken
         spanwise-constant), the standard exam simplification. Real rotors shed
         <b>tip vortices</b> that add extra downwash near the tip, so the induced
-        flow there is larger than shown. Consequently the swing to
+        velocity there is larger than shown. Consequently the swing to
         <b style="color:var(--hl-warn)">net up-flow (U_P &lt; 0, V_rel from below the
         TPP)</b> on the retreating tip appears <b>earlier and stronger</b> in this
         uniform model than in reality — in a real rotor the extra tip downwash
@@ -3007,8 +3010,8 @@ const HLW = (function () {
       on: v => { Vkt = v; draw(); },
     });
     segmented(ui.controls, {
-      label: 'Stall model (matches disc map)', val: discModel, options: [
-        { v: 'exam', t: 'No twist (exam)' }, { v: 'real', t: 'With twist (real)' },
+      label: 'Stall model (toggle assumptions)', val: discModel, options: [
+        { v: 'exam', t: 'Exam-simplified' }, { v: 'real', t: 'Full-physics' },
       ], on: v => { discModel = v; draw(); },
     });
     toggle(ui.controls, {
@@ -3649,7 +3652,7 @@ const HLW = (function () {
       produce a forward thrust component. The total inflow <b>λ</b> normal to the
       disc therefore has <b>two</b> parts — this is the point your question (c) was
       about:`);
-    figure(300, 'Fig. 2 — Side view. The nose-down tip-path-plane makes the free stream V pass partly THROUGH the disc (μ·tanα_TPP) on top of the induced inflow λ_i.',
+    figure(300, 'Fig. 2 — Side view. The nose-down tip-path-plane makes the free stream V pass partly THROUGH the disc (μ·tanα_TPP) on top of the inflow ratio λ_i.',
       (ctx, W, H, col) => {
         const cx = W / 2, cy = H / 2;
         const half = Math.min(W, H) * 0.36;
@@ -3678,7 +3681,7 @@ const HLW = (function () {
         const nx = Math.sin(aTPP), ny = Math.cos(aTPP); // unit normal (downward through disc)
         HLD.arrow(ctx, px, py, px + nx * nlen, py + ny * nlen, col.bad, 2, 8);
         HLD.chipLabel(ctx, 'μ·tanα_TPP', px + nx * nlen + 4, py + ny * nlen, col.bad, '10px IBM Plex Sans, sans-serif', 'left');
-        // induced inflow λ_i straight down through hub
+        // inflow ratio λ_i straight down through hub
         HLD.arrow(ctx, cx + dx * 0.4, cy - dy * 0.4, cx + dx * 0.4 + nx * nlen * 0.7, cy - dy * 0.4 + ny * nlen * 0.7, col.wind, 2, 8);
         HLD.chipLabel(ctx, 'λ_i (induced)', cx + dx * 0.4 + nx * nlen * 0.7 + 4, cy - dy * 0.4 + ny * nlen * 0.7, col.wind, '10px IBM Plex Sans, sans-serif', 'left');
       });
