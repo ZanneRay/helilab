@@ -3447,40 +3447,107 @@ const HLW = (function () {
   function wLTE(host) {
     const ui = scaffold(host);
     let windDeg = 300, windKt = 12, collPct = 90;
+    // Risk-factor toggles: each adds to the margin penalty when active.
+    const riskFactors = [
+      { label: 'Low IAS (below ETL)', active: false, penalty: 0.15 },
+      { label: 'High density altitude', active: false, penalty: 0.12 },
+      { label: 'Right yaw demand (CCW rotor)', active: false, penalty: 0.10 },
+    ];
     // relative-wind azimuth: 0 = from the nose, 90 = from the right, 180 = tail,
     // 270 = from the left. Critical sectors (CCW rotor / left anti-torque pedal):
-    //   weathercock + TR-VRS  ≈ 210–330°
-    //   main-disc vortex intf ≈ 285–315°
-    //   weathervane (tailwind) ≈ 120–240°
+    //   weathercock + TR-VRS  ≈ 210–330°   Mechanism 1
+    //   main-disc vortex intf ≈ 285–315°   Mechanism 2
+    //   weathervane (tailwind) ≈ 120–240°  Mechanism 3
     const inArc = (a, lo, hi) => { a = ((a % 360) + 360) % 360; return lo <= hi ? (a >= lo && a <= hi) : (a >= lo || a <= hi); };
+    // Sector definitions: each carries a display name and a tooltip explaining
+    // why thrust is reduced in that sector.
+    const sectors = [
+      {
+        lo: 120, hi: 240,
+        name: 'Mechanism 3 — Weathercock Instability',
+        tip: 'Tailwind component reduces tail rotor inflow → thrust loss. Fuselage weathercocks into wind → yaw rate faster than pedal can correct.',
+        baseAlpha: 0.16, color: '240,190,60',
+      },
+      {
+        lo: 210, hi: 330,
+        name: 'Mechanism 1 — Tail Rotor Vortex Ring State',
+        tip: 'Wind opposes and recirculates tail rotor downwash. Tail rotor enters its own vortex ring → thrust becomes erratic. Most insidious: can occur with apparently adequate pedal input.',
+        baseAlpha: 0.13, color: '235,70,50',
+      },
+      {
+        lo: 285, hi: 315,
+        name: 'Mechanism 2 — Main Rotor Disc Vortex Interference',
+        tip: 'Main rotor tip vortices sweep across tail rotor disc → disrupts inflow → reduces effective AoA on tail rotor blades → thrust loss. Often combined with Mechanism 1.',
+        baseAlpha: 0.30, color: '180,60,200',
+      },
+    ];
+    const activeRiskCount = () => riskFactors.filter(f => f.active).length;
+    const riskBoost = () => Math.min(0.6, riskFactors.reduce((s, f) => s + (f.active ? f.penalty : 0), 0));
+
+    // Build risk-factor toggle checkboxes below the sliders
+    const rfWrap = el('div', 'hl-lte-risk-factors');
+    rfWrap.style.cssText = 'margin-top:8px;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11px;';
+    const rfTitle = el('div', '');
+    rfTitle.style.cssText = 'width:100%;font-weight:600;color:var(--hl-warn);';
+    rfTitle.textContent = 'Risk factors (activate to intensify sector highlights):';
+    rfWrap.appendChild(rfTitle);
+    riskFactors.forEach(rf => {
+      const lbl = el('label', '');
+      lbl.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = rf.active;
+      cb.addEventListener('change', () => { rf.active = cb.checked; draw(); });
+      lbl.appendChild(cb);
+      lbl.appendChild(document.createTextNode(rf.label));
+      rfWrap.appendChild(lbl);
+    });
+    ui.controls.appendChild(rfWrap);
+
+    // Sector info panel: shown below readout, updates with active sector
+    const infoPanel = el('div', 'hl-lte-sector-info');
+    infoPanel.style.cssText = 'margin-top:6px;padding:6px 8px;border-radius:4px;font-size:11px;line-height:1.5;background:var(--hl-surface,#1a1a2e);border:1px solid var(--hl-grid,#333);';
+    ui.readout.parentNode && ui.readout.parentNode.insertBefore(infoPanel, ui.readout.nextSibling);
+
     const draw = () => {
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
       HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
       const cx = W * 0.40, cy = H * 0.52, R = Math.min(W * 0.30, H * 0.40);
-      // draw sector wedges first (behind the airframe)
-      const wedge = (lo, hi, color) => {
-        // azimuth 0 = nose = up (canvas -y). clockwise with increasing az to the right.
-        const a = (deg) => (-90 + deg) * D2R;  // 0→up, 90→right, 180→down, 270→left
-        ctx.fillStyle = color; ctx.beginPath(); ctx.moveTo(cx, cy);
+      const boost = riskBoost();
+      // draw sector wedges first (behind the airframe); intensify when risk factors active
+      const wedge = (lo, hi, color, alpha) => {
+        const a = (deg) => (-90 + deg) * D2R;
+        ctx.fillStyle = `rgba(${color},${Math.min(0.85, alpha + boost * 1.5)})`; ctx.beginPath(); ctx.moveTo(cx, cy);
         ctx.arc(cx, cy, R * 1.06, a(lo), a(hi)); ctx.closePath(); ctx.fill();
       };
-      wedge(120, 240, 'rgba(240,190,60,0.16)');  // weathervane
-      wedge(210, 330, 'rgba(235,70,50,0.13)');   // weathercock + TR-VRS
-      wedge(285, 315, 'rgba(180,60,200,0.30)');  // main-disc vortex interference
+      sectors.forEach(s => wedge(s.lo, s.hi, s.color, s.baseAlpha));
+      // sector name labels at mid-arc, outside the disc
+      const labelSector = (lo, hi, name, color) => {
+        const midDeg = lo + ((hi - lo + 360) % 360) / 2;
+        const ma = (-90 + midDeg) * D2R;
+        const lx = cx + Math.cos(ma) * (R * 1.28), ly = cy + Math.sin(ma) * (R * 1.28);
+        // split name to two lines: "Mechanism N" on first line, rest on second
+        const parts = name.split(' — ');
+        const line1 = parts[0], line2 = parts[1] || '';
+        ctx.save(); ctx.font = '8px IBM Plex Sans'; ctx.fillStyle = `rgba(${color},0.85)`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(line1, lx, ly - 5);
+        ctx.fillText(line2, lx, ly + 6);
+        ctx.restore();
+      };
+      labelSector(120, 240, 'Mechanism 3 — Weathercock Instability', '240,190,60');
+      labelSector(210, 330, 'Mechanism 1 — TR Vortex Ring State', '235,70,50');
+      labelSector(285, 315, 'Mechanism 2 — Disc Vortex Interference', '180,60,200');
       // fuselage: nose up, tail down; CCW main rotor, tail rotor on the LEFT boom
       ctx.strokeStyle = col.dim; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.ellipse(cx, cy, R * 0.16, R * 0.30, 0, 0, 2 * Math.PI); ctx.stroke();  // cabin
-      HLD.dline(ctx, cx, cy + R * 0.30, cx, cy + R * 0.92, col.dim, 3, [1, 0]);                    // tail boom (down = aft)
-      // tail rotor at boom end, on the left side
+      ctx.beginPath(); ctx.ellipse(cx, cy, R * 0.16, R * 0.30, 0, 0, 2 * Math.PI); ctx.stroke();
+      HLD.dline(ctx, cx, cy + R * 0.30, cx, cy + R * 0.92, col.dim, 3, [1, 0]);
       HLD.dot(ctx, cx - 6, cy + R * 0.92, 5, col.accent);
       HLD.text(ctx, 'tail rotor', cx - 10, cy + R * 0.99, col.accent, '9px IBM Plex Sans', 'right');
-      // main rotor disc
       ctx.strokeStyle = col.grid; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
       HLD.text(ctx, 'NOSE', cx, cy - R - 8, col.dim, '10px IBM Plex Sans', 'center');
       HLD.text(ctx, 'TAIL', cx, cy + R + 16, col.dim, '10px IBM Plex Sans', 'center');
       HLD.text(ctx, 'R', cx + R + 8, cy, col.dim, '10px IBM Plex Sans', 'left', 'middle');
       HLD.text(ctx, 'L', cx - R - 8, cy, col.dim, '10px IBM Plex Sans', 'right', 'middle');
-      // wind arrow: comes FROM windDeg toward the aircraft centre
+      // wind arrow
       const wa = (-90 + windDeg) * D2R;
       const wx = cx + Math.cos(wa) * (R + 30), wy = cy + Math.sin(wa) * (R + 30);
       HLD.arrow(ctx, wx, wy, cx + Math.cos(wa) * R * 0.5, cy + Math.sin(wa) * R * 0.5, col.wind, 3, 11);
@@ -3488,16 +3555,15 @@ const HLW = (function () {
       // ── tail-rotor margin model ──────────────────────────────────────────
       const st = HL.defaultState(); st.theta0 = 4 + (collPct / 100) * 11;
       const tw = HL.axialSolve(st, 0).thrust / HL.weightN(st);
-      // Clean-air TR margin stays comfortably >1 even at high power (a healthy
-      // rotor holds torque fine with no adverse wind). It only tapers modestly
-      // with power. Adverse wind sectors then subtract from it.
-      let margin = 1.55 - 0.28 * Math.max(0, tw - 0.6) / 1.0;   // ~1.55 low power → ~1.2 high power
-      // wind-strength scaling of the disturbances (grows to full effect ~17 kt)
+      let margin = 1.55 - 0.28 * Math.max(0, tw - 0.6) / 1.0;
       const ws = Math.min(1, windKt / 17);
       let cause = 'clean';
-      if (inArc(windDeg, 285, 315)) { margin -= 0.75 * ws; cause = 'Main-rotor disc-vortex interference'; }
-      else if (inArc(windDeg, 210, 330)) { margin -= 0.55 * ws; cause = 'Weathercock / tail-rotor VRS'; }
-      else if (inArc(windDeg, 120, 240)) { margin -= 0.45 * ws; cause = 'Weathervane (tailwind) instability'; }
+      let activeSector = null;
+      if (inArc(windDeg, 285, 315)) { margin -= 0.75 * ws; cause = 'Mechanism 2 — Disc Vortex Interference'; activeSector = sectors[2]; }
+      else if (inArc(windDeg, 210, 330)) { margin -= 0.55 * ws; cause = 'Mechanism 1 — TR Vortex Ring State'; activeSector = sectors[1]; }
+      else if (inArc(windDeg, 120, 240)) { margin -= 0.45 * ws; cause = 'Mechanism 3 — Weathercock Instability'; activeSector = sectors[0]; }
+      // apply extra penalty for each active risk factor
+      margin -= riskFactors.reduce((sum, f) => sum + (f.active ? f.penalty : 0), 0);
       margin = Math.max(0, margin);
       const lte = margin < 1.0;
       const severe = margin < 0.85;
@@ -3505,7 +3571,6 @@ const HLW = (function () {
       const bx = W * 0.72, by = H * 0.18, bw = 34, bh = H * 0.64;
       HLD.text(ctx, 'TR margin', bx + bw / 2, by - 12, col.dim, '10px IBM Plex Sans', 'center');
       ctx.strokeStyle = col.dim; ctx.lineWidth = 1; ctx.strokeRect(bx, by, bw, bh);
-      // 1.0 reference line (needed to hold torque)
       const full = 1.7;
       const y1 = by + bh - (1.0 / full) * bh;
       HLD.dline(ctx, bx - 6, y1, bx + bw + 6, y1, col.warn, 1.4, [4, 3]);
@@ -3516,13 +3581,18 @@ const HLW = (function () {
       ui.readout.innerHTML = kv([
         ['Relative wind FROM', windDeg.toFixed(0) + '°  ·  ' + windKt.toFixed(0) + ' kt', 'var(--hl-wind)'],
         ['Collective (power)', collPct.toFixed(0) + '%  ·  T/W ' + tw.toFixed(2), 'var(--hl-ink)'],
-        ['Disturbance', cause, cause === 'clean' ? 'var(--hl-good)' : 'var(--hl-warn)'],
+        ['Active mechanism', cause === 'clean' ? 'none — clean air' : cause, cause === 'clean' ? 'var(--hl-good)' : 'var(--hl-warn)'],
+        ['Risk factors active', activeRiskCount() + ' / ' + riskFactors.length, activeRiskCount() >= 2 ? 'var(--hl-bad)' : (activeRiskCount() === 1 ? 'var(--hl-warn)' : 'var(--hl-good)')],
         ['Tail-rotor margin', (margin * 100).toFixed(0) + '% of demand', severe ? 'var(--hl-bad)' : (lte ? 'var(--hl-warn)' : 'var(--hl-good)')],
         ['State', severe ? 'LTE — uncommanded yaw' : (lte ? 'marginal — degrading' : 'controllable'),
           severe ? 'var(--hl-bad)' : (lte ? 'var(--hl-warn)' : 'var(--hl-good)')],
       ]) + `<p class="hl-note">${lte
-          ? '<b>Tail-rotor thrust can no longer balance torque.</b> Cause: <b>' + cause + '</b>. <b>Recover:</b> full left (anti-torque) pedal, <b>lower collective</b> to cut torque demand, and gain <b>forward airspeed</b> so the fin and clean airflow restore control.'
-          : 'Margin is above the demand line. LTE bites at <b>low speed, high power, OGE</b> with wind from the yellow/red/purple sectors. Increase the wind speed or power, or point the wind into a critical sector, to watch the margin collapse.'} <i>(CCW main rotor — anti-torque pedal is left. Sector angles are advisory ranges.)</i></p>`;
+          ? '<b>Tail-rotor thrust can no longer balance torque.</b> Mechanism: <b>' + cause + '</b>. <b>Recover:</b> increase <b>forward airspeed</b> — translational lift restores tail rotor inflow. Full left (anti-torque) pedal and <b>lower collective</b> to cut torque demand.'
+          : 'Margin is above the demand line. LTE is a <b>conditional</b> loss of yaw control — no single wind direction is dangerous alone. Activate risk factors or rotate to a critical sector to watch the margin collapse.'} <i>(CCW main rotor — anti-torque pedal is left. Sector angles are advisory.)</i></p>`;
+      // sector info panel
+      infoPanel.innerHTML = activeSector
+        ? `<b style="color:rgba(${activeSector.color},1)">${activeSector.name}</b><br>${activeSector.tip}`
+        : '<b>No critical sector active.</b> Rotate the wind arrow into a coloured sector to see the mechanism explanation.';
     };
     slider(ui.controls, { label: 'Relative wind direction (FROM)', min: 0, max: 355, step: 5, val: windDeg, unit: '°', fmt: v => v.toFixed(0), on: v => { windDeg = v; draw(); } });
     slider(ui.controls, { label: 'Wind speed', min: 0, max: 30, step: 1, val: windKt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { windKt = v; draw(); } });
