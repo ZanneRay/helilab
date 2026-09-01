@@ -570,7 +570,7 @@ const HLW = (function () {
         HLD.arrow(ctx, x, discY + 8, x, discY + 8 + viLen, col.wind, 2, 7);
       }
       ctx.globalAlpha = 1;
-      HLD.text(ctx, 'induced velocity v_i = ' + sol.vi.toFixed(1) + ' m/s',
+      HLD.text(ctx, 'induced velocity  v\u1d62 = ' + sol.vi.toFixed(1) + ' m/s  (air speed at disc)',
         cx, discY + 24 + viLen, col.wind, '11px IBM Plex Sans', 'center');
       // thrust vs weight bars (right)
       const bx = W - 70, bTop = discY - 10, bH = H * 0.42;
@@ -585,17 +585,17 @@ const HLW = (function () {
       HLD.dline(ctx, bx - 24, wY, bx + 24, wY, col.drag, 1.5, [4, 3]);
       HLD.text(ctx, 'W', bx + 26, wY, col.drag, '10px IBM Plex Sans', 'left', 'middle');
       ui.readout.innerHTML = kv([
-        ['Inflow ratio λ', sol.lam.toFixed(3), 'var(--hl-wind)'],
-        ['Induced vel v_i', sol.vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
-        ['Thrust', (sol.thrust / 1000).toFixed(1) + ' kN', 'var(--hl-lift)'],
-        ['Weight', (W_N / 1000).toFixed(1) + ' kN', 'var(--hl-drag)'],
-        ['T / W', tFrac.toFixed(2), tFrac >= 1 ? 'var(--hl-good)' : 'var(--hl-bad)'],
+        ['Inflow ratio λ = v\u1d62/ΩR', sol.lam.toFixed(3), 'var(--hl-wind)'],
+        ['Induced velocity v\u1d62 (air speed at disc)', sol.vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+        ['Thrust T', (sol.thrust / 1000).toFixed(1) + ' kN', 'var(--hl-lift)'],
+        ['Aircraft weight W', (W_N / 1000).toFixed(1) + ' kN', 'var(--hl-drag)'],
+        ['Thrust-to-weight T/W', tFrac.toFixed(2), tFrac >= 1 ? 'var(--hl-good)' : 'var(--hl-bad)'],
         ['Disc loading T/A', (sol.thrust / HL.area(st) / 9.80665).toFixed(1) + ' kg/m²', 'var(--hl-accent)'],
-        ['Power req.', (sol.power / 1000).toFixed(0) + ' kW', 'var(--hl-ink)'],
+        ['Power required P', (sol.power / 1000).toFixed(0) + ' kW', 'var(--hl-ink)'],
       ]) + `<p class="hl-note">${tFrac >= 1
         ? '✔ Thrust exceeds weight — the aircraft can hover here.'
         : '✘ Thrust below weight — pull more collective, or reduce weight/altitude.'}
-        Notice power climbs steeply with collective: that is induced power P_i = T·v_i.</p>`;
+        Notice power climbs steeply with collective: that is induced power P<sub>i</sub> = T·v<sub>i</sub>.</p>`;
     };
     slider(ui.controls, { label: 'Collective θ₀', min: 2, max: 16, step: 0.5, val: coll, unit: '°', on: v => { coll = v; draw(); } });
     slider(ui.controls, { label: 'Gross weight', min: 1800, max: 3600, step: 50, val: weight, unit: ' kg', fmt: v => v.toFixed(0), on: v => { weight = v; draw(); } });

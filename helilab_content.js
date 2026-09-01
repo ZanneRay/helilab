@@ -153,20 +153,35 @@ const HL_LESSONS = [
   /* ──────────────────────── STAGE 2 — HOVER & VERTICAL ─────────────────── */
   {
     id: 'hover', stage: 'Hover & Vertical', title: 'Hover & Induced Flow',
-    subtitle: 'Momentum theory meets BET — v_i, λ and power',
+    subtitle: 'Why hover costs power — the causal chain from thrust to induced velocity',
     widget: 'wHover',
     body: `
-      <p>To hover, the rotor must push a column of air downward. By Newton's third
-      law, that downward push on the air gives an upward <b>thrust</b> on the
-      helicopter. The speed it gives the air at the disc is the <b>induced
-      velocity v<sub>i</sub></b>.</p>
-      <p>Two theories meet here and must agree:</p>
+      <p><b>Start with the physics:</b> to hover, the rotor must push a column of
+      air downward. By Newton's third law that downward push gives an upward
+      <b>thrust</b> on the helicopter. The speed of that downward airflow at the
+      disc is the <b>induced velocity v<sub>i</sub></b> — the faster the air moves,
+      the more momentum (and therefore thrust) the rotor can produce.</p>
+      <p><b>Causal chain — thrust → v<sub>i</sub> → φ → power:</b></p>
+      <ol>
+        <li>More thrust needed (heavier aircraft, thinner air) → rotor must
+            accelerate air faster → <b>v<sub>i</sub> rises</b>.</li>
+        <li>Higher v<sub>i</sub> increases the <b>inflow ratio λ = v<sub>i</sub>/ΩR</b>
+            — the normalised measure of how much downwash tilts the local
+            airflow at each blade section.</li>
+        <li>Larger λ raises the <b>inflow angle φ</b>, which reduces the blade's
+            angle of attack α = θ − φ and wastes energy as induced drag.</li>
+        <li>Power to push that air: <b>P<sub>i</sub> = T·v<sub>i</sub></b>.
+            Because v<sub>i</sub> grows with T, induced power climbs faster than
+            thrust — a non-linear penalty.</li>
+      </ol>
+      <p>Two theories must give the same answer:</p>
       <ul>
-        <li><b>Momentum theory</b> (the air): T = 2ρA·v<sub>i</sub>² →
-            v<sub>i</sub> = √(T / 2ρA). Heavier or higher (thinner air) ⇒ more
-            induced velocity needed.</li>
-        <li><b>Blade Element Theory</b> (the blades): the same thrust written as
-            C<sub>T</sub> = (σ·c<sub>lα</sub>/6)(θ₀ − 3λ/2).</li>
+        <li><b>Momentum theory</b> (the air column):
+            v<sub>i</sub> = √(T / 2ρA). Heavier (T↑) or higher (ρ↓) ⇒
+            more induced velocity, more induced power.</li>
+        <li><b>Blade Element Theory</b> (the blades):
+            C<sub>T</sub> = (σ·c<sub>lα</sub>/6)(θ₀ − 3λ/2).
+            The solver finds the λ that satisfies both simultaneously.</li>
       </ul>
       <p class="hl-note">This compact <b>1/6</b> form is just the hover case of the
       general forward-flight thrust equation the simulator solves,
@@ -174,14 +189,20 @@ const HL_LESSONS = [
       set the advance ratio μ = 0 and (σ·c<sub>lα</sub>/4)·(2/3) becomes
       (σ·c<sub>lα</sub>/6), giving exactly (σ·c<sub>lα</sub>/6)(θ₀ − 3λ/2). Same
       physics, two forms; the numbers you see come from the full equation.</p>
-      <p>We solve them together for the inflow ratio <b>λ = v<sub>i</sub>/ΩR</b>.
-      The pilot story: pull collective → θ₀ up → thrust up → but induced velocity
-      also rises, raising φ and trimming α back. Watch thrust, v<sub>i</sub> and
-      <b>power</b> all climb together as you raise the collective.</p>`,
+      <p><b>Try it:</b> raise collective → θ₀ up → thrust up → but v<sub>i</sub>
+      also rises, increasing λ and φ, trimming α back. Watch thrust, v<sub>i</sub>
+      and <b>power</b> all climb together — and notice power climbs faster than
+      thrust.</p>
+      <p class="hl-note"><b>Why hover is expensive:</b> unlike a fixed-wing aircraft
+      that can glide, a helicopter in hover must continuously pay the induced power
+      bill P<sub>i</sub> = T·v<sub>i</sub> just to stay airborne. Because
+      v<sub>i</sub> = √(T/2ρA) grows with both weight and altitude, hovering
+      high, hot, or heavy multiplies the penalty steeply — the main reason
+      helicopter performance margins shrink so fast in those conditions.</p>`,
     takeaways: [
-      'Hover thrust = pushing air down: v_i = √(T/2ρA).',
-      'λ = v_i/ΩR ties momentum theory and BET together.',
-      'Induced power P_i = T·v_i is the price of making lift in the hover.',
+      'Thrust → v_i: to generate more thrust the rotor accelerates air faster, raising induced velocity v_i = √(T/2ρA). High, hot, heavy all increase v_i.',
+      'v_i → λ → φ → α: higher induced velocity raises inflow ratio λ = v_i/ΩR, which increases inflow angle φ and reduces blade angle of attack α — the rotor self-limits its own thrust response.',
+      'Induced power P_i = T·v_i grows non-linearly: doubling thrust more than doubles the induced power bill, making hover the most power-intensive regime for a helicopter.',
     ],
     check: {
       q: 'High, hot and heavy: the air is thin and the aircraft is heavy. What happens to the induced velocity and power required to hover?',
@@ -193,6 +214,7 @@ const HL_LESSONS = [
       ], answer: 0,
       explain: 'v_i = √(T/2ρA): more weight (T↑) and thinner air (ρ↓) both raise v_i. Induced power P_i = T·v_i then climbs steeply — the classic "high/hot/heavy" hover-performance trap.',
     },
+    bridge: 'Next — <b>Climb, Descent &amp; VRS</b>: in axial flight the helicopter\'s vertical velocity adds to (or opposes) v<sub>i</sub>, changing the inflow through the disc. That is where the causal chain gets interesting — and where the Vortex Ring State danger lurks.',
   },
   {
     id: 'verticalflight', stage: 'Hover & Vertical', title: 'Climb, Descent & VRS',
