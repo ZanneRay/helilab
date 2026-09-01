@@ -60,14 +60,14 @@ const HL_LESSONS = [
 
       <p>Build the picture one step at a time:</p>
       <ol>
-        <li><b>Step 1 — tangential velocity U<sub>T</sub>:</b> the blade sweeps
+        <li><b>Step 1 — tangential velocity v<sub>rot</sub>:</b> the blade sweeps
             through the air. The dominant velocity at the element is tangential —
             perpendicular to the blade span, parallel to the rotor plane.</li>
-        <li><b>Step 2 — induced inflow U<sub>P</sub>:</b> the rotor is pulling air
+        <li><b>Step 2 — induced inflow v<sub>i</sub>:</b> the rotor is pulling air
             downward. This adds a perpendicular (axial) component to the velocity
             seen by the blade.</li>
-        <li><b>Step 3 — resultant relative airflow:</b> combine U<sub>T</sub> and
-            U<sub>P</sub> vectorially. The blade does not see purely tangential flow;
+        <li><b>Step 3 — resultant relative airflow:</b> combine v<sub>rot</sub> and
+            v<sub>i</sub> vectorially. The blade does not see purely tangential flow;
             it sees a resultant that is angled slightly downward from the rotor
             plane.</li>
         <li><b>Step 4 — three distinct angles:</b> now you can place θ, φ, and α
@@ -80,8 +80,8 @@ const HL_LESSONS = [
             plane. You set this with the collective (or cyclic). It is a
             <em>mechanical</em> setting, independent of airflow.</li>
         <li><b>Inflow angle φ</b> (phi) — the angle between the resultant relative
-            airflow and the rotor plane. It exists because U<sub>P</sub> tilts the
-            flow downward. φ = arctan(U<sub>P</sub> / U<sub>T</sub>).</li>
+            airflow and the rotor plane. It exists because v<sub>i</sub> tilts the
+            flow downward. φ = arctan(v<sub>i</sub> / v<sub>rot</sub>).</li>
         <li><b>Angle of attack α</b> — the angle between the chord and the
             resultant relative airflow. This is the angle the blade
             <em>aerodynamically feels</em>: <b>α = θ − φ</b>. Lift and drag depend
@@ -90,7 +90,7 @@ const HL_LESSONS = [
 
       <p class="hl-note"><b>Common student confusion — read this carefully:</b><br>
       <b>Pitch angle θ is NOT angle of attack α.</b> They are equal only in the
-      unrealistic case of zero inflow (U<sub>P</sub> = 0). In every real rotor
+      unrealistic case of zero inflow (v<sub>i</sub> = 0). In every real rotor
       there is induced inflow, so φ &gt; 0, and therefore α &lt; θ.<br>
       <b>Inflow increases φ, which reduces α even when θ is held constant.</b>
       You set θ with your controls; the airflow environment determines φ; the
@@ -98,7 +98,7 @@ const HL_LESSONS = [
 
       <p>Drag the sliders to raise θ and watch α and lift grow — until α reaches
       the stall angle and lift collapses. Notice that increasing the inflow
-      (raising U<sub>P</sub>) reduces α for the same θ, demonstrating why induced
+      (raising v<sub>i</sub>) reduces α for the same θ, demonstrating why induced
       velocity limits how much thrust a given pitch setting can produce.</p>`,
     takeaways: [
       'α = θ − φ: you command pitch angle θ, the induced inflow sets inflow angle φ, and the blade feels angle of attack α — these are three separate quantities.',
