@@ -184,8 +184,10 @@ const HLD = (function () {
     // relative wind arrow (tail upstream → head at LE)
     const wlen = len * 0.92;
     const wtx = ox + wlen * Math.cos(phV), wty = oy - wlen * Math.sin(phV);
-    arrow(ctx, wtx, wty, ox, oy, col.wind, 2.2, 10);
-    chipLabel(ctx, 'V_rel', ox + wlen * 0.80 * Math.cos(phV), oy - wlen * 0.80 * Math.sin(phV) - 12, col.wind, 'bold 11px IBM Plex Sans', 'center');
+    if (opts.showVrel !== false) {
+      arrow(ctx, wtx, wty, ox, oy, col.wind, 2.2, 10);
+      chipLabel(ctx, opts.vrelLabel || 'V_rel', ox + wlen * 0.80 * Math.cos(phV), oy - wlen * 0.80 * Math.sin(phV) - 12, col.wind, 'bold 11px IBM Plex Sans', 'center');
+    }
 
     // airfoil — NACA 0012 section, ~40% of the chord, centred on the chord line.
     // Reversed along x so the rounded LEADING EDGE points into the relative wind
@@ -217,30 +219,32 @@ const HLD = (function () {
     // arcs: θ (plane→chord), φ (plane→wind), α (wind→chord)
     // Staggered radii + chip labels placed on the arc mid-angle so the three
     // readouts never stack on top of each other near the busy origin.
-    const arcLbl = (r, a0, a1, color, str, font, dy) => {
-      ctx.strokeStyle = color; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(ox, oy, r, a0, a1, a1 < a0); ctx.stroke();
-      const m = (a0 + a1) / 2;
-      chipLabel(ctx, str, ox + (r + 12) * Math.cos(m), oy + (r + 12) * Math.sin(m) + (dy || 0), color, font || '11px IBM Plex Sans', 'center');
-    };
-    // θ (chord vs plane) small inner arc, label above; φ (wind vs plane) mid arc,
-    // label biased down toward the wind. α (=θ−φ) is the exam angle: draw its
-    // wedge between the two vectors and place the chip straight up into the clear
-    // space above the origin so it never lands on V_rel or the airfoil.
-    const aScale = len < 140 ? len / 140 : 1;          // shrink arcs on a small airfoil / inset (mobile)
-    arcLbl(40 * aScale, 0, -thV, col.chord, 'θ ' + (th * 180 / Math.PI).toFixed(1) + '°', null, len < 140 ? -12 : -6);
-    arcLbl(64 * aScale, 0, -phV, col.wind, 'φ ' + (ph * 180 / Math.PI).toFixed(1) + '°', null, 12);
-    // α wedge drawn between the wind and chord vectors; its chip is anchored in
-    // the clear headroom above the origin with a thin leader line back to the
-    // wedge, so it stays readable even when θ and φ are both nearly horizontal.
-    const aMid = (thV + phV) / 2;
-    ctx.strokeStyle = aCol; ctx.lineWidth = 2.4;
-    ctx.beginPath(); ctx.arc(ox, oy, 88 * aScale, -phV, -thV, -thV < -phV); ctx.stroke();
-    const wedgeX = ox + 88 * aScale * Math.cos(aMid), wedgeY = oy - 88 * aScale * Math.sin(aMid);
-    const aLblX = ox + len * 0.30, aLblY = oy - len * 0.42;   // up-right, into empty space
-    dline(ctx, wedgeX, wedgeY, aLblX, aLblY + 6, aCol, 1, [2, 3]);
-    chipLabel(ctx, 'α ' + ((th - ph) * 180 / Math.PI).toFixed(1) + '° (AoA)',
-      aLblX, aLblY, aCol, 'bold 12px IBM Plex Sans', 'center');
+    if (opts.showAngles !== false) {
+      const arcLbl = (r, a0, a1, color, str, font, dy) => {
+        ctx.strokeStyle = color; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(ox, oy, r, a0, a1, a1 < a0); ctx.stroke();
+        const m = (a0 + a1) / 2;
+        chipLabel(ctx, str, ox + (r + 12) * Math.cos(m), oy + (r + 12) * Math.sin(m) + (dy || 0), color, font || '11px IBM Plex Sans', 'center');
+      };
+      // θ (chord vs plane) small inner arc, label above; φ (wind vs plane) mid arc,
+      // label biased down toward the wind. α (=θ−φ) is the exam angle: draw its
+      // wedge between the two vectors and place the chip straight up into the clear
+      // space above the origin so it never lands on V_rel or the airfoil.
+      const aScale = len < 140 ? len / 140 : 1;          // shrink arcs on a small airfoil / inset (mobile)
+      arcLbl(40 * aScale, 0, -thV, col.chord, 'θ ' + (th * 180 / Math.PI).toFixed(1) + '°', null, len < 140 ? -12 : -6);
+      arcLbl(64 * aScale, 0, -phV, col.wind, 'φ ' + (ph * 180 / Math.PI).toFixed(1) + '°', null, 12);
+      // α wedge drawn between the wind and chord vectors; its chip is anchored in
+      // the clear headroom above the origin with a thin leader line back to the
+      // wedge, so it stays readable even when θ and φ are both nearly horizontal.
+      const aMid = (thV + phV) / 2;
+      ctx.strokeStyle = aCol; ctx.lineWidth = 2.4;
+      ctx.beginPath(); ctx.arc(ox, oy, 88 * aScale, -phV, -thV, -thV < -phV); ctx.stroke();
+      const wedgeX = ox + 88 * aScale * Math.cos(aMid), wedgeY = oy - 88 * aScale * Math.sin(aMid);
+      const aLblX = ox + len * 0.30, aLblY = oy - len * 0.42;   // up-right, into empty space
+      dline(ctx, wedgeX, wedgeY, aLblX, aLblY + 6, aCol, 1, [2, 3]);
+      chipLabel(ctx, 'α ' + ((th - ph) * 180 / Math.PI).toFixed(1) + '° (AoA)',
+        aLblX, aLblY, aCol, 'bold 12px IBM Plex Sans', 'center');
+    } // end showAngles
 
     // forces (L and D drawn ~2× for visibility — they are schematic, not to scale)
     if ((opts.showForces || opts.showResolve) && !opts.stall) {
