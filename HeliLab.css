@@ -575,3 +575,12 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
 @media (max-width: 768px) {
   .course-map { grid-template-columns: 1fr; }
 }
+
+/* ── Blade-element step controller ────────────────────────────────────────── */
+.hl-step-bar { display: flex; flex-direction: column; gap: 4px; padding: 6px 10px 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.hl-step-nav { display: flex; align-items: center; gap: 8px; }
+.hl-step-counter { font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; color: var(--brand); flex: 1; text-align: center; }
+.hl-step-btn { padding: 4px 12px; font-size: 12px; font-family: inherit; border: 1px solid var(--border2); border-radius: 6px; background: transparent; color: var(--text2); cursor: pointer; transition: background 0.15s, color 0.15s; }
+.hl-step-btn:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 14%, transparent); color: var(--text); border-color: var(--brand); }
+.hl-step-btn:disabled { opacity: 0.35; cursor: default; }
+.hl-step-caption { font-size: 12px; color: var(--text2); line-height: 1.4; text-align: center; }

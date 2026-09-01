@@ -431,8 +431,44 @@ const HLW = (function () {
   function wBladeElement(host) {
     const ui = scaffold(host);
     const st = HL.defaultState();
-    let theta = 8, phi = 3, linked = false;   // deg; linked: φ follows θ via momentum
-    let phiCtl = null;
+    let theta = 8, phi = 3, linked = false, step = 1;
+    let phiCtl = null, linkToggle = null;
+
+    // step bar: counter + nav buttons + caption, injected ABOVE the hl-w wrapper
+    const stepBar = el('div', 'hl-step-bar');
+    const stepNav = el('div', 'hl-step-nav');
+    const btnBack = el('button', 'hl-step-btn', '← Back');
+    btnBack.setAttribute('aria-label', 'Previous step');
+    const stepCounter = el('span', 'hl-step-counter', 'Step 1 of 4');
+    const btnNext = el('button', 'hl-step-btn', 'Next →');
+    btnNext.setAttribute('aria-label', 'Next step');
+    stepNav.appendChild(btnBack);
+    stepNav.appendChild(stepCounter);
+    stepNav.appendChild(btnNext);
+    const stepCaption = el('div', 'hl-step-caption');
+    stepBar.appendChild(stepNav);
+    stepBar.appendChild(stepCaption);
+    host.insertBefore(stepBar, host.firstChild);
+
+    const CAPTIONS = [
+      'Rotor plane + blade chord. U\u209C = \u03A9\u00B7r is the tangential velocity — how fast the blade moves through the air.',
+      'Now add U\u209A — the axial / induced inflow that pushes air downward through the rotor disc.',
+      'U\u209C and U\u209A combine to give the resultant relative airflow V_rel. Its angle to the rotor plane is \u03C6.',
+      'Full picture: \u03B8 is the blade pitch, \u03C6 the inflow angle, and \u03B1 = \u03B8 \u2212 \u03C6 is the angle of attack.',
+    ];
+
+    const updateStepUI = () => {
+      stepCounter.textContent = 'Step ' + step + ' of 4';
+      stepCaption.textContent = CAPTIONS[step - 1];
+      btnBack.disabled = step === 1;
+      btnNext.disabled = step === 4;
+      // show "Link φ to θ" toggle only in step 4
+      if (linkToggle) linkToggle.style.display = step === 4 ? '' : 'none';
+    };
+
+    btnBack.addEventListener('click', () => { if (step > 1) { step--; updateStepUI(); draw(); } });
+    btnNext.addEventListener('click', () => { if (step < 4) { step++; updateStepUI(); draw(); } });
+
     // physical inflow angle at 0.75R for a given collective (hover momentum solve)
     const phiFromTheta = (th) => {
       const s = { ...st, theta0: th, V: 0, Vc: 0 };
@@ -447,36 +483,98 @@ const HLW = (function () {
       const stall = aoa >= st.stallAoA * D2R;
       const cl = HL.clOf(st, aoa);
       const cd = HL.cdOf(st, cl);
-      // velocity triangle at r̄ = 0.75: v_rot = U_T = 0.75·ΩR (rotational,
-      // in-plane); v_i = U_P = U_T·tan φ (induced, perpendicular). NOTE: these
-      // readout values use the physical φ; the on-canvas legs use the amplified
-      // (×4) φ like the rest of the diagram, so the leg proportions are visually
-      // scaled, not 1:1 with these m/s values.
       const OmR = HL.omR(st);
       const vrot = 0.75 * OmR;
       const vi = vrot * Math.tan(phi * D2R);
       const ox = W * 0.16, oy = H * 0.6, len = Math.min(W * 0.62, 300);
+
+      // geometry mirroring bladeSection internals (for manual overlays in steps 1–3)
+      const A = 4.0;
+      const thV = theta * D2R * A;
+      const phVraw = phi * D2R * A;
+      const phV = Math.min(thV - 0.01, phVraw);
+      const wlen = len * 0.92;
+      const wtx = ox + wlen * Math.cos(phV);
+      const wty = oy - wlen * Math.sin(phV);
+      const fX = wtx, fY = oy;   // right-angle corner of the velocity triangle
+
       HLD.bladeSection(ctx, ox, oy, len, {
-        theta: theta * D2R, phi: phi * D2R, ampl: 4.0, showForces: true,
-        showVelocity: phi < theta, cl, cd, aoa, stall,
+        theta: theta * D2R, phi: phi * D2R, ampl: A,
+        showForces: step === 4,
+        showVelocity: step === 4 && phi < theta,
+        showVrel: step >= 3,
+        showAngles: step === 4,
+        stall: stall && step === 4,
+        cl, cd, aoa,
       }, col);
+
+      // ── step-specific overlays ────────────────────────────────────────────
+      // U_T is visible in steps 1, 2, and 3 (as a leg of the triangle)
+      if (step >= 1 && step <= 2) {
+        HLD.arrow(ctx, fX, fY, ox, fY, col.accent, 2.5, 9);
+        HLD.chipLabel(ctx, 'U\u209C  tangential velocity (= \u03A9\u00B7r)', (fX + ox) / 2, fY + 15, col.accent, 'bold 10px IBM Plex Sans', 'center');
+      }
+      if (step === 2) {
+        // U_P leg: induced inflow, perpendicular downward (only if nonzero)
+        if (phi > 0.05) {
+          HLD.arrow(ctx, wtx, wty, fX, fY, col.wind, 2.5, 9);
+          const sq = 5;
+          HLD.dline(ctx, fX - sq, fY - sq, fX, fY - sq, col.dim, 1);
+          HLD.dline(ctx, fX - sq, fY - sq, fX - sq, fY, col.dim, 1);
+          HLD.chipLabel(ctx, 'U\u209A  induced inflow (= v\u1D35)', fX - 12, (wty + fY) / 2, col.wind, 'bold 10px IBM Plex Sans', 'right');
+        }
+      }
+      if (step === 3) {
+        // vector triangle: V_rel (drawn by bladeSection) + labelled U_T and U_P legs
+        HLD.arrow(ctx, fX, fY, ox, fY, col.accent, 2.0, 8);
+        if (phi > 0.05) {
+          HLD.arrow(ctx, wtx, wty, fX, fY, col.wind, 2.0, 8);
+          const sq = 5;
+          HLD.dline(ctx, fX - sq, fY - sq, fX, fY - sq, col.dim, 1);
+          HLD.dline(ctx, fX - sq, fY - sq, fX - sq, fY, col.dim, 1);
+          HLD.chipLabel(ctx, 'U\u209A', fX - 7, (wty + fY) / 2, col.wind, 'bold 10px IBM Plex Sans', 'right');
+        }
+        HLD.chipLabel(ctx, 'U\u209C', (fX + ox) / 2, fY + 12, col.accent, 'bold 10px IBM Plex Sans', 'center');
+        // re-stamp rotor-plane label so it is not overwritten by U_P leg
+        HLD.chipLabel(ctx, 'rotor plane', ox + len * 1.12, oy - 9, col.dim, '10px IBM Plex Sans', 'right');
+      }
+
+      // ── readout ───────────────────────────────────────────────────────────
       const aoaDeg = theta - phi;
-      ui.readout.innerHTML = kv([
-        ['Pitch θ', theta.toFixed(1) + '°', 'var(--hl-chord)'],
-        ['Inflow φ', phi.toFixed(1) + '°' + (linked ? ' (from θ)' : ''), 'var(--hl-wind)'],
-        ['AoA α = θ − φ', aoaDeg.toFixed(1) + '°', stall ? 'var(--hl-bad)' : 'var(--hl-good)'],
-        ['Lift coeff C_l', stall ? 'collapsed' : cl.toFixed(2), stall ? 'var(--hl-bad)' : 'var(--hl-ink)'],
-        ['v_rot (U_T)', vrot.toFixed(0) + ' m/s', 'var(--hl-wind)'],
-        ['v_i (U_P)', vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
-      ]) + `<p class="hl-note">${stall
-        ? '⚠ Past the stall angle the flow separates and lift collapses — exactly what limits the retreating blade.'
-        : linked
-          ? 'Realistic mode: raising θ also raises the inflow angle φ, so α grows much more slowly than θ — the rotor self-limits its thrust.'
-          : 'Lift rises with α. Now switch on “link φ to θ” to see that in reality φ grows with θ, eating into your extra pitch.'}</p>`;
+      if (step === 4) {
+        ui.readout.innerHTML = kv([
+          ['Pitch θ', theta.toFixed(1) + '°', 'var(--hl-chord)'],
+          ['Inflow φ', phi.toFixed(1) + '°' + (linked ? ' (from θ)' : ''), 'var(--hl-wind)'],
+          ['AoA α = θ − φ', aoaDeg.toFixed(1) + '°', stall ? 'var(--hl-bad)' : 'var(--hl-good)'],
+          ['Lift coeff C_l', stall ? 'collapsed' : cl.toFixed(2), stall ? 'var(--hl-bad)' : 'var(--hl-ink)'],
+          ['v_rot (U_T)', vrot.toFixed(0) + ' m/s', 'var(--hl-wind)'],
+          ['v_i (U_P)', vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+        ]) + `<p class="hl-note">${stall
+          ? '⚠ Past the stall angle the flow separates and lift collapses — exactly what limits the retreating blade.'
+          : linked
+            ? 'Realistic mode: raising θ also raises the inflow angle φ, so α grows much more slowly than θ — the rotor self-limits its thrust.'
+            : 'Lift rises with α. Now switch on "link φ to θ" to see that in reality φ grows with θ, eating into your extra pitch.'}</p>`;
+      } else if (step === 3) {
+        ui.readout.innerHTML = kv([
+          ['Pitch θ', theta.toFixed(1) + '°', 'var(--hl-chord)'],
+          ['Inflow φ', phi.toFixed(1) + '°', 'var(--hl-wind)'],
+          ['v_rot (U_T)', vrot.toFixed(0) + ' m/s', 'var(--hl-accent)'],
+          ['v_i (U_P)', vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+        ]) + '<p class="hl-note">tan φ = U_P / U_T — drag the sliders to see the triangle change.</p>';
+      } else {
+        ui.readout.innerHTML = kv([
+          ['Pitch θ', theta.toFixed(1) + '°', 'var(--hl-chord)'],
+          ['Inflow φ', phi.toFixed(1) + '°', 'var(--hl-wind)'],
+        ]) + '<p class="hl-note">Adjust the sliders to reshape the diagram.</p>';
+      }
     };
     slider(ui.controls, { label: 'Pitch θ (collective)', min: 0, max: 18, step: 0.5, val: theta, unit: '°', on: v => { theta = v; draw(); } });
     phiCtl = slider(ui.controls, { label: 'Inflow angle φ', min: 0, max: 12, step: 0.5, val: phi, unit: '°', on: v => { if (!linked) { phi = v; draw(); } } });
-    toggle(ui.controls, { label: 'Link φ to θ (realistic)', val: false, on: v => { linked = v; draw(); } });
+    const toggleRow = el('div');
+    ui.controls.appendChild(toggleRow);
+    linkToggle = toggleRow;
+    toggle(toggleRow, { label: 'Link φ to θ (realistic)', val: false, on: v => { linked = v; draw(); } });
+    updateStepUI();
     ui.onDraw(draw);
   }
 
