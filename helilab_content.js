@@ -544,6 +544,11 @@ const HL_LESSONS = [
     subtitle: 'Why blades hunt fore-and-aft as they flap',
     widget: 'wCoriolis',
     body: `
+      <p>Lead/lag is the blade's in-plane freedom to speed up and slow down as it
+      flaps. Without it, Coriolis forces would create enormous root stresses every
+      revolution. The drag hinge (or equivalent elastomeric bearing) absorbs this —
+      but its behaviour directly affects rotor smoothness, ground resonance
+      susceptibility, and the feel of the controls.</p>
       <p>Flapping solves the lift problem, but it creates a second one. When a
       blade flaps <b>up</b>, its centre of mass moves <b>closer to the shaft</b>.
       Conservation of angular momentum then demands it speed up — exactly like a
@@ -565,11 +570,22 @@ const HL_LESSONS = [
       <b>rigid</b> rotors instead use <b>underslinging</b> (the hub sits below the
       flapping axis) so the mass barely moves radially, cancelling most of the
       Coriolis force. Drag the flap slider and watch the blade lead and lag around
-      the azimuth.</p>`,
+      the azimuth.</p>
+      <p class="hl-note"><b>What students usually confuse</b><br>
+      • <b>Lead/lag ≠ flapping</b>: flapping is out-of-plane (up/down), lead/lag is
+        in-plane (fore/aft rotation). They are coupled but distinct.<br>
+      • <b>Lead/lag ≠ blade tracking</b>: tracking is a maintenance/rigging concept,
+        not a dynamic response.<br>
+      • <b>Coriolis effect here is not the weather Coriolis</b>: it is the
+        conservation-of-angular-momentum effect as blade CoM moves closer/farther
+        from the hub during flapping.</p>`,
     takeaways: [
       'Coriolis: flap up → mass moves in → blade leads; flap down → mass out → lags.',
       'It is conservation of angular momentum (the ice-skater), accel ∝ 2·Ω·β·β̇.',
       'Articulated rotors use a lead–lag hinge + damper; teetering rotors use underslinging.',
+      'Lead/lag dampers prevent ground resonance by absorbing in-plane oscillation energy — a fully articulated rotor without functioning dampers is a ground-resonance risk.',
+      'Semi-rigid and hingeless rotors handle lead/lag through blade flexibility — the physics is the same, the hardware is different.',
+      'In the cockpit: lead/lag is invisible during normal flight but becomes relevant during run-up checks and any abnormal vibration diagnosis.',
     ],
     check: {
       q: 'A rotor blade flaps upward as it moves toward the nose. What does the Coriolis effect do to it in the plane of rotation?',
