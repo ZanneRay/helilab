@@ -776,26 +776,42 @@ const HL_LESSONS = [
       through the disc as the helicopter descends. Energy stored in the spinning
       rotor — and the descent itself — keeps the blades turning. The blade divides
       into three spanwise regions:</p>
-      <ul>
-        <li><b>Driven region (outboard, ~the tip third):</b> the total aerodynamic
-            force tilts <i>behind</i> the spin axis — it <b>brakes</b> the rotor
-            (acts like a normal lifting wing taking power).</li>
-        <li><b>Driving region (mid-span):</b> the up-flow tilts the force <i>ahead
-            </i> of the axis — it <b>accelerates</b> the rotor, replacing the lost
-            engine torque.</li>
-        <li><b>Stall region (inboard root):</b> low speed, high α — stalled, mostly
-            drag.</li>
-      </ul>
-      <p>The pilot manages RRPM by moving the boundary between driving and driven
-      regions with the collective. At the bottom, a <b>flare</b> trades the
-      rotor's stored energy and the descent's kinetic energy for a burst of thrust
-      to cushion the landing. The map shows all three regions over the whole disc;
-      add forward speed and watch the driving zone migrate toward the retreating
-      side (ψ 270°) as the advancing side speeds up and goes driven.</p>`,
+
+      <h4>Stall region — inboard root <em>(Stall region — RPM decay risk)</em></h4>
+      <p>At the root, rotational velocity U<sub>T</sub> is very low, so angle of
+      attack α climbs above the stall angle. Lift collapses and drag spikes — the
+      root contributes almost pure drag and, at low Nr or excessive collective, the
+      stall region expands outward, threatening rotor RPM recovery.</p>
+
+      <h4>Driving region — mid-span <em>(Driving region — sustains rotation)</em></h4>
+      <p>At mid-span the upward airflow tilts the total aerodynamic force
+      <i>forward</i> of the shaft. The in-plane component F_H points <b>with
+      rotation</b> — this is the sole energy source in autorotation, replacing lost
+      engine torque and keeping the rotor spinning.</p>
+
+      <h4>Driven region — outboard tip <em>(Drag region — consumes energy)</em></h4>
+      <p>Near the tip, high rotational velocity means the inflow angle φ is small
+      and α is positive but moderate. The total aerodynamic force tilts <i>aft</i>
+      of the shaft — the blade behaves like a normal lifting wing braking the rotor,
+      consuming the energy the driving region produces.</p>
+
+      <p class="hl-note">
+        <b>Exam trap 1:</b> The driven region is NOT stalled — it produces lift, but
+        the total force vector tilts aft, so it takes energy <em>from</em> the rotor.<br>
+        <b>Exam trap 2:</b> Lowering collective in autorotation reduces θ, shifts α
+        into a better range, and moves the stall region inward — this is why entry
+        technique matters.<br>
+        <b>Exam trap 3:</b> The goal at flare is to use stored rotor kinetic energy
+        (Iω²/2) to arrest descent — collective must come in at the right moment or Nr
+        decays past recovery.
+      </p>`,
     takeaways: [
       'In autorotation, up-flow through the disc drives the rotor — no engine.',
       'Span splits into stall (root), driving (mid), driven (tip) regions.',
       'Collective moves the driving/driven boundary to control RRPM; flare trades energy for thrust.',
+      'Three regions always coexist during autorotation: stall (root), driving (mid), driven (tip).',
+      'Rotor RPM is the energy store — every second of autorotation trades altitude for Nr. Manage Nr, manage the landing.',
+      'Collective up too early = stall region expands outward = Nr decay = unrecoverable. Timing is everything.',
     ],
     check: {
       q: 'Which spanwise region keeps the rotor turning in a steady autorotation?',

@@ -2006,6 +2006,7 @@ const HLW = (function () {
     const { canvas, topCanvas, controls, readout } = ui;
     let Vkt = 0, upflow = 6, coll = 4;   // forward speed [kt], up-flow [m/s], collective [°]
     let rBar = 0.60, psiDeg = 270;       // active blade element (r/R, azimuth)
+    let selectedRegion = null;           // currently highlighted/clicked region
     // Force balance on a blade element in steady autorotation, evaluated over
     // the entire disc (r/R, ψ) so the driving band and its forward-speed shift
     // are visible. The SAME regionAt feeds the disc colour, the BET triangle
@@ -2033,6 +2034,61 @@ const HLW = (function () {
     const colReg = { reverse: '#8f4fb0', stall: '#d05a6e', driving: 'rgb(60,175,95)', driven: 'rgb(232,170,60)' };
     const regChip = { driving: 'DRIVING', driven: 'DRIVEN', stall: 'STALL', reverse: 'REVERSE' };
 
+    // Region info panel data for clickable regions
+    const regionInfo = {
+      driven: {
+        name: 'Driven Region (inner root area)',
+        label: 'Drag region — consumes energy',
+        condition: 'φ > θ → α is negative',
+        energy: 'Consuming — blade is dragged, takes energy from the rotor',
+        tip: 'NOT stalled — it produces lift, but the total force vector tilts aft. Often confused with stall on exams.',
+        color: 'rgb(232,170,60)',
+      },
+      driving: {
+        name: 'Driving Region (mid-span)',
+        label: 'Driving region — sustains rotation',
+        condition: 'φ ≈ optimal → F_H points forward of shaft',
+        energy: 'Sustaining — in-plane component accelerates the rotor',
+        tip: 'The sole energy source in autorotation. F_H must point WITH rotation. Manage collective to keep this band wide.',
+        color: 'rgb(60,175,95)',
+      },
+      stall: {
+        name: 'Stall Region (outer tip — low Nr or high collective)',
+        label: 'Stall region — RPM decay risk',
+        condition: 'α > stall angle (low Nr or excessive collective)',
+        energy: 'Decaying — lift collapses, drag spikes, rotor decelerates rapidly',
+        tip: 'Lowering collective moves the stall region outward. Collective up too early at flare = Nr decay = unrecoverable.',
+        color: '#d05a6e',
+      },
+    };
+
+    // Create or update the region info panel below the disc
+    const renderRegionPanel = () => {
+      let panel = host.querySelector('.hl-region-panel');
+      if (!panel) {
+        panel = document.createElement('div');
+        panel.className = 'hl-region-panel';
+        panel.style.cssText = 'margin:8px 0 0 0;padding:10px 14px;border-radius:6px;border:2px solid transparent;transition:border-color 0.2s,background 0.2s;font-size:13px;line-height:1.55;min-height:56px;';
+        topCanvas.parentNode && topCanvas.parentNode.insertAdjacentElement('afterend', panel);
+      }
+      if (!selectedRegion || !regionInfo[selectedRegion]) {
+        panel.style.background = 'rgba(255,255,255,0.03)';
+        panel.style.borderColor = 'transparent';
+        panel.innerHTML = '<span style="opacity:0.45;font-size:12px;">Click a region on the disc to see cause-effect explanation.</span>';
+        return;
+      }
+      const info = regionInfo[selectedRegion];
+      panel.style.background = 'rgba(13,17,23,0.85)';
+      panel.style.borderColor = info.color;
+      panel.innerHTML = `
+        <b style="color:${info.color}">${info.name}</b>
+        <span style="float:right;font-size:11px;opacity:0.7;font-style:italic">${info.label}</span>
+        <br>
+        <span style="opacity:0.8"><b>Inflow condition:</b> ${info.condition}</span><br>
+        <span style="opacity:0.8"><b>Energy effect:</b> ${info.energy}</span><br>
+        <span style="color:#a5d6ff"><b>Exam tip:</b> ${info.tip}</span>`;
+    };
+
     function discGeom(W, H) {
       const GUT = 52; const cx = W * 0.44, cy = H * 0.52;
       const R = Math.max(40, Math.min(cx - GUT, W - cx - GUT, H * 0.42));
@@ -2056,6 +2112,10 @@ const HLW = (function () {
           const rg = regionAt(st, rm, pm, upInflow, mu);
           cnt[rg.reg]++;
           if (rg.reg === 'driving' || rg.reg === 'driven') net += (-rg.fx) * rm;
+          // Dim non-selected regions when a region is selected
+          const isSelected = selectedRegion && rg.reg === selectedRegion;
+          const isDimmed = selectedRegion && rg.reg !== selectedRegion;
+          ctx.globalAlpha = isDimmed ? 0.25 : 1.0;
           ctx.fillStyle = colReg[rg.reg];
           ctx.beginPath();
           ctx.arc(cx, cy, R * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
@@ -2070,8 +2130,21 @@ const HLW = (function () {
             const tc = rg.reg === 'driven' ? 'rgba(120,80,10,0.6)' : rg.reg === 'stall' ? 'rgba(120,10,30,0.6)' : 'rgba(70,20,100,0.6)';
             HLD.tick(ctx, ux, uy, len, tk, tc, 1);
           }
+          ctx.globalAlpha = 1.0;
+          // Glow outline for selected region cells
+          if (isSelected) {
+            ctx.globalAlpha = 0.7;
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.arc(cx, cy, R * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
+            ctx.arc(cx, cy, R * r0, HLD.polarToCanvas(p1), HLD.polarToCanvas(p0), false);
+            ctx.closePath(); ctx.stroke();
+            ctx.globalAlpha = 1.0;
+          }
         }
       }
+      ctx.globalAlpha = 1.0;
       ctx.strokeStyle = col.dim; ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
       // rotation arrow (CCW from above) + azimuth labels (clamped inside stage)
@@ -2093,12 +2166,13 @@ const HLW = (function () {
         HLD.arrow(ctx, 14, 16, 40, 40, col.accent, 2, 7);
         HLD.text(ctx, 'V∞ airflow', 46, 20, col.accent, '10px IBM Plex Sans', 'left', 'middle');
       }
-      // legend
-      HLD.text(ctx, '■ driving', W - 74, 20, colReg.driving, '10px IBM Plex Sans');
-      HLD.text(ctx, '■ driven', W - 74, 34, colReg.driven, '10px IBM Plex Sans');
-      HLD.text(ctx, '■ stall', W - 74, 48, colReg.stall, '10px IBM Plex Sans');
+      // legend (with click hints)
+      const selMark = r => selectedRegion === r ? ' ◀' : '';
+      HLD.text(ctx, '■ driving' + selMark('driving'), W - 74, 20, colReg.driving, '10px IBM Plex Sans');
+      HLD.text(ctx, '■ driven' + selMark('driven'), W - 74, 34, colReg.driven, '10px IBM Plex Sans');
+      HLD.text(ctx, '■ stall' + selMark('stall'), W - 74, 48, colReg.stall, '10px IBM Plex Sans');
       HLD.text(ctx, '■ reverse flow', W - 74, 62, colReg.reverse, '10px IBM Plex Sans');
-      HLD.chipLabel(ctx, 'tap disc to pick a station', 12, H - 8, col.dim, '10px IBM Plex Sans', 'left', col.bg);
+      HLD.chipLabel(ctx, 'tap region to explain · tap station to inspect BET', 12, H - 8, col.dim, '10px IBM Plex Sans', 'left', col.bg);
       return { cnt, net };
     };
 
@@ -2171,13 +2245,14 @@ const HLW = (function () {
         ['Rotor RPM trend', rrpm, rrpmCol],
       ]) + `<p class="hl-note">The disc classifies every element: the <b>driving</b> band
         (green) speeds the rotor up, the <b>driven</b> tip (amber) brakes it, and the
-        root <b>stalls</b>. <b>Tap the disc</b> (or use the r/R and ψ sliders) to move the
-        white marker — the BET diagram below updates to that element, and its F_H
-        direction always matches the colour under the marker. At 0 kt the pattern is
-        axisymmetric (driving ring inside a driven tip); add <b>forward speed</b> and the
-        driving zone migrates toward the <b>retreating side (ψ 270°)</b> as the
-        advancing side speeds up and goes driven, with a reverse/stall wedge at the
-        retreating root. Balance driving vs driven with the collective to hold RRPM.</p>`;
+        root <b>stalls</b>. <b>Click a coloured region</b> on the disc for a cause-effect
+        explanation (click again to deselect). <b>Click any station</b> to inspect its BET
+        diagram below. At 0 kt the pattern is axisymmetric (driving ring inside a driven
+        tip); add <b>forward speed</b> and the driving zone migrates toward the
+        <b>retreating side (ψ 270°)</b> as the advancing side speeds up and goes driven,
+        with a reverse/stall wedge at the retreating root. Balance driving vs driven with
+        the collective to hold RRPM.</p>`;
+      renderRegionPanel();
     };
 
     slider(ui.controls, { label: 'Forward speed', min: 0, max: 80, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
@@ -2186,7 +2261,11 @@ const HLW = (function () {
     const rbarCtrl = slider(ui.controls, { label: 'Blade station r/R', min: 0.20, max: 0.97, step: 0.01, val: rBar, fmt: v => v.toFixed(2), on: v => { rBar = v; draw(); } });
     const azCtrl = slider(ui.controls, { label: 'Azimuth ψ', min: 0, max: 355, step: 5, val: psiDeg, unit: '°', on: v => { psiDeg = v; draw(); } });
 
-    // ── click the disc to pick (r, ψ) ──────────────────────────────────
+    // ── click the disc ──────────────────────────────────────────────────
+    // Clicking a named region (driven/driving/stall) toggles the region info panel
+    // and also updates the BET station to a representative point in that region.
+    // Clicking the same region a second time deselects it. Clicking the reverse-flow
+    // area just picks the station as before.
     topCanvas.style.cursor = 'crosshair';
     topCanvas.addEventListener('click', (e) => {
       const r = topCanvas.getBoundingClientRect();
@@ -2195,10 +2274,24 @@ const HLW = (function () {
       const dx = x - d.cx, dy = y - d.cy;
       const rad = Math.hypot(dx, dy);
       if (rad > d.R * 1.02) return;
-      rBar = Math.max(0.20, Math.min(0.97, rad / d.R));
+      const normR = Math.max(0.20, Math.min(0.97, rad / d.R));
       const canAng = Math.atan2(dy, dx);
       const psi = (Math.PI / 2 - canAng + 2 * Math.PI) % (2 * Math.PI);
-      psiDeg = Math.round(psi * R2D / 5) * 5 % 360;
+      const psiSnap = Math.round(psi * R2D / 5) * 5 % 360;
+      // Determine which region was clicked
+      const st = HL.defaultState(); st.V = Vkt * 0.5144;
+      const OmR = HL.omR(st);
+      const upInflow = upflow / OmR;
+      const mu = advanceRatio(st);
+      const clickedReg = regionAt(st, normR, psi, upInflow, mu).reg;
+      if (clickedReg === 'driven' || clickedReg === 'driving' || clickedReg === 'stall') {
+        // Toggle region selection; also update the BET station marker
+        selectedRegion = selectedRegion === clickedReg ? null : clickedReg;
+      } else {
+        selectedRegion = null;
+      }
+      rBar = normR;
+      psiDeg = psiSnap;
       rbarCtrl && rbarCtrl.set(rBar); azCtrl && azCtrl.set(psiDeg); draw();
     });
 
