@@ -738,7 +738,7 @@ const HL_LESSONS = [
     takeaways: [
       'Dynamic rollover = rolling about a fixed pivot (skid/wheel), not the CofG.',
       'Critical angle is small (~5–8° at high thrust, larger at reduced collective); past it, tilted thrust drives the roll — divergent.',
-      'Recovery is to smoothly LOWER COLLECTIVE, not to correct with cyclic.',
+      'Recovery: cyclic away from the pivot first to arrest roll rate, then smoothly lower collective to unload the rotor — do not rely on cyclic alone once past the critical angle.',
       'Dynamic rollover is a pivot-point problem, not a slope problem — any fixed contact point on one side can cause it.',
       'Raising collective with a pivot point established accelerates rollover — the instinctive response is the wrong response.',
       'Critical roll angle is 8–10° for most types — beyond that, flight controls cannot recover the situation.',
