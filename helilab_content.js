@@ -118,6 +118,48 @@ const HL_LESSONS = [
     bridge: 'Next — <b>Hover &amp; Induced Flow</b> shows how induced velocity v<sub>i</sub> and inflow ratio λ are calculated from first principles, putting numbers on φ and completing the hover picture.',
   },
   {
+    id: 'm1-04', stage: 'Basics', title: 'M1-04 — Build a Blade Element',
+    subtitle: 'Guided construction — fixed scenario, predict first, then reveal',
+    widget: 'wM104BladeElement',
+    wide: true,
+    body: `
+      <p>This mission is a <b>guided construction</b> exercise, not a free slider sandbox.
+      You will work through one fixed blade-element scenario and unlock each layer of the
+      picture in order: reference frame, velocity triangle, blade geometry, local forces,
+      and finally the local resolved components.</p>
+
+      <p>The goal is to make you <b>construct the diagram from the geometry</b>, not win by
+      memorising only <b>α = θ − φ</b> or generic “up/down” rules. Each gate asks for a
+      prediction before the app reveals the next state.</p>
+
+      <ol>
+        <li><b>Reference state:</b> start from the rotor plane and one blade station with known Ω, r, v<sub>i</sub>, and θ.</li>
+        <li><b>Gate 1:</b> choose the coherent direction of V<sub>rel</sub>, then reveal V<sub>rel</sub> and φ.</li>
+        <li><b>Gate 2:</b> determine α from the geometry first, then reveal the shortcut relation.</li>
+        <li><b>Gate 3:</b> resolve the local force into its thrust-producing normal component and F<sub>H</sub>, then identify the local consequence.</li>
+      </ol>
+
+      <p class="hl-note">Scope boundary: this remains a <b>formative thinking tool</b>. It does not add persistence,
+      dashboard tracking, or automatic free-text grading, and it does not reproduce the final
+      unrehearsed transfer task that belongs outside HeliLab.</p>`,
+    takeaways: [
+      'This mission uses one fixed canonical blade-element case, so progress depends on prediction and construction rather than slider searching.',
+      'V_rel, φ, α, F_L, F_D, TAF, the local normal component, and F_H are revealed in a strict causal order.',
+      'The local normal component contributes to rotor thrust, while F_H remains a local in-plane braking force — do not confuse either with the whole-rotor result.',
+    ],
+    check: {
+      q: 'Why does M1-04 lock the reveals behind prediction gates instead of giving you free sliders?',
+      options: [
+        'To force geometric reasoning from the reference frame rather than letting you search for the answer',
+        'Because the blade element has no induced flow in hover',
+        'Because φ and α are always identical',
+        'So the app can grade a final transfer task automatically',
+      ], answer: 0,
+      explain: 'The mission is deliberately construct → predict → reveal. It is meant to rehearse the geometry and causal chain, not let you brute-force the answer by slider hunting or replace the external transfer task.',
+    },
+    bridge: 'Next — <b>Speed Along the Blade</b> takes the same blade-element picture and shows why the outboard stations do most of the lifting.',
+  },
+  {
     id: 'spanwise', stage: 'Basics', title: 'Speed Along the Blade',
     subtitle: 'Why the outer blade does the work',
     widget: 'wSpanwise',
