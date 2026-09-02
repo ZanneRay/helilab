@@ -58,7 +58,8 @@ const HLW = (function () {
     readout.setAttribute('role', 'status');
     readout.setAttribute('aria-live', 'polite');
     side.appendChild(controls); side.appendChild(readout);
-    wrap.appendChild(stage); wrap.appendChild(side);
+    if (opts.sideFirst) { wrap.appendChild(side); wrap.appendChild(stage); }
+    else { wrap.appendChild(stage); wrap.appendChild(side); }
     host.appendChild(wrap);
 
     let drawFn = null;
@@ -716,7 +717,7 @@ const HLW = (function () {
   }
 
   function wM104BladeElement(host) {
-    const ui = scaffold(host, { mainStage: 'hl-w-stage hl-w-stage-mission' });
+    const ui = scaffold(host, { mainStage: 'hl-w-stage hl-w-stage-mission', sideFirst: true });
     addStageNote(host, 'Angles visually exaggerated ×4 — not to scale');
     const st = HL.defaultState();
     const scenario = { theta: 10, phi: 4, rFrac: 0.75 };
@@ -729,6 +730,7 @@ const HLW = (function () {
     const cd = HL.cdOf(st, cl);
     let step = 1;
     let gate1 = null, gate2 = null, gate3 = null;
+    let gate1Draft = null, gate1Dragging = false, gate1Geom = null;
 
     const stepBar = el('div', 'hl-step-bar');
     const stepNav = el('div', 'hl-step-nav');
@@ -745,12 +747,32 @@ const HLW = (function () {
 
     const CAPTIONS = [
       'Reference state — fixed blade station, known Ω, known r, known blade pitch, known axial inflow.',
-      'Velocity inputs — build the blank velocity triangle before the app reveals the resultant V_rel.',
+      'Velocity inputs — draw and commit V_rel on the blank triangle before the app reveals the resultant and φ.',
       'Blade geometry — place θ against the now-known φ, then decide α from the geometry before the formula is shown.',
       'Local forces — reveal F_L, F_D and their combined total aerodynamic force (TAF).',
       'Resolve the local force — separate the thrust-producing normal component from the in-plane braking force F_H.',
       'Reveal — connect this single blade element back to the whole-rotor tendency without turning it into an exit test.',
     ];
+    const gate1Geometry = (W, H) => {
+      const ox = W * 0.18, oy = H * 0.64, len = Math.min(W * 0.58, 330);
+      const A = 4.0, phV = scenario.phi * D2R * A;
+      const wlen = len * 0.92;
+      const wtx = ox + wlen * Math.cos(phV), wty = oy - wlen * Math.sin(phV);
+      const fX = wtx, fY = oy;
+      return { ox, oy, len, phV, wlen, wtx, wty, fX, fY };
+    };
+    const gate1State = () => {
+      if (!gate1Draft || !gate1Geom) return 'wrong';
+      const tol = Math.max(16, gate1Geom.len * 0.09);
+      const tailErr = Math.hypot(gate1Draft.x1 - gate1Geom.wtx, gate1Draft.y1 - gate1Geom.wty);
+      const headErr = Math.hypot(gate1Draft.x2 - gate1Geom.ox, gate1Draft.y2 - gate1Geom.oy);
+      const vx = gate1Draft.x2 - gate1Draft.x1, vy = gate1Draft.y2 - gate1Draft.y1;
+      const ex = gate1Geom.ox - gate1Geom.wtx, ey = gate1Geom.oy - gate1Geom.wty;
+      const vmag = Math.hypot(vx, vy), emag = Math.hypot(ex, ey);
+      if (vmag < 20 || emag < 20) return 'wrong';
+      const dirCos = (vx * ex + vy * ey) / (vmag * emag);
+      return (tailErr <= tol && headErr <= tol && dirCos > 0.94) ? 'correct' : 'wrong';
+    };
 
     const canAdvance = () =>
       !((step === 2 && gate1 !== 'correct') || (step === 3 && gate2 !== '6') || (step === 5 && gate3 !== 'correct') || step === 6);
@@ -781,20 +803,14 @@ const HLW = (function () {
           'This is a fixed guided-construction scenario. There are no sliders here: predict first, then unlock the reveal.'));
       } else if (step === 2) {
         ui.controls.appendChild(introBox('Gate 1 — Construct V_rel',
-          'With v_rot along the rotor plane and v_i downward through the disc, choose the only coherent resultant relative airflow.'));
-        segmented(ui.controls, {
-          label: 'Choose the direction of V_rel',
-          val: gate1 || '',
-          options: [
-            { v: 'wrong-up', t: 'Points toward the leading edge and up above the plane' },
-            { v: 'correct', t: 'Points toward the leading edge and slightly down through the plane' },
-            { v: 'wrong-aft', t: 'Points aft, away from the leading edge' },
-          ],
-          on: v => { gate1 = v; updateStepUI(); draw(); },
-        });
+          'Start from the top of v_i, drag your own V_rel to the blade-element point, then commit the construction.'));
+        const commitBtn = el('button', 'hl-link-btn', 'Commit V_rel construction');
+        commitBtn.disabled = !gate1Draft;
+        commitBtn.addEventListener('click', () => { gate1 = gate1State(); updateStepUI(); draw(); });
+        ui.controls.appendChild(commitBtn);
         const fb1 = gateFeedback(gate1,
-          'Correct — the blade sees airflow from the leading-edge side, tilted downward by the induced component.',
-          'Not yet — combine the in-plane rotational velocity with the downward induced flow, then pick the resultant the blade actually feels.');
+          'Correct — your vector starts at the v_i tip and lands on the blade-element point, giving the coherent V_rel direction.',
+          'Not yet — start at the v_i tip, end at the blade-element point, and keep the resultant pointing toward the leading edge with a downward component.');
         if (fb1) ui.controls.appendChild(fb1);
       } else if (step === 3) {
         ui.controls.appendChild(introBox('Gate 2 — Determine α from geometry',
@@ -855,11 +871,9 @@ const HLW = (function () {
     };
 
     const drawVelocityInputs = (ctx, W, H, col, showReveal) => {
-      const ox = W * 0.18, oy = H * 0.64, len = Math.min(W * 0.58, 330);
-      const A = 4.0, phV = scenario.phi * D2R * A;
-      const wlen = len * 0.92;
-      const wtx = ox + wlen * Math.cos(phV), wty = oy - wlen * Math.sin(phV);
-      const fX = wtx, fY = oy;
+      const g = gate1Geometry(W, H);
+      gate1Geom = g;
+      const { ox, oy, len, phV, wlen, wtx, wty, fX, fY } = g;
       HLD.dline(ctx, ox - len * 0.34, oy, ox + len * 1.12, oy, col.dim, 1, [5, 4]);
       HLD.chipLabel(ctx, 'rotor plane', ox + len * 1.12, oy - 9, col.dim, '10px IBM Plex Sans', 'right');
       HLD.dot(ctx, ox, oy, 4, col.chord);
@@ -870,6 +884,15 @@ const HLW = (function () {
       const sq = 5;
       HLD.dline(ctx, fX - sq, fY - sq, fX, fY - sq, col.dim, 1);
       HLD.dline(ctx, fX - sq, fY - sq, fX - sq, fY, col.dim, 1);
+      if (!showReveal) {
+        HLD.dot(ctx, wtx, wty, 4, col.warn);
+        HLD.chipLabel(ctx, 'start V_rel here', wtx + 8, wty - 10, col.warn, '10px IBM Plex Sans', 'left');
+        if (gate1Draft) {
+          const tryCol = gate1 === 'wrong' ? col.bad : col.warn;
+          HLD.arrow(ctx, gate1Draft.x1, gate1Draft.y1, gate1Draft.x2, gate1Draft.y2, tryCol, 2.2, 9);
+          HLD.chipLabel(ctx, 'your V_rel', (gate1Draft.x1 + gate1Draft.x2) / 2, (gate1Draft.y1 + gate1Draft.y2) / 2 - 10, tryCol, 'bold 10px IBM Plex Sans', 'center');
+        }
+      }
       if (showReveal) {
         HLD.arrow(ctx, wtx, wty, ox, oy, col.wind, 2.4, 10);
         HLD.chipLabel(ctx, 'V_rel', ox + wlen * 0.80 * Math.cos(phV), oy - wlen * 0.80 * Math.sin(phV) - 12, col.wind, 'bold 11px IBM Plex Sans', 'center');
@@ -879,6 +902,34 @@ const HLW = (function () {
         HLD.chipLabel(ctx, 'φ ' + scenario.phi.toFixed(1) + '°', ox + 76 * Math.cos(m), oy + 76 * Math.sin(m) + 12, col.wind, '11px IBM Plex Sans', 'center');
       }
     };
+
+    const canvasPt = (ev) => {
+      const r = ui.canvas.getBoundingClientRect();
+      return { x: ev.clientX - r.left, y: ev.clientY - r.top };
+    };
+    ui.canvas.addEventListener('pointerdown', (ev) => {
+      if (step !== 2 || gate1 === 'correct' || !gate1Geom) return;
+      const p = canvasPt(ev);
+      const startTol = Math.max(18, gate1Geom.len * 0.10);
+      if (Math.hypot(p.x - gate1Geom.wtx, p.y - gate1Geom.wty) > startTol) return;
+      gate1Dragging = true;
+      gate1 = null;
+      gate1Draft = { x1: gate1Geom.wtx, y1: gate1Geom.wty, x2: p.x, y2: p.y };
+      ui.canvas.setPointerCapture?.(ev.pointerId);
+      draw();
+      ev.preventDefault();
+    });
+    ui.canvas.addEventListener('pointermove', (ev) => {
+      if (!gate1Dragging || step !== 2 || !gate1Draft) return;
+      const p = canvasPt(ev);
+      gate1Draft.x2 = p.x;
+      gate1Draft.y2 = p.y;
+      draw();
+      ev.preventDefault();
+    });
+    const finishGate1Drag = () => { gate1Dragging = false; };
+    ui.canvas.addEventListener('pointerup', finishGate1Drag);
+    ui.canvas.addEventListener('pointercancel', finishGate1Drag);
 
     const readout = (extraNote) => kv([
       ['Rotor speed Ω', omega.toFixed(1) + ' rad/s', 'var(--hl-accent)'],
@@ -901,7 +952,7 @@ const HLW = (function () {
         drawVelocityInputs(ctx, W, H, col, gate1 === 'correct');
         ui.readout.innerHTML = readout(gate1 === 'correct'
           ? 'Gate 1 unlocked: the resultant relative airflow V_rel and inflow angle φ are now revealed.'
-          : 'Gate 1 is still locked: use the two known velocity components to predict the direction of V_rel before reveal.');
+          : 'Gate 1 is still locked: construct V_rel in the diagram, then commit before reveal.');
       } else if (step === 3) {
         drawBladeElementScene(ctx, ox, oy, len, {
           theta: scenario.theta * D2R,
