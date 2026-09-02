@@ -140,6 +140,140 @@ const HLW = (function () {
     ).join('');
   }
 
+  function addStageNote(host, html) {
+    const stage = host.querySelector('.hl-w-stage');
+    if (!stage) return null;
+    const note = el('div', 'hl-stage-note', html);
+    stage.insertAdjacentElement('afterend', note);
+    return note;
+  }
+
+  const BLADE_AIRFOIL = HLD.nacaProfile(0.12, 56);
+  function drawBladeElementScene(ctx, ox, oy, len, opts, col) {
+    const th = opts.theta, ph = opts.phi, A = opts.ampl || 1;
+    const thV = th * A, phV = ph * A;
+    const aCol = opts.aoaColor || (opts.stall ? col.bad : (opts.aoa != null && opts.aoa < 0.035 ? col.warn : col.lift));
+
+    HLD.dline(ctx, ox - len * 0.34, oy, ox + len * 1.12, oy, col.dim, 1, [5, 4]);
+    HLD.chipLabel(ctx, 'rotor plane', ox + len * 1.12, oy - 9, col.dim, '10px IBM Plex Sans', 'right');
+
+    const wlen = len * 0.92;
+    const wtx = ox + wlen * Math.cos(phV), wty = oy - wlen * Math.sin(phV);
+    if (opts.showVrel !== false) {
+      HLD.arrow(ctx, wtx, wty, ox, oy, col.wind, 2.2, 10);
+      HLD.chipLabel(ctx, opts.vrelLabel || 'V_rel',
+        ox + wlen * 0.80 * Math.cos(phV),
+        oy - wlen * 0.80 * Math.sin(phV) - 12,
+        col.wind, 'bold 11px IBM Plex Sans', 'center');
+    }
+
+    const prof = opts.airfoil || BLADE_AIRFOIL;
+    const ac = 0.42 * len;
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.rotate(-thV);
+    ctx.strokeStyle = col.chord; ctx.setLineDash([4, 3]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(ac, 0); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = col.chord; ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    prof.forEach((p, i) => {
+      const X = (1 - p.x) * ac;
+      const Y = -p.y * ac;
+      i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y);
+    });
+    ctx.closePath();
+    ctx.globalAlpha = 0.16; ctx.fill(); ctx.globalAlpha = 1; ctx.stroke();
+    ctx.restore();
+    HLD.dot(ctx, ox, oy, 4, col.chord);
+    const lex = ox + ac * Math.cos(thV), ley = oy - ac * Math.sin(thV);
+    HLD.chipLabel(ctx, opts.airfoilName || 'NACA 0012', lex + 8, ley - 12, col.chord, '10px IBM Plex Sans', 'left');
+
+    if (opts.showAngles) {
+      const arcLbl = (r, a0, a1, color, str, font, dy) => {
+        ctx.strokeStyle = color; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(ox, oy, r, a0, a1, a1 < a0); ctx.stroke();
+        const m = (a0 + a1) / 2;
+        HLD.chipLabel(ctx, str, ox + (r + 12) * Math.cos(m), oy + (r + 12) * Math.sin(m) + (dy || 0), color, font || '11px IBM Plex Sans', 'center');
+      };
+      const aScale = len < 140 ? len / 140 : 1;
+      arcLbl(40 * aScale, 0, -thV, col.chord, 'θ ' + (th * 180 / Math.PI).toFixed(1) + '°', null, len < 140 ? -12 : -6);
+      arcLbl(64 * aScale, 0, -phV, col.wind, 'φ ' + (ph * 180 / Math.PI).toFixed(1) + '°', null, 12);
+      if (opts.showAlpha !== false) {
+        const aMid = (thV + phV) / 2;
+        ctx.strokeStyle = aCol; ctx.lineWidth = 2.4;
+        ctx.beginPath(); ctx.arc(ox, oy, 88 * aScale, -phV, -thV, phV < thV); ctx.stroke();
+        const wedgeX = ox + 88 * aScale * Math.cos(aMid), wedgeY = oy - 88 * aScale * Math.sin(aMid);
+        const aLblX = ox + len * 0.30, aLblY = oy - len * 0.42;
+        HLD.dline(ctx, wedgeX, wedgeY, aLblX, aLblY + 6, aCol, 1, [2, 3]);
+        HLD.chipLabel(ctx, 'α ' + ((th - ph) * 180 / Math.PI).toFixed(1) + '° (AoA)',
+          aLblX, aLblY, aCol, 'bold 12px IBM Plex Sans', 'center');
+      }
+    }
+
+    if ((opts.showForces || opts.showResultant || opts.showResolve) && !opts.stall) {
+      const fL = Math.max(0, opts.cl || 0) * (len * 0.84);
+      const fD = Math.max(0, opts.cd || 0) * (len * 8.0);
+      const Lx = -fL * Math.sin(phV), Ly = -fL * Math.cos(phV);
+      const Dx = -fD * Math.cos(phV), Dy = fD * Math.sin(phV);
+      if (opts.showForces) {
+        const lmag = Math.hypot(Lx, Ly) || 1;
+        HLD.arrow(ctx, ox, oy, ox + Lx, oy + Ly, col.lift, 2.4, 9);
+        HLD.chipLabel(ctx, opts.liftLabel || 'L', ox + Lx - (Ly / lmag) * 16, oy + Ly + (Lx / lmag) * 16, col.lift, 'bold 11px IBM Plex Sans', 'center');
+        HLD.arrow(ctx, ox, oy, ox + Dx, oy + Dy, col.drag, 2.0, 8);
+        HLD.chipLabel(ctx, opts.dragLabel || 'D', ox + Dx - 10, oy + Dy + 8, col.drag, '10px IBM Plex Sans', 'center');
+      }
+      if (opts.showResultant) {
+        const tafX = Lx + Dx, tafY = Ly + Dy;
+        const tafMag = Math.hypot(tafX, tafY) || 1;
+        const tafCol = '#c084fc';
+        HLD.arrow(ctx, ox, oy, ox + tafX, oy + tafY, tafCol, 2.6, 10);
+        HLD.chipLabel(ctx, opts.resultantLabel || 'TAF',
+          ox + tafX + (tafY / tafMag) * 16,
+          oy + tafY - (tafX / tafMag) * 16,
+          tafCol, 'bold 11px IBM Plex Sans', 'center');
+      }
+      if (opts.showResolve) {
+        const S = len * 0.75, FH_X = 6;
+        const fHtrue = (opts.cl || 0) * Math.sin(ph) + (opts.cd || 0) * Math.cos(ph);
+        const fTtrue = (opts.cl || 0) * Math.cos(ph) - (opts.cd || 0) * Math.sin(ph);
+        const Tx = -fHtrue * S * FH_X;
+        const Ty = -fTtrue * S;
+        const tafCol = '#c084fc';
+        HLD.dline(ctx, ox, oy, ox + Tx, oy, col.dim, 1, [3, 3]);
+        HLD.dline(ctx, ox + Tx, oy, ox + Tx, oy + Ty, col.dim, 1, [3, 3]);
+        HLD.dline(ctx, ox, oy, ox, oy + Ty, col.dim, 1, [3, 3]);
+        HLD.dline(ctx, ox, oy + Ty, ox + Tx, oy + Ty, col.dim, 1, [3, 3]);
+        const tmag = Math.hypot(Tx, Ty) || 1;
+        const tpx = Ty / tmag, tpy = -Tx / tmag;
+        HLD.arrow(ctx, ox, oy, ox, oy + Ty, col.good, 2.4, 9);
+        HLD.chipLabel(ctx, opts.resolveLabel || 'Thrust',
+          ox - 44, oy + Ty + (Ty < 0 ? 4 : -12), col.good, 'bold 10px IBM Plex Sans', 'right');
+        const fhCol = Tx > 0 ? col.good : col.warn;
+        HLD.arrow(ctx, ox, oy, ox + Tx, oy, fhCol, 2.4, 9);
+        HLD.chipLabel(ctx, opts.fhLabel || 'F_H ×6',
+          ox + Tx + (Tx < 0 ? -20 : 20), oy + 28, fhCol, 'bold 10px IBM Plex Sans', Tx < 0 ? 'right' : 'left');
+        HLD.arrow(ctx, ox, oy, ox + Tx, oy + Ty, tafCol, 2.6, 10);
+        HLD.chipLabel(ctx, 'TAF', ox + Tx + tpx * 18, oy + Ty + tpy * 18, tafCol, 'bold 11px IBM Plex Sans', 'center');
+      }
+    }
+
+    if (opts.showVelocity) {
+      const fX = wtx, fY = oy;
+      HLD.arrow(ctx, fX, fY, ox, fY, col.wind, 1.5, 7);
+      HLD.arrow(ctx, wtx, wty, fX, fY, col.wind, 1.5, 7);
+      const sq = 5;
+      HLD.dline(ctx, fX - sq, fY - sq, fX, fY - sq, col.dim, 1);
+      HLD.dline(ctx, fX - sq, fY - sq, fX - sq, fY, col.dim, 1);
+      HLD.chipLabel(ctx, 'v_rot', (fX + ox) / 2, fY + 12, col.wind, 'bold 10px IBM Plex Sans', 'center');
+      HLD.chipLabel(ctx, 'v_i', fX - 7, (wty + fY) / 2, col.wind, 'bold 10px IBM Plex Sans', 'right');
+      HLD.chipLabel(ctx, 'rotor plane', ox + len * 1.12, oy - 9, col.dim, '10px IBM Plex Sans', 'right');
+    }
+    if (opts.stall) {
+      HLD.text(ctx, '⚠ STALLED', ox + len * 0.45, oy - len * 0.4, col.bad, 'bold 13px IBM Plex Sans', 'center');
+    }
+    return { thV, phV, wtx, wty, wlen };
+  }
+
   /* explain why the 3-D view didn't load (most often: opened via file://) */
   function noThreeHTML() {
     const fileProto = location.protocol === 'file:';
@@ -430,6 +564,7 @@ const HLW = (function () {
   /* 2 — Blade element: θ, φ → α, lift/drag */
   function wBladeElement(host) {
     const ui = scaffold(host);
+    addStageNote(host, 'Angles visually exaggerated ×4 — not to scale');
     const st = HL.defaultState();
     let theta = 8, phi = 3, linked = false, step = 1;
     let phiCtl = null, linkToggle = null;
@@ -492,16 +627,16 @@ const HLW = (function () {
       const A = 4.0;
       const thV = theta * D2R * A;
       const phVraw = phi * D2R * A;
-      const phV = Math.min(thV - 0.01, phVraw);
+      const phV = phVraw;
       const wlen = len * 0.92;
       const wtx = ox + wlen * Math.cos(phV);
       const wty = oy - wlen * Math.sin(phV);
       const fX = wtx, fY = oy;   // right-angle corner of the velocity triangle
 
-      HLD.bladeSection(ctx, ox, oy, len, {
+      drawBladeElementScene(ctx, ox, oy, len, {
         theta: theta * D2R, phi: phi * D2R, ampl: A,
         showForces: step === 4,
-        showVelocity: step === 4 && phi < theta,
+        showVelocity: step === 4,
         showVrel: step >= 3,
         showAngles: step === 4,
         stall: stall && step === 4,
@@ -574,6 +709,288 @@ const HLW = (function () {
     ui.controls.appendChild(toggleRow);
     linkToggle = toggleRow;
     toggle(toggleRow, { label: 'Link φ to θ (realistic)', val: false, on: v => { linked = v; draw(); } });
+    updateStepUI();
+    ui.onDraw(draw);
+  }
+
+  function wM104BladeElement(host) {
+    const ui = scaffold(host, { mainStage: 'hl-w-stage hl-w-stage-mission' });
+    addStageNote(host, 'Angles visually exaggerated ×4 — not to scale');
+    const st = HL.defaultState();
+    const scenario = { theta: 10, phi: 4, rFrac: 0.75 };
+    const omega = st.RPM * 2 * Math.PI / 60;
+    const rM = scenario.rFrac * st.R;
+    const vrot = scenario.rFrac * HL.omR(st);
+    const vi = vrot * Math.tan(scenario.phi * D2R);
+    const aoa = (scenario.theta - scenario.phi) * D2R;
+    const cl = HL.clOf(st, aoa);
+    const cd = HL.cdOf(st, cl);
+    let step = 1;
+    let gate1 = null, gate2 = null, gate3 = null;
+
+    const stepBar = el('div', 'hl-step-bar');
+    const stepNav = el('div', 'hl-step-nav');
+    const btnBack = el('button', 'hl-step-btn', '← Back');
+    const stepCounter = el('span', 'hl-step-counter', 'Step 1 of 6');
+    const btnNext = el('button', 'hl-step-btn', 'Next →');
+    const stepCaption = el('div', 'hl-step-caption');
+    stepNav.appendChild(btnBack);
+    stepNav.appendChild(stepCounter);
+    stepNav.appendChild(btnNext);
+    stepBar.appendChild(stepNav);
+    stepBar.appendChild(stepCaption);
+    host.insertBefore(stepBar, host.firstChild);
+
+    const CAPTIONS = [
+      'Reference state — fixed blade station, known Ω, known r, known blade pitch, known axial inflow.',
+      'Velocity inputs — build the blank velocity triangle before the app reveals the resultant V_rel.',
+      'Blade geometry — place θ against the now-known φ, then decide α from the geometry before the formula is shown.',
+      'Local forces — reveal F_L, F_D and their combined total aerodynamic force (TAF).',
+      'Resolve the local force — separate the thrust-producing normal component from the in-plane braking force F_H.',
+      'Reveal — connect this single blade element back to the whole-rotor tendency without turning it into an exit test.',
+    ];
+
+    const canAdvance = () =>
+      !((step === 2 && gate1 !== 'correct') || (step === 3 && gate2 !== '6') || (step === 5 && gate3 !== 'correct') || step === 6);
+
+    const updateStepUI = () => {
+      stepCounter.textContent = 'Step ' + step + ' of 6';
+      stepCaption.textContent = CAPTIONS[step - 1];
+      btnBack.disabled = step === 1;
+      btnNext.disabled = !canAdvance();
+    };
+
+    const introBox = (title, body) => {
+      const box = el('div', 'hl-mission-box');
+      box.appendChild(el('div', 'hl-mission-h', title));
+      box.appendChild(el('p', null, body));
+      return box;
+    };
+    const gateFeedback = (state, ok, no) => {
+      if (!state) return null;
+      return el('div', 'hl-check-fb ' + (state === 'correct' ? 'ok' : 'no'),
+        state === 'correct' ? '✓ ' + ok : '✗ ' + no);
+    };
+
+    const rebuildControls = () => {
+      ui.controls.innerHTML = '';
+      if (step === 1) {
+        ui.controls.appendChild(introBox('M1-04 mission',
+          'This is a fixed guided-construction scenario. There are no sliders here: predict first, then unlock the reveal.'));
+      } else if (step === 2) {
+        ui.controls.appendChild(introBox('Gate 1 — Construct V_rel',
+          'With v_rot along the rotor plane and v_i downward through the disc, choose the only coherent resultant relative airflow.'));
+        segmented(ui.controls, {
+          label: 'Choose the direction of V_rel',
+          val: gate1 || '',
+          options: [
+            { v: 'wrong-up', t: 'Points toward the leading edge and up above the plane' },
+            { v: 'correct', t: 'Points toward the leading edge and slightly down through the plane' },
+            { v: 'wrong-aft', t: 'Points aft, away from the leading edge' },
+          ],
+          on: v => { gate1 = v; updateStepUI(); draw(); },
+        });
+        const fb1 = gateFeedback(gate1,
+          'Correct — the blade sees airflow from the leading-edge side, tilted downward by the induced component.',
+          'Not yet — combine the in-plane rotational velocity with the downward induced flow, then pick the resultant the blade actually feels.');
+        if (fb1) ui.controls.appendChild(fb1);
+      } else if (step === 3) {
+        ui.controls.appendChild(introBox('Gate 2 — Determine α from geometry',
+          'Now that θ and φ are both visible, decide the angle of attack from the geometric gap between the chord and V_rel before the shortcut relation is revealed.'));
+        segmented(ui.controls, {
+          label: 'What is α for this element?',
+          val: gate2 || '',
+          options: [
+            { v: '2', t: 'α = 2°' },
+            { v: '6', t: 'α = 6°' },
+            { v: '14', t: 'α = 14°' },
+          ],
+          on: v => { gate2 = v; updateStepUI(); draw(); },
+        });
+        const fb2 = gateFeedback(gate2 ? (gate2 === '6' ? 'correct' : 'wrong') : null,
+          'Correct — once the geometry is revealed, the relation α = θ − φ confirms the 6° result.',
+          'Not yet — α is the gap between the blade chord and V_rel, not between the chord and the rotor plane.');
+        if (fb2) ui.controls.appendChild(fb2);
+      } else if (step === 5) {
+        ui.controls.appendChild(introBox('Gate 3 — Causal consequence',
+          'Decide what this local resolved force means before the app reveals the broader rotor-level tendency.'));
+        segmented(ui.controls, {
+          label: 'What is the local consequence here?',
+          val: gate3 || '',
+          options: [
+            { v: 'wrong-whole', t: 'F_H is the whole-rotor thrust vector, so the vertical component no longer matters' },
+            { v: 'correct', t: 'The local normal component contributes to rotor thrust, while F_H is an in-plane braking load' },
+            { v: 'wrong-span', t: 'TAF acts along the blade span, so this element mainly changes radial flow' },
+          ],
+          on: v => { gate3 = v; updateStepUI(); draw(); },
+        });
+        const fb3 = gateFeedback(gate3,
+          'Correct — keep the local normal component separate from total rotor thrust, and treat F_H as an in-plane resisting force.',
+          'Not yet — separate the local blade-element resultants from the later whole-rotor consequence.');
+        if (fb3) ui.controls.appendChild(fb3);
+      } else {
+        ui.controls.appendChild(introBox('Guided reveal',
+          step === 4
+            ? 'You have already unlocked the geometry. Now inspect how F_L sits perpendicular to V_rel, how F_D opposes the local airflow, and how they combine into TAF.'
+            : 'The final reveal stays formative: it names the tendency of this one element without reproducing the later transfer task outside HeliLab.'));
+      }
+    };
+
+    btnBack.addEventListener('click', () => {
+      if (step > 1) { step--; updateStepUI(); draw(); }
+    });
+    btnNext.addEventListener('click', () => {
+      if (canAdvance()) { step++; updateStepUI(); draw(); }
+    });
+
+    const drawReference = (ctx, W, H, col) => {
+      const ox = W * 0.18, oy = H * 0.64, len = Math.min(W * 0.58, 330);
+      HLD.dline(ctx, ox - len * 0.34, oy, ox + len * 1.12, oy, col.dim, 1, [5, 4]);
+      HLD.chipLabel(ctx, 'rotor plane', ox + len * 1.12, oy - 9, col.dim, '10px IBM Plex Sans', 'right');
+      HLD.dot(ctx, ox, oy, 4, col.chord);
+      HLD.chipLabel(ctx, 'blade element @ 0.75R', ox + len * 0.18, oy - 18, col.chord, 'bold 11px IBM Plex Sans');
+      HLD.text(ctx, 'Known inputs only: Ω, r, θ, and downward induced flow', W * 0.50, H * 0.14, col.dim, '11px IBM Plex Sans', 'center');
+    };
+
+    const drawVelocityInputs = (ctx, W, H, col, showReveal) => {
+      const ox = W * 0.18, oy = H * 0.64, len = Math.min(W * 0.58, 330);
+      const A = 4.0, phV = scenario.phi * D2R * A;
+      const wlen = len * 0.92;
+      const wtx = ox + wlen * Math.cos(phV), wty = oy - wlen * Math.sin(phV);
+      const fX = wtx, fY = oy;
+      HLD.dline(ctx, ox - len * 0.34, oy, ox + len * 1.12, oy, col.dim, 1, [5, 4]);
+      HLD.chipLabel(ctx, 'rotor plane', ox + len * 1.12, oy - 9, col.dim, '10px IBM Plex Sans', 'right');
+      HLD.dot(ctx, ox, oy, 4, col.chord);
+      HLD.arrow(ctx, fX, fY, ox, fY, col.accent, 2.5, 9);
+      HLD.arrow(ctx, wtx, wty, fX, fY, col.wind, 2.5, 9);
+      HLD.chipLabel(ctx, 'v_rot = Ω·r', (fX + ox) / 2, fY + 15, col.accent, 'bold 10px IBM Plex Sans', 'center');
+      HLD.chipLabel(ctx, 'v_i', fX - 8, (wty + fY) / 2, col.wind, 'bold 10px IBM Plex Sans', 'right');
+      const sq = 5;
+      HLD.dline(ctx, fX - sq, fY - sq, fX, fY - sq, col.dim, 1);
+      HLD.dline(ctx, fX - sq, fY - sq, fX - sq, fY, col.dim, 1);
+      if (showReveal) {
+        HLD.arrow(ctx, wtx, wty, ox, oy, col.wind, 2.4, 10);
+        HLD.chipLabel(ctx, 'V_rel', ox + wlen * 0.80 * Math.cos(phV), oy - wlen * 0.80 * Math.sin(phV) - 12, col.wind, 'bold 11px IBM Plex Sans', 'center');
+        ctx.strokeStyle = col.wind; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(ox, oy, 64, 0, -phV, -phV < 0); ctx.stroke();
+        const m = -phV / 2;
+        HLD.chipLabel(ctx, 'φ ' + scenario.phi.toFixed(1) + '°', ox + 76 * Math.cos(m), oy + 76 * Math.sin(m) + 12, col.wind, '11px IBM Plex Sans', 'center');
+      }
+    };
+
+    const readout = (extraNote) => kv([
+      ['Rotor speed Ω', omega.toFixed(1) + ' rad/s', 'var(--hl-accent)'],
+      ['Blade station r', rM.toFixed(2) + ' m (0.75R)', 'var(--hl-chord)'],
+      ['v_rot = Ωr', vrot.toFixed(0) + ' m/s', 'var(--hl-accent)'],
+      ['Axial / induced v_i', vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+      ['Blade pitch θ', scenario.theta.toFixed(1) + '°', 'var(--hl-chord)'],
+    ]) + `<p class="hl-note">${extraNote}</p>`;
+
+    const draw = () => {
+      rebuildControls();
+      const { ctx, W, H, col } = HLD.setup(ui.canvas);
+      HLD.clear(ctx, W, H, col);
+      HLD.grid(ctx, W, H, col, 30);
+      const ox = W * 0.18, oy = H * 0.64, len = Math.min(W * 0.58, 330);
+      if (step === 1) {
+        drawReference(ctx, W, H, col);
+        ui.readout.innerHTML = readout('Start from the blank reference frame. The element location and the known inputs are given, but V_rel, φ, α and the forces are still hidden.');
+      } else if (step === 2) {
+        drawVelocityInputs(ctx, W, H, col, gate1 === 'correct');
+        ui.readout.innerHTML = readout(gate1 === 'correct'
+          ? 'Gate 1 unlocked: the resultant relative airflow V_rel and inflow angle φ are now revealed.'
+          : 'Gate 1 is still locked: use the two known velocity components to predict the direction of V_rel before reveal.');
+      } else if (step === 3) {
+        drawBladeElementScene(ctx, ox, oy, len, {
+          theta: scenario.theta * D2R,
+          phi: scenario.phi * D2R,
+          ampl: 4.0,
+          showVelocity: true,
+          showVrel: true,
+          showAngles: true,
+          showAlpha: gate2 === '6',
+          cl, cd, aoa,
+        }, col);
+        ui.readout.innerHTML = kv([
+          ['Rotor speed Ω', omega.toFixed(1) + ' rad/s', 'var(--hl-accent)'],
+          ['Blade station r', rM.toFixed(2) + ' m (0.75R)', 'var(--hl-chord)'],
+          ['Inflow φ', scenario.phi.toFixed(1) + '°', 'var(--hl-wind)'],
+          ['Blade pitch θ', scenario.theta.toFixed(1) + '°', 'var(--hl-chord)'],
+          ...(gate2 === '6'
+            ? [['AoA α = θ − φ', (scenario.theta - scenario.phi).toFixed(1) + '°', 'var(--hl-good)']]
+            : []),
+        ]) + `<p class="hl-note">${gate2 === '6'
+          ? 'Gate 2 unlocked: α is now revealed as the geometric gap between chord and V_rel, and only now is the shortcut α = θ − φ stated.'
+          : 'Gate 2 is still locked: identify α from the geometry first rather than memorising the formula.'}</p>`;
+      } else if (step === 4) {
+        drawBladeElementScene(ctx, ox, oy, len, {
+          theta: scenario.theta * D2R,
+          phi: scenario.phi * D2R,
+          ampl: 4.0,
+          showVelocity: true,
+          showVrel: true,
+          showAngles: true,
+          showForces: true,
+          showResultant: true,
+          liftLabel: 'F_L',
+          dragLabel: 'F_D',
+          cl, cd, aoa,
+        }, col);
+        ui.readout.innerHTML = kv([
+          ['AoA α', (scenario.theta - scenario.phi).toFixed(1) + '°', 'var(--hl-good)'],
+          ['F_L direction', 'Perpendicular to V_rel', 'var(--hl-lift)'],
+          ['F_D direction', 'Parallel / opposing the local airflow', 'var(--hl-drag)'],
+          ['Combined result', 'TAF', '#c084fc'],
+        ]) + '<p class="hl-note">This step stays local: F_L and F_D combine into the total aerodynamic force before any whole-rotor interpretation is made.</p>';
+      } else if (step === 5) {
+        drawBladeElementScene(ctx, ox, oy, len, {
+          theta: scenario.theta * D2R,
+          phi: scenario.phi * D2R,
+          ampl: 4.0,
+          showVelocity: true,
+          showVrel: true,
+          showAngles: true,
+          showForces: true,
+          showResolve: true,
+          liftLabel: 'F_L',
+          dragLabel: 'F_D',
+          resolveLabel: 'Local normal',
+          fhLabel: 'F_H ×6',
+          cl, cd, aoa,
+        }, col);
+        ui.readout.innerHTML = kv([
+          ['TAF', 'Resolved locally', '#c084fc'],
+          ['Normal component', 'Local thrust-producing part', 'var(--hl-good)'],
+          ['F_H', 'In-plane / braking component', 'var(--hl-warn)'],
+        ]) + `<p class="hl-note">${gate3 === 'correct'
+          ? 'Gate 3 unlocked: you have identified the local causal consequence and can now move to the final reveal.'
+          : 'Gate 3 is still locked: decide what these resolved local components mean before the app names the rotor-level tendency.'}</p>`;
+      } else {
+        drawBladeElementScene(ctx, ox, oy, len, {
+          theta: scenario.theta * D2R,
+          phi: scenario.phi * D2R,
+          ampl: 4.0,
+          showVelocity: true,
+          showVrel: true,
+          showAngles: true,
+          showForces: true,
+          showResolve: true,
+          liftLabel: 'F_L',
+          dragLabel: 'F_D',
+          resolveLabel: 'Local normal',
+          fhLabel: 'F_H ×6',
+          cl, cd, aoa,
+        }, col);
+        HLD.chipLabel(ctx, 'Local normal component → contributes to rotor thrust', W * 0.55, H * 0.15, col.good, 'bold 11px IBM Plex Sans', 'center');
+        HLD.chipLabel(ctx, 'F_H → in-plane braking load that rotor torque must overcome', W * 0.58, H * 0.22, col.warn, 'bold 11px IBM Plex Sans', 'center');
+        ui.readout.innerHTML = kv([
+          ['Scenario', 'Fixed canonical element', 'var(--hl-accent)'],
+          ['Local normal', 'Contributes to overall rotor thrust', 'var(--hl-good)'],
+          ['F_H', 'Resists rotation in-plane', 'var(--hl-warn)'],
+        ]) + '<p class="hl-note">Final reveal only: this names the tendency of the local element without recreating the unrehearsed transfer task that belongs outside HeliLab.</p>';
+      }
+    };
+
     updateStepUI();
     ui.onDraw(draw);
   }
@@ -4579,7 +4996,7 @@ const HLW = (function () {
   }
 
   return {
-    wBigPicture, wBladeElement, wSpanwise, wHover, wVertical, wGroundEffect,
+    wBigPicture, wBladeElement, wM104BladeElement, wSpanwise, wHover, wVertical, wGroundEffect,
     wDissymmetry, wFlapping, wFlappingRoll, wEnvelope, wCoriolis, wDynamicRollover, wLTE,
     wAutorotation, wPerformance, wBetDiagram, wBetVelocity, wBetModel,
     wSandbox,
