@@ -134,7 +134,7 @@ const HL_LESSONS = [
 
       <ol>
         <li><b>Reference state:</b> start from the rotor plane and one blade station with known Ω, r, v<sub>i</sub>, and θ.</li>
-        <li><b>Gate 1:</b> choose the coherent direction of V<sub>rel</sub>, then reveal V<sub>rel</sub> and φ.</li>
+        <li><b>Gate 1:</b> construct V<sub>rel</sub> directly in the diagram, then reveal V<sub>rel</sub> and φ.</li>
         <li><b>Gate 2:</b> determine α from the geometry first, then reveal the shortcut relation.</li>
         <li><b>Gate 3:</b> resolve the local force into its thrust-producing normal component and F<sub>H</sub>, then identify the local consequence.</li>
       </ol>
