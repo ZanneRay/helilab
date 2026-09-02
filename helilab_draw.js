@@ -240,7 +240,9 @@ const HLD = (function () {
       ctx.strokeStyle = aCol; ctx.lineWidth = 2.4;
       ctx.beginPath(); ctx.arc(ox, oy, 88 * aScale, -phV, -thV, -thV < -phV); ctx.stroke();
       const wedgeX = ox + 88 * aScale * Math.cos(aMid), wedgeY = oy - 88 * aScale * Math.sin(aMid);
-      const aLblX = ox + len * 0.30, aLblY = oy - len * 0.42;   // up-right, into empty space
+      const aLblR = 88 * aScale + Math.max(18 * aScale, len * 0.10);
+      const aLblDy = (thV >= phV ? -1 : 1) * (len < 140 ? 8 : 12);
+      const aLblX = ox + aLblR * Math.cos(aMid), aLblY = oy - aLblR * Math.sin(aMid) + aLblDy;
       dline(ctx, wedgeX, wedgeY, aLblX, aLblY + 6, aCol, 1, [2, 3]);
       chipLabel(ctx, 'α ' + ((th - ph) * 180 / Math.PI).toFixed(1) + '° (AoA)',
         aLblX, aLblY, aCol, 'bold 12px IBM Plex Sans', 'center');
