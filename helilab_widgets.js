@@ -225,10 +225,18 @@ const HLW = (function () {
         HLD.arrow(ctx, ox, oy, ox + Dx, oy + Dy, col.drag, 2.0, 8);
         HLD.chipLabel(ctx, opts.dragLabel || 'D', ox + Dx - 10, oy + Dy + 8, col.drag, '10px IBM Plex Sans', 'center');
       }
+      const tafX = Lx + Dx, tafY = Ly + Dy;
+      const tafMag = Math.hypot(tafX, tafY) || 1;
+      const tafCol = '#c084fc';
+      if (opts.showParallelogram) {
+        HLD.dline(ctx, ox + Lx, oy + Ly, ox + tafX, oy + tafY, col.dim, 1, [5, 4]);
+        HLD.dline(ctx, ox + Dx, oy + Dy, ox + tafX, oy + tafY, col.dim, 1, [5, 4]);
+        HLD.chipLabel(ctx, opts.resultantSumLabel || 'TAF = F_L + F_D',
+          ox + tafX - (tafY / tafMag) * 28,
+          oy + tafY + (tafX / tafMag) * 28,
+          tafCol, '10px IBM Plex Sans', 'center');
+      }
       if (opts.showResultant) {
-        const tafX = Lx + Dx, tafY = Ly + Dy;
-        const tafMag = Math.hypot(tafX, tafY) || 1;
-        const tafCol = '#c084fc';
         HLD.arrow(ctx, ox, oy, ox + tafX, oy + tafY, tafCol, 2.6, 10);
         HLD.chipLabel(ctx, opts.resultantLabel || 'TAF',
           ox + tafX + (tafY / tafMag) * 16,
@@ -241,11 +249,8 @@ const HLW = (function () {
         const fTtrue = (opts.cl || 0) * Math.cos(ph) - (opts.cd || 0) * Math.sin(ph);
         const Tx = -fHtrue * S * FH_X;
         const Ty = -fTtrue * S;
-        const tafCol = '#c084fc';
-        HLD.dline(ctx, ox, oy, ox + Tx, oy, col.dim, 1, [3, 3]);
-        HLD.dline(ctx, ox + Tx, oy, ox + Tx, oy + Ty, col.dim, 1, [3, 3]);
-        HLD.dline(ctx, ox, oy, ox, oy + Ty, col.dim, 1, [3, 3]);
-        HLD.dline(ctx, ox, oy + Ty, ox + Tx, oy + Ty, col.dim, 1, [3, 3]);
+        HLD.dline(ctx, ox + Tx, oy + Ty, ox + Tx, oy, col.dim, 1, [3, 3]);
+        HLD.dline(ctx, ox + Tx, oy + Ty, ox, oy + Ty, col.dim, 1, [3, 3]);
         const tmag = Math.hypot(Tx, Ty) || 1;
         const tpx = Ty / tmag, tpy = -Tx / tmag;
         HLD.arrow(ctx, ox, oy, ox, oy + Ty, col.good, 2.4, 9);
@@ -717,7 +722,8 @@ const HLW = (function () {
   }
 
   function wM104BladeElement(host) {
-    const ui = scaffold(host, { mainStage: 'hl-w-stage hl-w-stage-mission', sideFirst: true });
+    const ui = scaffold(host, { mainStage: 'hl-w-stage hl-w-stage-mission' });
+    host.firstChild.classList.add('hl-w-mission-layout');
     addStageNote(host, 'Angles visually exaggerated ×4 — not to scale');
     const st = HL.defaultState();
     const scenario = { theta: 10, phi: 4, rFrac: 0.75 };
@@ -747,11 +753,11 @@ const HLW = (function () {
 
     const CAPTIONS = [
       'Reference state — fixed blade station, known Ω, known r, known blade pitch, known axial inflow.',
-      'Velocity inputs — draw and commit V_rel on the blank triangle before the app reveals the resultant and φ.',
+      'Velocity inputs — build and commit V_rel in the diagram from the v_i tip to the blade element before reveal.',
       'Blade geometry — place θ against the now-known φ, then decide α from the geometry before the formula is shown.',
-      'Local forces — reveal F_L, F_D and their combined total aerodynamic force (TAF).',
-      'Resolve the local force — separate the thrust-producing normal component from the in-plane braking force F_H.',
-      'Reveal — connect this single blade element back to the whole-rotor tendency without turning it into an exit test.',
+      'Local forces — use the parallelogram construction to show how F_L + F_D builds TAF.',
+      'Resolve the local force — project TAF into the thrust-producing normal component and the in-plane force F_H.',
+      'Connect the local blade element to the rotor — first solve the local force, then name its rotor effect.',
     ];
     const gate1Geometry = (W, H) => {
       const ox = W * 0.18, oy = H * 0.64, len = Math.min(W * 0.58, 330);
@@ -763,15 +769,21 @@ const HLW = (function () {
     };
     const gate1State = () => {
       if (!gate1Draft || !gate1Geom) return 'wrong';
-      const tol = Math.max(16, gate1Geom.len * 0.09);
+      const tol = Math.max(22, gate1Geom.len * 0.14);
       const tailErr = Math.hypot(gate1Draft.x1 - gate1Geom.wtx, gate1Draft.y1 - gate1Geom.wty);
-      const headErr = Math.hypot(gate1Draft.x2 - gate1Geom.ox, gate1Draft.y2 - gate1Geom.oy);
       const vx = gate1Draft.x2 - gate1Draft.x1, vy = gate1Draft.y2 - gate1Draft.y1;
       const ex = gate1Geom.ox - gate1Geom.wtx, ey = gate1Geom.oy - gate1Geom.wty;
       const vmag = Math.hypot(vx, vy), emag = Math.hypot(ex, ey);
       if (vmag < 20 || emag < 20) return 'wrong';
       const dirCos = (vx * ex + vy * ey) / (vmag * emag);
-      return (tailErr <= tol && headErr <= tol && dirCos > 0.94) ? 'correct' : 'wrong';
+      const proj = (vx * ex + vy * ey) / (emag * emag);
+      const lateralErr = Math.abs(vx * ey - vy * ex) / emag;
+      return (tailErr <= tol
+        && dirCos > 0.96
+        && proj >= 0.72
+        && proj <= 1.32
+        && lateralErr <= Math.max(18, gate1Geom.len * 0.08))
+        ? 'correct' : 'wrong';
     };
 
     const canAdvance = () =>
@@ -800,17 +812,17 @@ const HLW = (function () {
       ui.controls.innerHTML = '';
       if (step === 1) {
         ui.controls.appendChild(introBox('M1-04 mission',
-          'This is a fixed guided-construction scenario. There are no sliders here: predict first, then unlock the reveal.'));
+          'This is a fixed guided-construction scenario. There are no sliders here: build the picture first, then unlock each reveal.'));
       } else if (step === 2) {
         ui.controls.appendChild(introBox('Gate 1 — Construct V_rel',
-          'Start from the top of v_i, drag your own V_rel to the blade-element point, then commit the construction.'));
+          'Drag from the top of v_i and aim V_rel into the blade-element point, then commit the construction.'));
         const commitBtn = el('button', 'hl-link-btn', 'Commit V_rel construction');
         commitBtn.disabled = !gate1Draft;
         commitBtn.addEventListener('click', () => { gate1 = gate1State(); updateStepUI(); draw(); });
         ui.controls.appendChild(commitBtn);
         const fb1 = gateFeedback(gate1,
-          'Correct — your vector starts at the v_i tip and lands on the blade-element point, giving the coherent V_rel direction.',
-          'Not yet — start at the v_i tip, end at the blade-element point, and keep the resultant pointing toward the leading edge with a downward component.');
+          'Correct — your vector starts at the v_i tip and follows the correct V_rel line into the blade element.',
+          'Not yet — start at the v_i tip and keep the resultant aimed into the blade-element point with a downward component.');
         if (fb1) ui.controls.appendChild(fb1);
       } else if (step === 3) {
         ui.controls.appendChild(introBox('Gate 2 — Determine α from geometry',
@@ -830,10 +842,10 @@ const HLW = (function () {
           'Not yet — α is the gap between the blade chord and V_rel, not between the chord and the rotor plane.');
         if (fb2) ui.controls.appendChild(fb2);
       } else if (step === 5) {
-        ui.controls.appendChild(introBox('Gate 3 — Causal consequence',
-          'Decide what this local resolved force means before the app reveals the broader rotor-level tendency.'));
+        ui.controls.appendChild(introBox('Gate 3 — Connect this element to the rotor',
+          'What does this blade element do to the rotor? First solve the local force. Then choose the rotor consequence.'));
         segmented(ui.controls, {
-          label: 'What is the local consequence here?',
+          label: 'What does this blade element do to the rotor?',
           val: gate3 || '',
           options: [
             { v: 'wrong-whole', t: 'F_H is the whole-rotor thrust vector, so the vertical component no longer matters' },
@@ -849,8 +861,8 @@ const HLW = (function () {
       } else {
         ui.controls.appendChild(introBox('Guided reveal',
           step === 4
-            ? 'You have already unlocked the geometry. Now inspect how F_L sits perpendicular to V_rel, how F_D opposes the local airflow, and how they combine into TAF.'
-            : 'The final reveal stays formative: it names the tendency of this one element without reproducing the later transfer task outside HeliLab.'));
+            ? 'Use the dashed construction lines to see how F_L and F_D add tip-to-tip into TAF.'
+            : 'What does this blade element do to the rotor? First solve the local force. Then connect it to the rotor.'));
       }
     };
 
@@ -984,6 +996,7 @@ const HLW = (function () {
           showVrel: true,
           showAngles: true,
           showForces: true,
+          showParallelogram: true,
           showResultant: true,
           liftLabel: 'F_L',
           dragLabel: 'F_D',
@@ -994,7 +1007,7 @@ const HLW = (function () {
           ['F_L direction', 'Perpendicular to V_rel', 'var(--hl-lift)'],
           ['F_D direction', 'Parallel / opposing the local airflow', 'var(--hl-drag)'],
           ['Combined result', 'TAF', '#c084fc'],
-        ]) + '<p class="hl-note">This step stays local: F_L and F_D combine into the total aerodynamic force before any whole-rotor interpretation is made.</p>';
+        ]) + '<p class="hl-note">Use the dashed parallelogram to see the vector sum directly: F_L + F_D = TAF.</p>';
       } else if (step === 5) {
         drawBladeElementScene(ctx, ox, oy, len, {
           theta: scenario.theta * D2R,
@@ -1017,7 +1030,7 @@ const HLW = (function () {
           ['F_H', 'In-plane / braking component', 'var(--hl-warn)'],
         ]) + `<p class="hl-note">${gate3 === 'correct'
           ? 'Gate 3 unlocked: you have identified the local causal consequence and can now move to the final reveal.'
-          : 'Gate 3 is still locked: decide what these resolved local components mean before the app names the rotor-level tendency.'}</p>`;
+          : 'The dashed helper lines show TAF being decomposed into the local normal component and F_H before you name the rotor effect.'}</p>`;
       } else {
         drawBladeElementScene(ctx, ox, oy, len, {
           theta: scenario.theta * D2R,
@@ -1047,7 +1060,7 @@ const HLW = (function () {
           ['Scenario', 'Fixed canonical element', 'var(--hl-accent)'],
           ['Local normal', 'Contributes to overall rotor thrust', 'var(--hl-good)'],
           ['F_H', 'Resists rotation in-plane', 'var(--hl-warn)'],
-        ]) + '<p class="hl-note">Final reveal only: this names the tendency of the local element without recreating the unrehearsed transfer task that belongs outside HeliLab.</p>';
+        ]) + '<p class="hl-note">What does this blade element do to the rotor? Its local normal component adds thrust, while F_H is the in-plane load the rotor must overcome.</p>';
       }
     };
 

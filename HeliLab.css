@@ -223,6 +223,27 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
 .hl-w-controls { display: flex; flex-direction: column; gap: 9px; }
 .hl-w-readout { background: var(--panel2); border: 1px solid var(--border);
   border-radius: 9px; padding: 10px 12px; }
+.hl-w-mission-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.9fr) minmax(300px, 1fr);
+  grid-template-areas:
+    "stage side"
+    "note side";
+  align-items: start;
+  gap: 10px 14px;
+}
+.hl-w-mission-layout .hl-w-stage { grid-area: stage; }
+.hl-w-mission-layout .hl-stage-note { grid-area: note; margin: -2px 2px 0; }
+.hl-w-mission-layout .hl-w-side { grid-area: side; min-width: 0; }
+@media (max-width: 820px) {
+  .hl-w-mission-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "stage"
+      "note"
+      "side";
+  }
+}
 
 .hl-ctl { display: flex; flex-direction: column; gap: 4px; }
 .hl-ctl-head { display: flex; justify-content: space-between; align-items: baseline; }
