@@ -404,6 +404,204 @@ const HLW = (function () {
     };
   }
 
+  function rotorViewState(cfg) {
+    const state = Object.assign({
+      coll: 9.2, Vkt: 0, Vc: 0, weight: 2800, alt: 0, ige: false, zR: 1.0, psi: 90,
+    }, cfg || {});
+    const st = HL.defaultState();
+    st.theta0 = state.coll;
+    st.V = state.Vkt * 0.5144;
+    st.Vc = state.Vc;
+    st.W_kg = state.weight;
+    st.alt = state.alt;
+    st.ige = !!state.ige;
+    st.zR = state.zR;
+    st.theta1c = 0;
+    st.theta1s = 0;
+    const stt = trimmed(st);
+    const coeffs = flappingCoeffs(stt);
+    const trim = computeTrimCyclic(stt);
+    return {
+      st: stt,
+      coeffs,
+      mu: advanceRatio(stt),
+      lam: inflowRatio(stt),
+      coningDeg: coeffs.a0 * R2D,
+      bodyPitchDeg: Math.max(0, -trim.fusPitchDeg),
+      bladePitchDeg: state.coll,
+      psiDeg: state.psi,
+    };
+  }
+
+  function mountManagedRotor3D(stage, opts) {
+    const options = opts || {};
+    let view3d = null;
+    let visible = !document.hidden;
+    let onscreen = true;
+    let reduceMotion = false;
+    let io = null;
+    let motionQuery = null;
+    let onVisibility = null;
+    let onMotion = null;
+    if (window.matchMedia) {
+      motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+      reduceMotion = !!motionQuery.matches;
+    }
+    if (window.HL3D) {
+      try {
+        view3d = window.HL3D.create(stage, Object.assign({}, options.create || {}, {
+          paused: reduceMotion || !!options.initialPaused,
+        }));
+      } catch (e) {
+        console.error('HL3D create failed', e);
+      }
+    }
+    if (!view3d) {
+      stage.innerHTML = noThreeHTML();
+      return {
+        view3d: null,
+        reduceMotion,
+        setData() {},
+        cleanup() {},
+      };
+    }
+    const syncPaused = (forcePaused) => {
+      if (!view3d) return;
+      view3d.update({ paused: forcePaused || reduceMotion || !visible || !onscreen });
+    };
+    onVisibility = () => { visible = !document.hidden; syncPaused(!!options.isPaused && options.isPaused()); };
+    document.addEventListener('visibilitychange', onVisibility);
+    if (motionQuery) {
+      onMotion = (e) => { reduceMotion = !!e.matches; syncPaused(!!options.isPaused && options.isPaused()); };
+      motionQuery.addEventListener('change', onMotion);
+    }
+    if (window.IntersectionObserver) {
+      io = new IntersectionObserver((entries) => {
+        onscreen = entries.some((entry) => entry.isIntersecting && entry.intersectionRatio > 0.2);
+        syncPaused(!!options.isPaused && options.isPaused());
+      }, { threshold: [0, 0.2, 0.5] });
+      io.observe(stage);
+    }
+    syncPaused(!!options.isPaused && options.isPaused());
+    return {
+      view3d,
+      reduceMotion,
+      setData(data) {
+        if (!view3d) return;
+        view3d.update(data);
+        syncPaused(!!options.isPaused && options.isPaused());
+      },
+      cleanup() {
+        try { io && io.disconnect(); } catch (e) {}
+        if (motionQuery && onMotion) {
+          try { motionQuery.removeEventListener('change', onMotion); } catch (e) {}
+        }
+        if (onVisibility) document.removeEventListener('visibilitychange', onVisibility);
+        try { view3d && view3d.dispose(); } catch (e) {}
+        view3d = null;
+      },
+    };
+  }
+
+  function renderRotorTeaserReadout(box, cfg, derived) {
+    const airspeed = cfg.Vkt || 0;
+    const wakeCue = airspeed < 10 ? 'mostly down through the disc'
+      : airspeed < 50 ? 'tilting aft as forward flow grows'
+      : 'clearly skewed aft by the forward flow state';
+    box.innerHTML = kv([
+      ['Airspeed', airspeed.toFixed(0) + ' kt', 'var(--hl-accent)'],
+      ['μ', derived.mu.toFixed(3), 'var(--hl-good)'],
+      ['λ', derived.lam.toFixed(3), 'var(--hl-wind)'],
+      ['Wake cue', wakeCue, 'var(--hl-ink)'],
+    ]);
+  }
+
+  function wRotorTeaser(host, opts) {
+    const config = Object.assign({
+      min: 0, max: 80, step: 5, label: 'Airspeed', hint: 'μ ↑ → wake skew ↑',
+      state: {},
+    }, opts || {});
+    host.innerHTML = '';
+    const wrap = el('div', 'hl-rotor-teaser');
+    const stage = el('div', 'hl-rotor-stage');
+    const side = el('div', 'hl-rotor-side');
+    const controls = el('div', 'hl-rotor-controls');
+    const readout = el('div', 'hl-rotor-readout');
+    const hint = el('div', 'hl-rotor-hint', config.hint);
+    wrap.appendChild(stage);
+    side.appendChild(controls);
+    side.appendChild(readout);
+    side.appendChild(hint);
+    wrap.appendChild(side);
+    host.appendChild(wrap);
+
+    const state = Object.assign({}, config.state);
+    let manualPaused = false;
+    const mount3d = mountManagedRotor3D(stage, {
+      create: { showWake: true, showFuselage: true, showVel: false, showMarker: false },
+      isPaused: () => manualPaused,
+    });
+    const speed = slider(controls, {
+      label: config.label, min: config.min, max: config.max, step: config.step,
+      val: state.Vkt != null ? state.Vkt : 0, unit: ' kt',
+      fmt: v => v.toFixed(0),
+      on: (v) => {
+        state.Vkt = v;
+        update();
+      },
+    });
+    if (mount3d.reduceMotion) {
+      side.insertBefore(el('div', 'hl-rotor-note',
+        'Reduced motion is on — the 3D state updates without continuous rotor animation.'), readout);
+    }
+    function update() {
+      state.Vkt = speed.get();
+      const derived = rotorViewState(state);
+      mount3d.setData({
+        coningDeg: derived.coningDeg,
+        bodyPitchDeg: derived.bodyPitchDeg,
+        bladePitchDeg: derived.bladePitchDeg,
+        psiDeg: derived.psiDeg,
+        mu: derived.mu,
+        lam: derived.lam,
+        showWake: true,
+        showFuselage: true,
+        showVel: false,
+      });
+      renderRotorTeaserReadout(readout, state, derived);
+    }
+    update();
+    return {
+      dispose() {
+        mount3d.cleanup();
+      },
+    };
+  }
+
+  function wGuidedRotorLab(host, preset) {
+    const cfg = preset || {};
+    host.innerHTML = '';
+    const wrap = el('div', 'hl-rotor-guide');
+    wrap.innerHTML =
+      '<div class="hl-rotor-guide-copy">' +
+      '<div class="hl-lesson-stage">Guided preset</div>' +
+      `<h2>${cfg.title || 'View this in 3D'}</h2>` +
+      `<p>${cfg.summary || 'Use one constrained control and connect the blade-element idea to the full rotor wake.'}</p>` +
+      '<p class="hl-note">This guided hand-off reuses the current lab state and renderer. It does not calculate a second wake model.</p>' +
+      '</div>';
+    const mount = el('div', 'hl-rotor-guide-mount');
+    wrap.appendChild(mount);
+    host.appendChild(wrap);
+    return wRotorTeaser(mount, {
+      min: 0,
+      max: 90,
+      step: 5,
+      label: 'Airspeed',
+      hint: 'Start near hover, then increase airspeed to watch the wake skew aft.',
+      state: cfg.state || {},
+    });
+  }
+
   /* =========================================================================
      WIDGETS
      ========================================================================= */
@@ -4108,19 +4306,17 @@ const HLW = (function () {
     wrap.appendChild(bar); wrap.appendChild(hero); wrap.appendChild(grid);
     host.appendChild(wrap);
 
-    const st = HL.defaultState();
     const sb = {
       coll: 9, Vkt: 60, Vc: 0, weight: 2800, alt: 0, ige: false, zR: 1.0, psi: 90,
       showWake: true, showFuselage: true, showVel: true, paused: false,
     };
 
     // create the 3-D controller (gracefully degrade if Three.js unavailable)
-    let view3d = null;
-    if (window.HL3D) {
-      try { view3d = window.HL3D.create(stage3d, { Nb: st.Nb, showWake: true, showFuselage: true, showVel: true }); }
-      catch (e) { console.error('HL3D create failed', e); }
-    }
-    if (!view3d) stage3d.innerHTML = noThreeHTML();
+    const mount3d = mountManagedRotor3D(stage3d, {
+      create: { showWake: true, showFuselage: true, showVel: true },
+      isPaused: () => sb.paused,
+    });
+    const view3d = mount3d.view3d;
 
     // four panels
     const panels = [
@@ -4140,35 +4336,26 @@ const HLW = (function () {
     wrap.appendChild(readout);
 
     function buildState() {
-      st.theta0 = sb.coll; st.V = sb.Vkt * 0.5144; st.Vc = sb.Vc;
-      st.W_kg = sb.weight; st.alt = sb.alt; st.ige = sb.ige; st.zR = sb.zR;
-      // Apply the SAME forward-flight cyclic trim a real pilot flies (and that
-      // the Envelope lesson uses). Without it the disc shows a huge, unrealistic
-      // retreating-side stall wedge at speed — a real trimmed helicopter tilts
-      // the disc to unload the retreating blade, so the AoA plot must reflect
-      // that. Trim first, then let flapping do the rest.
-      st.theta1c = 0; st.theta1s = 0;
-      const trim = computeTrimCyclic(st);
-      st.theta1s = trim.t1s_deg; st.theta1c = trim.t1c_deg;
-      return st;
+      return rotorViewState(sb);
     }
 
     function render() {
-      const stt = buildState();
-      const c = flappingCoeffs(stt);
-      const mu = advanceRatio(stt);
+      const derived = buildState();
+      const stt = derived.st;
+      const c = derived.coeffs;
+      const mu = derived.mu;
       // feed the 3-D view: coning a₀, nose-down body/disc tilt, wake skew (μ, λ)
-      if (view3d) {
-        const trim = computeTrimCyclic(stt);
-        view3d.update({
-          coningDeg: c.a0 * R2D,
-          bodyPitchDeg: Math.max(0, -trim.fusPitchDeg),   // nose-down magnitude
-          bladePitchDeg: sb.coll,                          // collective → blade pitch
-          psiDeg: sb.psi,                                  // ties to blade-element panel
-          mu, lam: inflowRatio(stt),
-          showWake: sb.showWake, showFuselage: sb.showFuselage, showVel: sb.showVel, paused: sb.paused,
-        });
-      }
+      mount3d.setData({
+        coningDeg: derived.coningDeg,
+        bodyPitchDeg: derived.bodyPitchDeg,
+        bladePitchDeg: derived.bladePitchDeg,
+        psiDeg: sb.psi,
+        mu,
+        lam: derived.lam,
+        showWake: sb.showWake,
+        showFuselage: sb.showFuselage,
+        showVel: sb.showVel,
+      });
       // Panel 1 — AoA disc
       (() => {
         const { ctx, W, H, col } = HLD.setup(panels[0].c);
@@ -4182,7 +4369,7 @@ const HLW = (function () {
             const p0 = (ip / np) * 2 * Math.PI, p1 = ((ip + 1) / np) * 2 * Math.PI;
             const rm = (r0 + r1) / 2, pm = (p0 + p1) / 2;
             const d = localAoA(stt, c, rm, pm);
-            const stallEff = Math.max(5, st.stallAoA - 18 * Math.max(0, OmRsb * Math.max(0, d.UT) / sosSb - 0.30));
+            const stallEff = Math.max(5, stt.stallAoA - 18 * Math.max(0, OmRsb * Math.max(0, d.UT) / sosSb - 0.30));
             // same airload gate as the Envelope disc: a cell only truly stalls
             // where high α AND real dynamic pressure (q ∝ U_T²) coincide. Inboard
             // on the retreating side U_T→0, so α blows up with no airload — fade
@@ -4221,7 +4408,7 @@ const HLW = (function () {
         const d = localAoA(stt, c, 0.75, sb.psi * D2R);
         const phi = Math.atan2(d.UP, Math.max(0.001, d.UT));
         HLD.bladeSection(ctx, W * 0.16, H * 0.62, Math.min(W * 0.7, 240),
-          { theta: d.theta, phi, ampl: 4, showForces: true, cl: HL.clOf(st, d.theta - phi), cd: HL.cdOf(st, HL.clOf(st, d.theta - phi)), aoa: d.theta - phi, stall: (d.theta - phi) > st.stallAoA * D2R }, col);
+          { theta: d.theta, phi, ampl: 4, showForces: true, cl: HL.clOf(stt, d.theta - phi), cd: HL.cdOf(stt, HL.clOf(stt, d.theta - phi)), aoa: d.theta - phi, stall: (d.theta - phi) > stt.stallAoA * D2R }, col);
       })();
       // Panel 3 — power curve with current speed
       (() => {
@@ -4254,7 +4441,7 @@ const HLW = (function () {
         ['coning a₀', a0.toFixed(1) + '°'], ['blowback a₁', a1.toFixed(1) + '°'],
         ['vert. regime', solV.vrs ? 'VRS!' : (sb.Vc > 0.1 ? 'climb' : sb.Vc < -0.1 ? 'descent' : 'level'),
           solV.vrs ? 'var(--hl-bad)' : 'var(--hl-good)'],
-      ]);
+      ]) + '<p class="hl-note"><b>Conceptual wake visualisation derived from the lab state;</b> not a CFD or validated free-wake VRS solution.</p>';
     }
 
     const sColl = slider(bar, { label: 'Collective θ₀', min: 2, max: 16, step: 0.5, val: sb.coll, unit: '°', on: v => { sb.coll = v; render(); } });
@@ -4302,6 +4489,12 @@ const HLW = (function () {
     const ro = new ResizeObserver(() => render());
     ro.observe(grid);
     requestAnimationFrame(render);
+    return {
+      dispose() {
+        try { ro.disconnect(); } catch (e) {}
+        mount3d.cleanup();
+      },
+    };
   }
 
   /* =========================================================================
@@ -5072,7 +5265,7 @@ const HLW = (function () {
     wBigPicture, wBladeElement, wM104BladeElement, wSpanwise, wHover, wVertical, wGroundEffect,
     wDissymmetry, wFlapping, wFlappingRoll, wEnvelope, wCoriolis, wDynamicRollover, wLTE,
     wAutorotation, wPerformance, wBetDiagram, wBetVelocity, wBetModel,
-    wSandbox,
+    wSandbox, wRotorTeaser, wGuidedRotorLab,
 
     /* ───────────────────────────────────────────────────────────────
        GUIDED BET — a 5-layer build-up that teaches flapping & retreating
