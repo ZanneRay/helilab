@@ -307,7 +307,7 @@
     }
     main.appendChild(head);
 
-    if (v2View) main.appendChild(buildModeFocus(activityMeta));
+    if (v2View && activityMeta.mode !== 'mission') main.appendChild(buildModeFocus(activityMeta));
 
     if (v2View && activityMeta && activityMeta.threeDPreset) {
       const prompt = el('div', 'hl-inline-actions');
@@ -333,7 +333,9 @@
     readCol.appendChild(tk);
 
     const wCol = el('div', 'hl-lesson-widget');
-    wCol.appendChild(el('div', 'hl-widget-label', legacy ? '▸ Earlier lesson' : `▸ ${activityMeta.kicker}`));
+    if (!(v2View && activityMeta.mode === 'mission')) {
+      wCol.appendChild(el('div', 'hl-widget-label', legacy ? '▸ Earlier lesson' : `▸ ${activityMeta.kicker}`));
+    }
     const mount = el('div', 'hl-widget-mount');
     mount.setAttribute('role', 'group');
     mount.setAttribute('aria-label', 'Interactive diagram: ' + lesson.title);
