@@ -1249,7 +1249,9 @@ const HLW = (function () {
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
       HLD.clear(ctx, W, H, col);
       HLD.grid(ctx, W, H, col, 30);
-      const ox = W * 0.18, oy = H * 0.64, len = Math.min(W * 0.58, 330);
+      const forceStep = step >= 5;
+      const ox = Math.max(W * (forceStep ? 0.21 : 0.18), forceStep ? 112 : 0);
+      const oy = H * 0.64, len = Math.min(W * 0.58, 330);
       if (step === 1) {
         drawReference(ctx, W, H, col);
         ui.readout.innerHTML = readout('Start from the blank reference frame. The element location and the known inputs are given, but V_rel, φ, α and the forces are still hidden.');
