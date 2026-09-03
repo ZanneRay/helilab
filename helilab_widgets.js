@@ -439,6 +439,7 @@ const HLW = (function () {
     let visible = !document.hidden;
     let onscreen = true;
     let reduceMotion = false;
+    let pausedState = null;
     let io = null;
     let motionQuery = null;
     let onVisibility = null;
@@ -467,7 +468,10 @@ const HLW = (function () {
     }
     const syncPaused = (forcePaused) => {
       if (!view3d) return;
-      view3d.update({ paused: forcePaused || reduceMotion || !visible || !onscreen });
+      const nextPaused = !!(forcePaused || reduceMotion || !visible || !onscreen);
+      if (pausedState === nextPaused) return;
+      pausedState = nextPaused;
+      view3d.update({ paused: nextPaused });
     };
     onVisibility = () => { visible = !document.hidden; syncPaused(!!options.isPaused && options.isPaused()); };
     document.addEventListener('visibilitychange', onVisibility);
@@ -489,7 +493,6 @@ const HLW = (function () {
       setData(data) {
         if (!view3d) return;
         view3d.update(data);
-        syncPaused(!!options.isPaused && options.isPaused());
       },
       cleanup() {
         try { io && io.disconnect(); } catch (e) {}

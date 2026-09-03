@@ -548,13 +548,22 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
 }
 .hl-rotor-guide { padding: 18px; }
 .hl-rotor-stage {
-  min-height: 320px;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  min-height: 220px;
+  max-height: min(52vh, 440px);
   background: var(--hl-canvas);
   border: 1px solid var(--border);
   border-radius: 14px;
   overflow: hidden;
 }
-.hl-rotor-stage canvas { display: block; }
+.hl-rotor-stage canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100%;
+  max-height: 100%;
+}
 .hl-rotor-side { display: flex; flex-direction: column; gap: 10px; }
 .hl-rotor-controls,
 .hl-rotor-readout,
@@ -645,7 +654,7 @@ body.exam-mode .hl-rotor-readout:not(.revealed) {
   .hl-v2-module-head h1 { font-size: 28px; }
   .hl-v2-spine,
   .hl-home-sequence { border-radius: 14px; }
-  .hl-rotor-stage { min-height: 260px; }
+  .hl-rotor-stage { min-height: 200px; }
 }
 @media (max-width: 480px) {
   .hl-seg-btn { flex: 0 0 auto; min-width: 0; font-size: 11px; padding: 5px 7px; }

@@ -21,6 +21,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader }    from 'three/addons/loaders/GLTFLoader.js';
 
+const HL3D_MOUNT_KEY = '__hl3dDispose';
 const R3 = 2.0;            // rotor radius in world units
 const MAST = 0.55;         // hub height above fuselage ref
 const TRAIL = 96;          // points kept per tip vortex
@@ -57,11 +58,15 @@ function naca0012Shape(chord) {
 
 function create(container, opts) {
   opts = opts || {};
+  if (container && typeof container[HL3D_MOUNT_KEY] === 'function') {
+    try { container[HL3D_MOUNT_KEY](); } catch (e) {}
+  }
   const scene = new THREE.Scene();
 
   // renderer
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  container.textContent = '';
   container.appendChild(renderer.domElement);
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';
@@ -282,6 +287,7 @@ function create(container, opts) {
   const clock = new THREE.Clock();
   const tmpV = new THREE.Vector3();
   let disposed = false;
+  let rafId = null;
 
   function applyOptions() {
     wakeGroup.visible = options.showWake;
@@ -313,15 +319,20 @@ function create(container, opts) {
 
   function resize() {
     const w = container.clientWidth || 1, h = container.clientHeight || 1;
+    if (w === resize.w && h === resize.h) return;
+    resize.w = w;
+    resize.h = h;
     renderer.setSize(w, h, false);
     camera.aspect = w / h; camera.updateProjectionMatrix();
   }
+  resize.w = -1;
+  resize.h = -1;
   const ro = new ResizeObserver(resize); ro.observe(container); resize();
 
   function animate() {
     if (disposed) return;
     if (!renderer.domElement.isConnected) { dispose(); return; }
-    requestAnimationFrame(animate);
+    rafId = requestAnimationFrame(animate);
     const dt = Math.min(0.05, clock.getDelta());
 
     // ease toward targets
@@ -404,14 +415,17 @@ function create(container, opts) {
 
   function dispose() {
     if (disposed) return; disposed = true;
+    if (rafId != null) cancelAnimationFrame(rafId);
     try { ro.disconnect(); } catch (e) {}
     try { controls.dispose(); } catch (e) {}
     scene.traverse(o => { if (o.geometry) o.geometry.dispose?.(); if (o.material) {
       (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => m.dispose?.()); } });
     renderer.dispose();
     if (renderer.domElement.parentNode) renderer.domElement.parentNode.removeChild(renderer.domElement);
+    if (container && container[HL3D_MOUNT_KEY]) container[HL3D_MOUNT_KEY] = null;
   }
 
+  if (container) container[HL3D_MOUNT_KEY] = dispose;
   return { update, dispose, setOption: (kk, v) => update({ [kk]: v }) };
 }
 
