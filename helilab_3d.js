@@ -192,21 +192,28 @@ function create(container, opts) {
   // the element is sampled. ψ: 0 aft, 90 ADV, 180 nose, 270 RET.
   const discFrame = new THREE.Group(); discFrame.position.y = MAST; aircraft.add(discFrame);
   const psiMarker = new THREE.Group(); discFrame.add(psiMarker);
+  let markerRBar = 0.75;
   {
     const armMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24 });
     const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, R3, 8), armMat);
     arm.rotation.z = Math.PI / 2; arm.position.x = R3 / 2;     // along +X from hub
     const station = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10),
       new THREE.MeshBasicMaterial({ color: 0xfbbf24 }));
-    station.position.x = 0.75 * R3;                            // sampling station 0.75R
+    station.position.x = markerRBar * R3;                      // sampling station on the blade
     psiMarker.add(arm); psiMarker.add(station);
+    psiMarker.userData.station = station;
   }
   function setPsi(psiDeg) {
     // 3-D azimuth Φ = ψ + 180: ψ=0→Φ180=−X(tail), ψ=90→Φ270=+Z(advancing/right),
     // ψ=180→Φ0=+X(nose), ψ=270→Φ90=−Z(retreating/left). Matches the CCW rotor.
     psiMarker.rotation.y = psiDeg * Math.PI / 180 + Math.PI;
   }
+  function setMarkerRBar(rBar) {
+    markerRBar = Math.max(0.08, Math.min(1, rBar));
+    if (psiMarker.userData.station) psiMarker.userData.station.position.x = markerRBar * R3;
+  }
   setPsi(90);
+  setMarkerRBar(opts.markerRBar == null ? 0.75 : opts.markerRBar);
 
   // ── downwash streamtube (translucent wake envelope; skews with speed) ─────
   const tubeMat = new THREE.MeshBasicMaterial({
@@ -281,7 +288,7 @@ function create(container, opts) {
   const cur = { a0: 0.08, pitch: 0, mu: 0, lam: 0.05, bladePitch: 0.14, discLon: 0, discLat: 0 };
   const options = { showWake: opts.showWake !== false, showFuselage: opts.showFuselage !== false,
                     showMarker: opts.showMarker !== false, showVel: opts.showVel === true,
-                    paused: false };
+                    paused: !!opts.paused };
 
   let spin = 0, shedAcc = 0;
   const clock = new THREE.Clock();
@@ -309,12 +316,14 @@ function create(container, opts) {
     if (p.mu != null) tgt.mu = p.mu;
     if (p.lam != null) tgt.lam = Math.max(0.01, p.lam);
     if (p.psiDeg != null) setPsi(p.psiDeg);
+    if (p.markerRBar != null) setMarkerRBar(p.markerRBar);
     if (p.showWake != null) { options.showWake = p.showWake; applyOptions(); }
     if (p.showFuselage != null) { options.showFuselage = p.showFuselage; applyOptions(); }
     if (p.showMarker != null) { options.showMarker = p.showMarker; applyOptions(); }
     if (p.showVel != null) { options.showVel = p.showVel; applyOptions(); }
-    if (p.paused != null) options.paused = p.paused;
     if (p.Nb != null && p.Nb !== tgt.Nb) { tgt.Nb = p.Nb; buildBlades(p.Nb); buildTrails(p.Nb); applyOptions(); }
+    if (disposed) return;
+    if (options.paused) renderFrame({ snap: true });
   }
 
   function resize() {
@@ -324,19 +333,16 @@ function create(container, opts) {
     resize.h = h;
     renderer.setSize(w, h, false);
     camera.aspect = w / h; camera.updateProjectionMatrix();
+    if (options.paused && !disposed) renderFrame({ snap: true });
   }
   resize.w = -1;
   resize.h = -1;
   const ro = new ResizeObserver(resize); ro.observe(container); resize();
 
-  function animate() {
-    if (disposed) return;
-    if (!renderer.domElement.isConnected) { dispose(); return; }
-    rafId = requestAnimationFrame(animate);
-    const dt = Math.min(0.05, clock.getDelta());
-
-    // ease toward targets
-    const k = Math.min(1, dt * 3.5);
+  function renderFrame(cfg) {
+    const draw = cfg || {};
+    const dt = Math.max(0, draw.dt || 0);
+    const k = draw.snap ? 1 : Math.min(1, dt * 3.5);
     cur.a0 += (tgt.a0 - cur.a0) * k;
     cur.pitch += (tgt.pitch - cur.pitch) * k;
     cur.mu += (tgt.mu - cur.mu) * k;
@@ -345,27 +351,20 @@ function create(container, opts) {
     cur.discLon += (tgt.discLon - cur.discLon) * k;
     cur.discLat += (tgt.discLat - cur.discLat) * k;
 
-    // apply attitude + disc tilt + coning + blade pitch + spin
     aircraft.rotation.z = -cur.pitch;            // fuselage nose-down
     discTilt.rotation.z = cur.discLon;           // a₁ blowback (disc tips back)
     discTilt.rotation.x = cur.discLat;           // b₁ lateral
     cones.forEach(c => c.rotation.z = cur.a0);   // coning up
     bladeMeshes.forEach(m => m.rotation.x = cur.bladePitch * PITCH_VIS);  // +x = LE up (LE at −Z)
-    if (!options.paused) spin += OMEGA_VIS * dt;       // pause freezes the rotation
+    if (draw.advance) spin += OMEGA_VIS * dt;
     rotor.rotation.y = spin;                            // +Y rotation = CCW viewed from above (EC135/H145)
     aircraft.updateMatrixWorld(true);
 
-    // relative-velocity arrows. Blade 3-D azimuth Φ maps to rotor ψ as ψ = Φ − 180
-    // (ψ: 0 tail, 90 advancing, 180 nose, 270 retreating), so U_T/ΩR = r̄ + μ·sinψ
-    // = r̄ − μ·sinΦ. Green where U_T > 0, RED in the reverse-flow zone (U_T < 0,
-    // retreating/port inboard) — grows with forward speed.
     if (options.showVel) {
       velArrows.forEach(v => {
         const UT = v.rBar - cur.mu * Math.sin(spin + v.baseAz);
         const len = Math.min(0.95, Math.abs(UT) * 0.6 + 0.04);
         const fwd = UT >= 0;
-        // tail upstream, head ON the edge the air meets first:
-        // normal flow → head at the LE; reverse flow → air arrives at the TE
         v.ah.position.z = fwd ? (LE_Z - len) : (TE_Z + len);
         v.ah.setColor(fwd ? VEL_FWD : VEL_REV);
         v.ah.setDirection(fwd ? VZP : VZN);
@@ -373,22 +372,19 @@ function create(container, opts) {
       });
     }
 
-    // downwash streamtube: skew aft by χ = atan(μ/λ), anchored under the hub
     if (options.showWake) {
-      const chi = Math.atan2(cur.mu, Math.max(0.02, cur.lam));   // skew from vertical
-      tube.rotation.set(0, 0, -chi);                             // bottom swings aft (−X)
+      const chi = Math.atan2(cur.mu, Math.max(0.02, cur.lam));
+      tube.rotation.set(0, 0, -chi);
       const half = (R3 * 3.2) / 2;
       tube.position.set(-Math.sin(chi) * half, MAST - Math.cos(chi) * half, 0);
     }
 
-    // shed + convect tip vortices (world frame) — frozen while paused
-    if (options.showWake && !options.paused) {
-      const downV = WAKE_K * Math.max(0.03, cur.lam);  // descent (floor so hover reads)
-      const aftV  = WAKE_K * cur.mu;                    // aft drift → wake skew = μ/λ
+    if (options.showWake && draw.advance) {
+      const downV = WAKE_K * Math.max(0.03, cur.lam);
+      const aftV  = WAKE_K * cur.mu;
       shedAcc += dt;
       const doShed = shedAcc >= SHED_DT; if (doShed) shedAcc = 0;
       trails.forEach((tr, b) => {
-        // age existing points
         for (let i = 0; i < tr.pts.length; i++) {
           tr.pts[i].y -= downV * dt;
           tr.pts[i].x -= aftV * dt;
@@ -408,14 +404,53 @@ function create(container, opts) {
       });
     }
 
-    controls.update();
+    if (draw.updateControls) controls.update();
     renderer.render(scene, camera);
   }
-  animate();
+
+  function stopLoop() {
+    if (rafId == null) return;
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+
+  function animate() {
+    if (disposed) return;
+    if (options.paused) { rafId = null; return; }
+    if (!renderer.domElement.isConnected) { dispose(); return; }
+    rafId = requestAnimationFrame(animate);
+    renderFrame({ dt: Math.min(0.05, clock.getDelta()), advance: true, updateControls: true });
+  }
+
+  function startLoop() {
+    if (disposed || options.paused || rafId != null) return;
+    clock.getDelta();   // discard the pause gap before the next animated frame
+    rafId = requestAnimationFrame(animate);
+  }
+
+  function setPaused(paused) {
+    const next = !!paused;
+    if (options.paused === next) return;
+    options.paused = next;
+    if (next) {
+      stopLoop();
+      renderFrame({ snap: true });
+      return;
+    }
+    startLoop();
+  }
+
+  controls.addEventListener('change', () => {
+    if (!options.paused || disposed) return;
+    renderFrame({ snap: true });
+  });
+
+  if (options.paused) renderFrame({ snap: true });
+  else startLoop();
 
   function dispose() {
     if (disposed) return; disposed = true;
-    if (rafId != null) cancelAnimationFrame(rafId);
+    stopLoop();
     try { ro.disconnect(); } catch (e) {}
     try { controls.dispose(); } catch (e) {}
     scene.traverse(o => { if (o.geometry) o.geometry.dispose?.(); if (o.material) {
@@ -426,7 +461,7 @@ function create(container, opts) {
   }
 
   if (container) container[HL3D_MOUNT_KEY] = dispose;
-  return { update, dispose, setOption: (kk, v) => update({ [kk]: v }) };
+  return { update, dispose, setPaused, syncLifecycle: setPaused, setOption: (kk, v) => update({ [kk]: v }) };
 }
 
 window.HL3D = { create };

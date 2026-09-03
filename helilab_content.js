@@ -1032,6 +1032,9 @@ const HL_V2_MODULES = [
         title: 'How a Helicopter Flies',
         kicker: 'MODEL',
         summary: 'Start with the rotor as a spinning wing before diving into the blade element.',
+        modeLead: 'See the full rotor idea first, with the labels already in place.',
+        modeText: 'Follow the first lift story from spinning blade to rotor thrust before you change any variables.',
+        actionLabel: 'See the model',
       },
       {
         lessonId: 'bladeelement',
@@ -1039,6 +1042,10 @@ const HL_V2_MODULES = [
         title: 'The Blade Element',
         kicker: 'EXPLORE',
         summary: 'Manipulate θ, φ and α and watch the causal chain update live.',
+        modeLead: 'Change one local flow picture and watch the blade-element geometry respond.',
+        modeText: 'Predict what happens to φ and α, then move the control and compare the new local airflow.',
+        modeAction: 'Use the blade-element controls to change the local angle picture and explain what moved first.',
+        actionLabel: 'Open activity',
         threeDPreset: 'm1-rotor-flow',
       },
       {
@@ -1046,7 +1053,37 @@ const HL_V2_MODULES = [
         mode: 'explore',
         title: 'Speed Along the Blade',
         kicker: 'EXPLORE',
-        summary: 'Trace why the outboard blade does most of the lifting.',
+        summary: 'Slide outward along the blade and connect v_rot = Ωr to local rotor speed.',
+        modeLead: 'Track one blade station from root to tip and watch local rotor speed grow.',
+        modeText: 'Stay with the same blade element idea, but move it outward along the blade instead of changing the whole rotor state.',
+        modeAction: 'Slide the station from root to tip and compare how the local rotor speed changes at the same RPM.',
+        actionLabel: 'Slide the station',
+        bodyHtml: `
+      <p>Keep the same blade-element idea, but now place that small 2D slice at different
+      radii on the real rotor. Every point turns at the same RPM, yet the outboard station
+      covers a much bigger circle each turn, so its local rotor speed is larger:
+      <b>v<sub>rot</sub> = Ω·r</b>.</p>
+      <p>Slide the marker from root to tip and watch what changes locally. The further out
+      you go, the faster that blade element moves through the air, so the same small spanwise
+      slice can create much stronger aerodynamic forces.</p>
+      <p class="hl-note">For Module 1, keep the focus on the local consequence of radius:
+      where the blade element sits on the rotor and how that changes its local speed.</p>`,
+        takeaways: [
+          'Local rotor speed follows v_rot = Ω·r, so it increases linearly from root to tip.',
+          'Moving the same blade element outward changes its local airflow even when RPM stays the same.',
+          'In Module 1, the key spanwise idea is the local speed consequence of radius on the rotor.',
+        ],
+        check: {
+          q: 'If the rotor RPM stays the same, why does a blade element further out along the blade move faster through the air?',
+          options: [
+            'Because a larger radius means a bigger circle each turn, so v_rot = Ω·r is larger',
+            'Because the outboard blade has less drag',
+            'Because the tip always spins at a different RPM from the root',
+            'Because induced flow disappears near the tip',
+          ],
+          answer: 0,
+          explain: 'All blade stations share the same angular speed Ω, but the outboard station travels around a larger circle each revolution. That makes its local rotor speed v_rot = Ω·r larger.',
+        },
       },
       {
         lessonId: 'm1-04',
@@ -1054,6 +1091,9 @@ const HL_V2_MODULES = [
         title: 'Build a Blade Element',
         kicker: 'MISSION',
         summary: 'Construct the full blade-element picture before reveal.',
+        modeLead: 'Use the workspace to build the local rotor story yourself.',
+        modeText: 'This is the committed construction task for Module 1: build the picture, lock in each step, then inspect the reveal.',
+        actionLabel: 'Start mission',
       },
     ],
   },
@@ -1111,9 +1151,11 @@ const HL_V2_PRESETS = {
   'm1-rotor-flow': {
     preset: 'm1-rotor-flow',
     mode: 'guided',
-    title: 'View this in 3D — Rotor Flow',
-    summary: 'Increase airspeed and watch the same rotor state skew its wake aft.',
-    controls: ['airspeed'],
-    state: { coll: 9.2, Vkt: 0, Vc: 0, weight: 2800, alt: 0, psi: 90, showWake: true, showFuselage: true, showVel: false },
+    title: 'View this in 3D — Where the blade element sits',
+    summary: 'Place the blade element on the rotor, slide it outward, and connect v_rot = Ωr to local rotor speed.',
+    hint: 'The yellow marker shows the blade station. Move it outboard and compare how the same blade element speeds up.',
+    controls: ['radius'],
+    initialRBar: 0.75,
+    state: { coll: 9.2, Vkt: 0, Vc: 0, weight: 2800, alt: 0, psi: 90, showWake: false, showFuselage: true, showVel: true },
   },
 };

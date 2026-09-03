@@ -424,6 +424,7 @@ const HLW = (function () {
     return {
       st: stt,
       coeffs,
+      omR: HL.omR(stt),
       mu: advanceRatio(stt),
       lam: inflowRatio(stt),
       coningDeg: coeffs.a0 * R2D,
@@ -451,7 +452,7 @@ const HLW = (function () {
     if (window.HL3D) {
       try {
         view3d = window.HL3D.create(stage, Object.assign({}, options.create || {}, {
-          paused: reduceMotion || !!options.initialPaused,
+          paused: reduceMotion || !!options.initialPaused || !!(options.isPaused && options.isPaused()),
         }));
       } catch (e) {
         console.error('HL3D create failed', e);
@@ -466,33 +467,37 @@ const HLW = (function () {
         cleanup() {},
       };
     }
-    const syncPaused = (forcePaused) => {
+    const syncLifecycle = (forcePaused) => {
       if (!view3d) return;
       const nextPaused = !!(forcePaused || reduceMotion || !visible || !onscreen);
       if (pausedState === nextPaused) return;
       pausedState = nextPaused;
-      view3d.update({ paused: nextPaused });
+      if (typeof view3d.setPaused === 'function') view3d.setPaused(nextPaused);
+      else view3d.update({ paused: nextPaused });
     };
-    onVisibility = () => { visible = !document.hidden; syncPaused(!!options.isPaused && options.isPaused()); };
+    onVisibility = () => { visible = !document.hidden; syncLifecycle(!!options.isPaused && options.isPaused()); };
     document.addEventListener('visibilitychange', onVisibility);
     if (motionQuery) {
-      onMotion = (e) => { reduceMotion = !!e.matches; syncPaused(!!options.isPaused && options.isPaused()); };
+      onMotion = (e) => { reduceMotion = !!e.matches; syncLifecycle(!!options.isPaused && options.isPaused()); };
       motionQuery.addEventListener('change', onMotion);
     }
     if (window.IntersectionObserver) {
       io = new IntersectionObserver((entries) => {
         onscreen = entries.some((entry) => entry.isIntersecting && entry.intersectionRatio > 0.2);
-        syncPaused(!!options.isPaused && options.isPaused());
+        syncLifecycle(!!options.isPaused && options.isPaused());
       }, { threshold: [0, 0.2, 0.5] });
       io.observe(stage);
     }
-    syncPaused(!!options.isPaused && options.isPaused());
+    syncLifecycle(!!options.isPaused && options.isPaused());
     return {
       view3d,
       reduceMotion,
       setData(data) {
         if (!view3d) return;
         view3d.update(data);
+      },
+      syncLifecycle() {
+        syncLifecycle(!!options.isPaused && options.isPaused());
       },
       cleanup() {
         try { io && io.disconnect(); } catch (e) {}
@@ -508,14 +513,13 @@ const HLW = (function () {
 
   function renderRotorTeaserReadout(box, cfg, derived) {
     const airspeed = cfg.Vkt || 0;
-    const wakeCue = airspeed < 10 ? 'mostly down through the disc'
-      : airspeed < 50 ? 'tilting aft as forward flow grows'
-      : 'clearly skewed aft by the forward flow state';
+    const wakeCue = airspeed < 10 ? 'wake stays mostly vertical beneath the disc'
+      : airspeed < 50 ? 'wake starts to lean aft as the rotor moves forward'
+      : 'wake is clearly swept aft by the forward motion';
     box.innerHTML = kv([
       ['Airspeed', airspeed.toFixed(0) + ' kt', 'var(--hl-accent)'],
-      ['μ', derived.mu.toFixed(3), 'var(--hl-good)'],
-      ['λ', derived.lam.toFixed(3), 'var(--hl-wind)'],
-      ['Wake cue', wakeCue, 'var(--hl-ink)'],
+      ['Wake response', wakeCue, 'var(--hl-good)'],
+      ['Cause', 'More forward speed pushes the trailing wake aft.', 'var(--hl-wind)'],
     ]);
   }
 
@@ -587,14 +591,14 @@ const HLW = (function () {
     const wrap = el('div', 'hl-rotor-guide');
     wrap.innerHTML =
       '<div class="hl-rotor-guide-copy">' +
-      '<div class="hl-lesson-stage">Guided preset</div>' +
+      '<div class="hl-lesson-stage">Guided 3D view</div>' +
       `<h2>${cfg.title || 'View this in 3D'}</h2>` +
-      `<p>${cfg.summary || 'Use one constrained control and connect the blade-element idea to the full rotor wake.'}</p>` +
-      '<p class="hl-note">This guided hand-off reuses the current lab state and renderer. It does not calculate a second wake model.</p>' +
+      `<p>${cfg.summary || 'Use one constrained control and connect the blade-element idea to the full rotor.'}</p>` +
       '</div>';
     const mount = el('div', 'hl-rotor-guide-mount');
     wrap.appendChild(mount);
     host.appendChild(wrap);
+    if ((cfg.controls || []).includes('radius')) return wGuidedRotorStation(mount, cfg);
     return wRotorTeaser(mount, {
       min: 0,
       max: 90,
@@ -603,6 +607,79 @@ const HLW = (function () {
       hint: 'Start near hover, then increase airspeed to watch the wake skew aft.',
       state: cfg.state || {},
     });
+  }
+
+  function renderRotorStationReadout(box, derived, rBar) {
+    const vRot = derived.omR * rBar;
+    const cue = rBar < 0.35 ? 'Near the hub the same RPM gives a small local speed.'
+      : rBar < 0.7 ? 'Move outward and the blade element sweeps a larger circle each turn.'
+      : 'Near the tip the same blade element moves much faster through the air.';
+    box.innerHTML = kv([
+      ['Blade station', rBar.toFixed(2) + 'R', 'var(--hl-accent)'],
+      ['Local rotor speed', vRot.toFixed(0) + ' m/s', 'var(--hl-good)'],
+      ['2D element on the rotor', 'The yellow marker shows where that local blade slice sits.', 'var(--hl-ink)'],
+      ['Why v_rot changes', cue, 'var(--hl-wind)'],
+    ]);
+  }
+
+  function wGuidedRotorStation(host, preset) {
+    const cfg = preset || {};
+    host.innerHTML = '';
+    const wrap = el('div', 'hl-rotor-teaser');
+    const stage = el('div', 'hl-rotor-stage');
+    const side = el('div', 'hl-rotor-side');
+    const controls = el('div', 'hl-rotor-controls');
+    const readout = el('div', 'hl-rotor-readout');
+    const hint = el('div', 'hl-rotor-hint',
+      cfg.hint || 'Slide the blade station from root to tip and match the yellow marker to the 2D blade element.');
+    wrap.appendChild(stage);
+    side.appendChild(controls);
+    side.appendChild(readout);
+    side.appendChild(hint);
+    wrap.appendChild(side);
+    host.appendChild(wrap);
+
+    const state = Object.assign({}, cfg.state || {});
+    if (state.psi == null) state.psi = 90;
+    let rBar = cfg.initialRBar == null ? 0.75 : cfg.initialRBar;
+    const mount3d = mountManagedRotor3D(stage, {
+      create: { showWake: false, showFuselage: true, showVel: true, showMarker: true, markerRBar: rBar },
+    });
+    slider(controls, {
+      label: 'Blade station r/R', min: 0.15, max: 1, step: 0.05, val: rBar,
+      fmt: v => v.toFixed(2),
+      on: (v) => {
+        rBar = v;
+        update();
+      },
+    });
+    if (mount3d.reduceMotion) {
+      side.insertBefore(el('div', 'hl-rotor-note',
+        'Reduced motion is on — the 3D state updates as a static frame.'), readout);
+    }
+    function update() {
+      const derived = rotorViewState(state);
+      mount3d.setData({
+        coningDeg: derived.coningDeg,
+        bodyPitchDeg: derived.bodyPitchDeg,
+        bladePitchDeg: derived.bladePitchDeg,
+        psiDeg: derived.psiDeg,
+        mu: derived.mu,
+        lam: derived.lam,
+        markerRBar: rBar,
+        showWake: false,
+        showFuselage: true,
+        showVel: true,
+        showMarker: true,
+      });
+      renderRotorStationReadout(readout, derived, rBar);
+    }
+    update();
+    return {
+      dispose() {
+        mount3d.cleanup();
+      },
+    };
   }
 
   /* =========================================================================
@@ -4482,7 +4559,7 @@ const HLW = (function () {
       // pause/play the rotor spin (starts running, so not 'on')
       const pauseBtn = el('button', 'hl-3d-tog', '⏸ Pause');
       pauseBtn.onclick = () => { sb.paused = !sb.paused; pauseBtn.textContent = sb.paused ? '▶ Play' : '⏸ Pause';
-        pauseBtn.classList.toggle('on', sb.paused); render(); };
+        pauseBtn.classList.toggle('on', sb.paused); mount3d.syncLifecycle(); render(); };
       toggles.appendChild(pauseBtn);
       mkTog('Wake', 'showWake');
       mkTog('Fuselage', 'showFuselage');
