@@ -199,6 +199,47 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
   display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 22px; align-items: start;
 }
 .hl-lesson-widget { position: sticky; top: 0; }
+.hl-mode-focus {
+  max-width: 1100px;
+  margin: 0 auto 16px;
+  padding: 16px 18px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel2) 92%, transparent), var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 10px 28px var(--shadow);
+}
+.hl-mode-focus-kicker {
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+}
+.hl-mode-focus h2 { margin: 8px 0 8px; font-size: 22px; line-height: 1.15; }
+.hl-mode-focus p { margin: 0; color: var(--text2); }
+.hl-mode-focus-action { margin-top: 10px !important; }
+.hl-mode-focus-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+  margin: 14px 0 0;
+}
+.hl-mode-focus-steps li {
+  padding: 9px 10px;
+  text-align: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 38%, transparent);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+.hl-lesson-grid--mission .hl-widget-mount {
+  padding: 16px;
+  border-color: color-mix(in srgb, var(--warn) 35%, var(--border));
+}
 .hl-widget-label { font-size: 12px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .8px; color: var(--brand); margin-bottom: 7px; }
 .hl-widget-mount {
@@ -599,6 +640,8 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
 .hl-v2-section p,
 .hl-v2-module-question { color: var(--text2); margin: 0; }
 .hl-module-card-note { margin-top: 14px; color: var(--text3); font-size: 13px; }
+.hl-activity-card-note,
+.hl-v2-mode-note { margin-top: 10px !important; font-size: 13px; color: var(--text3) !important; line-height: 1.45; }
 .hl-module-card.is-locked { opacity: .82; }
 .hl-v2-protect-note { margin-top: 14px; color: var(--warn); }
 .hl-activity-card--mission { border-color: color-mix(in srgb, var(--warn) 32%, var(--border)); }
@@ -625,6 +668,7 @@ body.exam-mode .hl-rotor-readout:not(.revealed) {
 @media (max-width: 1080px) {
   .hl-lesson-grid { grid-template-columns: 1fr; }
   .hl-lesson-widget { position: static; }
+  .hl-mode-focus-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .hl-sandbox-bar { grid-template-columns: repeat(2, 1fr); }
   .hl-v2-home-hero,
   .hl-rotor-teaser,
@@ -641,6 +685,7 @@ body.exam-mode .hl-rotor-readout:not(.revealed) {
   .hl-sidebar.open { transform: translateX(0); }
   .hl-main { padding: 18px 16px 50px; }
   .hl-lesson-head h1 { font-size: 24px; }
+  .hl-mode-focus h2 { font-size: 20px; }
   .hl-sandbox-grid { grid-template-columns: 1fr; }
   .hl-progress { display: none; }
   .hl-v2-home-copy,
@@ -664,6 +709,7 @@ body.exam-mode .hl-rotor-readout:not(.revealed) {
   .hl-rotor-guide-actions { flex-direction: column; }
   .hl-home-btn,
   .hl-foot-btn { width: 100%; }
+  .hl-mode-focus-steps { grid-template-columns: 1fr; }
 }
 
 /* ── accessibility: keyboard focus ─────────────────────────────────────────

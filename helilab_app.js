@@ -70,6 +70,26 @@
 
   let currentRoute = null;
   let activeCleanup = null;
+  const MODE_COPY = {
+    model: {
+      lead: 'See one relationship clearly before you start changing anything.',
+      action: 'Watch the labelled diagram first, then name the cause-and-effect link it is showing.',
+      section: 'Start with a strongly guided view of one idea before you manipulate it.',
+      button: 'See the model',
+    },
+    explore: {
+      lead: 'Predict one change, move one control, then explain what changed.',
+      action: 'Use the highlighted control on purpose instead of hunting across the full rotor model.',
+      section: 'Change one main input at a time and compare the result.',
+      button: 'Open activity',
+    },
+    mission: {
+      lead: 'Build the answer first, then commit before the reveal.',
+      action: 'Use the workspace to construct the blade-element picture step by step.',
+      section: 'Combine the earlier ideas in one committed construction task.',
+      button: 'Start mission',
+    },
+  };
 
   function setActiveCleanup(handle) {
     activeCleanup = null;
@@ -160,20 +180,20 @@
     HL_V2_MODULES.forEach((module) => {
       const active = route.name === 'module' && route.moduleId === module.id;
       const label = `Module ${String(module.number).padStart(2, '0')} · ${module.title}`;
-      const sub = module.available ? module.question : 'Planned after the vertical-slice review gate.';
+      const sub = module.available ? module.question : 'Coming later.';
       journey.appendChild(buttonNav(label, active, sub, () => navigate(`#/module/${module.id}`), { muted: !module.available }));
     });
     nav.appendChild(journey);
 
     const lab = el('div', 'hl-nav-v2-group');
     lab.appendChild(el('div', 'hl-nav-v2-label', 'Rotor lab'));
-    lab.appendChild(buttonNav('3D Rotor Lab', route.name === 'rotor-lab', 'Full free exploration Sandbox', () => navigate('#/rotor-lab')));
-    lab.appendChild(buttonNav('Lab Tools', route.name === 'lab-tools' || route.name === 'maths' || route.name === 'legacy-library', 'Reference tools and compatibility paths', () => navigate('#/lab-tools')));
+    lab.appendChild(buttonNav('3D Rotor Lab', route.name === 'rotor-lab', 'Open the full rotor controls and wake view.', () => navigate('#/rotor-lab')));
+    lab.appendChild(buttonNav('Lab Tools', route.name === 'lab-tools' || route.name === 'maths' || route.name === 'legacy-library', 'Reference tools and extra lessons.', () => navigate('#/lab-tools')));
     nav.appendChild(lab);
 
     const compat = el('div', 'hl-nav-v2-group hl-nav-v2-group--compat');
-    compat.appendChild(el('div', 'hl-nav-v2-label', 'Compatibility'));
-    compat.appendChild(buttonNav('Legacy lesson library', route.name === 'legacy-library' || route.name === 'lesson', 'Stage-grouped access kept behind the v2 shell', () => navigate('#/legacy'), { muted: true }));
+    compat.appendChild(el('div', 'hl-nav-v2-label', 'Library'));
+    compat.appendChild(buttonNav('Extra lessons', route.name === 'legacy-library' || route.name === 'lesson', 'Browse the earlier lesson list by topic.', () => navigate('#/legacy'), { muted: true }));
     compat.appendChild(buttonNav('The Maths', route.name === 'maths', 'Deep dive reference', () => navigate('#/maths'), { muted: true }));
     nav.appendChild(compat);
 
@@ -204,28 +224,28 @@
     if (window.HLCourseMap) window.HLCourseMap.touchLesson(lessonId);
   }
 
-  function buildCheck(lesson) {
+  function buildCheck(lesson, checkData) {
     const box = el('div', 'hl-check');
     box.setAttribute('role', 'group');
     box.setAttribute('aria-label', 'Quick check');
     box.appendChild(el('div', 'hl-check-h', '✎ Quick check — predict first, then reveal'));
-    box.appendChild(el('div', 'hl-check-q', lesson.check.q));
+    box.appendChild(el('div', 'hl-check-q', checkData.q));
     const opts = el('div', 'hl-check-opts');
     let answered = false;
-    lesson.check.options.forEach((option, i) => {
+    checkData.options.forEach((option, i) => {
       const b = el('button', 'hl-check-opt', option);
       b.onclick = () => {
         if (answered) return;
         answered = true;
-        const correct = i === lesson.check.answer;
+        const correct = i === checkData.answer;
         opts.querySelectorAll('.hl-check-opt').forEach((x, j) => {
           x.classList.add('done');
           x.setAttribute('aria-disabled', 'true');
-          if (j === lesson.check.answer) x.classList.add('correct');
+          if (j === checkData.answer) x.classList.add('correct');
           else if (j === i) x.classList.add('wrong');
         });
         const fb = el('div', 'hl-check-fb ' + (correct ? 'ok' : 'no'),
-          (correct ? '✓ Correct. ' : '✗ Not quite. ') + lesson.check.explain);
+          (correct ? '✓ Correct. ' : '✗ Not quite. ') + checkData.explain);
         fb.setAttribute('role', 'status');
         fb.setAttribute('aria-live', 'polite');
         box.appendChild(fb);
@@ -242,17 +262,42 @@
     return box;
   }
 
+  function buildModeFocus(activityMeta) {
+    const copy = MODE_COPY[activityMeta.mode] || MODE_COPY.explore;
+    const panel = el('section', 'hl-mode-focus hl-mode-focus--' + activityMeta.mode);
+    let extra = '';
+    if (activityMeta.mode === 'mission') {
+      extra = '<ol class="hl-mode-focus-steps"><li>Construct</li><li>Commit</li><li>Reveal</li><li>Explain</li></ol>';
+    } else if (activityMeta.modeAction) {
+      extra = `<p class="hl-mode-focus-action"><b>Try this:</b> ${activityMeta.modeAction}</p>`;
+    }
+    panel.innerHTML =
+      `<div class="hl-mode-focus-kicker">${activityMeta.kicker}</div>` +
+      `<h2>${activityMeta.modeLead || copy.lead}</h2>` +
+      `<p>${activityMeta.modeText || copy.action}</p>` +
+      extra;
+    return panel;
+  }
+
   function renderLessonBody(main, lesson, opts) {
     const moduleMeta = opts && opts.moduleMeta;
     const activityMeta = opts && opts.activityMeta;
     const legacy = !!(opts && opts.legacy);
+    const v2View = !legacy && !!activityMeta;
+    const bodyHtml = v2View && activityMeta.bodyHtml ? activityMeta.bodyHtml : lesson.body;
+    const takeaways = v2View && activityMeta.takeaways ? activityMeta.takeaways : lesson.takeaways;
+    const checkData = v2View && activityMeta.mode === 'mission'
+      ? (Object.prototype.hasOwnProperty.call(activityMeta, 'check') ? activityMeta.check : null)
+      : (v2View && activityMeta.check ? activityMeta.check : lesson.check);
+    const relatedIds = legacy ? (HL_RELATED[lesson.id] || []) : ((activityMeta && activityMeta.related) || []);
+    const bridgeHtml = legacy ? lesson.bridge : (activityMeta && activityMeta.bridge);
     touchLesson(lesson.id);
     main.innerHTML = '';
 
     const head = el('div', 'hl-lesson-head');
     if (legacy) {
       head.innerHTML =
-        `<div class="hl-lesson-stage">Legacy compatibility view · ${lesson.stage}</div>` +
+        `<div class="hl-lesson-stage">Lesson library · ${lesson.stage}</div>` +
         `<h1>${lesson.title}</h1><div class="hl-lesson-sub">${lesson.subtitle}</div>`;
     } else {
       const title = activityMeta.mode === 'mission' ? `MISSION — ${activityMeta.title}` : activityMeta.title;
@@ -262,7 +307,9 @@
     }
     main.appendChild(head);
 
-    if (!legacy && activityMeta && activityMeta.threeDPreset) {
+    if (v2View) main.appendChild(buildModeFocus(activityMeta));
+
+    if (v2View && activityMeta && activityMeta.threeDPreset) {
       const prompt = el('div', 'hl-inline-actions');
       const guided = el('button', 'hl-foot-btn primary', 'View this in 3D');
       guided.onclick = () => navigate(`#/rotor-lab?preset=${encodeURIComponent(activityMeta.threeDPreset)}&mode=guided`);
@@ -273,18 +320,20 @@
       main.appendChild(prompt);
     }
 
-    const grid = el('div', 'hl-lesson-grid' + (lesson.wide ? ' hl-lesson-grid--wide' : ''));
+    const grid = el('div', 'hl-lesson-grid'
+      + (lesson.wide ? ' hl-lesson-grid--wide' : '')
+      + (v2View ? ` hl-lesson-grid--${activityMeta.mode}` : ''));
     const readCol = el('div', 'hl-lesson-read');
-    readCol.appendChild(el('div', 'hl-lesson-body', lesson.body));
+    readCol.appendChild(el('div', 'hl-lesson-body', bodyHtml));
     const tk = el('div', 'hl-takeaways');
     tk.appendChild(el('div', 'hl-takeaways-h', 'Key takeaways'));
     const ul = el('ul');
-    lesson.takeaways.forEach((takeaway) => ul.appendChild(el('li', null, takeaway)));
+    takeaways.forEach((takeaway) => ul.appendChild(el('li', null, takeaway)));
     tk.appendChild(ul);
     readCol.appendChild(tk);
 
     const wCol = el('div', 'hl-lesson-widget');
-    wCol.appendChild(el('div', 'hl-widget-label', legacy ? '▸ Compatibility lesson' : `▸ ${activityMeta.kicker}`));
+    wCol.appendChild(el('div', 'hl-widget-label', legacy ? '▸ Earlier lesson' : `▸ ${activityMeta.kicker}`));
     const mount = el('div', 'hl-widget-mount');
     mount.setAttribute('role', 'group');
     mount.setAttribute('aria-label', 'Interactive diagram: ' + lesson.title);
@@ -302,7 +351,7 @@
       }
     }
 
-    if (lesson.check) main.appendChild(buildCheck(lesson));
+    if (checkData) main.appendChild(buildCheck(lesson, checkData));
 
     if (lesson.appendix) {
       const ap = el('div', 'hl-appendix');
@@ -334,12 +383,11 @@
       main.appendChild(ap);
     }
 
-    const relIds = HL_RELATED[lesson.id] || [];
-    if (relIds.length) main.appendChild(buildRelated(relIds));
+    if (relatedIds.length) main.appendChild(buildRelated(relatedIds));
 
-    if (lesson.bridge) {
+    if (bridgeHtml) {
       const br = el('div', 'hl-bridge');
-      br.innerHTML = '→ ' + lesson.bridge;
+      br.innerHTML = '→ ' + bridgeHtml;
       main.appendChild(br);
     }
 
@@ -392,7 +440,7 @@
       `<div class="hl-module-card-kicker">Module ${String(module.number).padStart(2, '0')}</div>` +
       `<h3>${module.title}</h3>` +
       `<p>${module.question}</p>` +
-      `<div class="hl-module-card-note">${module.available ? 'Open vertical slice' : 'Queued after product / didactic review'}</div>`;
+      `<div class="hl-module-card-note">${module.available ? 'Ready to explore' : 'Coming later'}</div>`;
     return card;
   }
 
@@ -422,13 +470,13 @@
     hero.appendChild(teaserWrap);
     main.appendChild(hero);
     setActiveCleanup(HLW.wRotorTeaser(teaserWrap, {
-      state: HL_V2_PRESETS['m1-rotor-flow'].state,
+      state: { coll: 9.2, Vkt: 0, Vc: 0, weight: 2800, alt: 0, psi: 90 },
       max: 90,
       hint: 'One constrained control, one real causal result: more forward speed skews the wake aft.',
     }));
 
     const modules = el('section', 'hl-v2-section');
-    modules.innerHTML = '<div class="hl-v2-section-kicker">One model. Seven flight problems.</div><h2>Learning journey</h2><p>The v2 shell is ready for seven modules, but this slice intentionally stops after Module 1 for review.</p>';
+    modules.innerHTML = '<div class="hl-v2-section-kicker">One model. Seven flight problems.</div><h2>Learning journey</h2><p>Start with Module 1 and build the rotor model from one blade element. More modules will appear here later.</p>';
     const moduleGrid = el('div', 'hl-module-grid');
     HL_V2_MODULES.forEach((module) => moduleGrid.appendChild(buildModuleCard(module)));
     modules.appendChild(moduleGrid);
@@ -440,8 +488,8 @@
     [
       ['MODEL', 'Make one relationship visible with high scaffolding.'],
       ['EXPLORE', 'Change one or two inputs, then explain what changed and why.'],
-      ['MISSION', 'Construct → commit → reveal using the protected M1-04 pattern.'],
-      ['CHALLENGE', 'Reserved for transfer later — not expanded in this slice.'],
+      ['MISSION', 'Construct → commit → reveal before you see the completed answer.'],
+      ['CHALLENGE', 'Transfer tasks arrive later in the learning journey.'],
     ].forEach(([title, desc]) => {
       modes.appendChild(el('div', 'hl-mode-card', `<div class="hl-mode-card-kicker">${title}</div><p>${desc}</p>`));
     });
@@ -450,7 +498,7 @@
 
     const ecosystem = el('section', 'hl-v2-section hl-v2-section--compact',
       '<div class="hl-v2-section-kicker">Built into a learning ecosystem</div>' +
-      '<p>Use HeliLab to make the mechanism visible, then carry the same variables and conventions into pre-study, instructor teaching, retrieval and controlled assessment.</p>');
+      '<p>Use HeliLab to make the mechanism visible, then carry the same variables and conventions into class, revision, and exam practice.</p>');
     main.appendChild(ecosystem);
     main.scrollTop = 0;
   }
@@ -458,12 +506,14 @@
   function buildActivityCard(activity) {
     const card = el('article', 'hl-activity-card hl-activity-card--' + activity.mode);
     const title = activity.mode === 'mission' ? `MISSION — ${activity.title}` : activity.title;
+    const copy = MODE_COPY[activity.mode] || MODE_COPY.explore;
     card.innerHTML =
       `<div class="hl-activity-card-kicker">${activity.kicker}</div>` +
       `<h3>${title}</h3>` +
-      `<p>${activity.summary}</p>`;
+      `<p>${activity.summary}</p>` +
+      `<p class="hl-activity-card-note">${activity.modeAction || copy.action}</p>`;
     const actions = el('div', 'hl-activity-card-actions');
-    const open = el('button', 'hl-home-btn primary', activity.mode === 'mission' ? 'Start mission' : 'Open activity');
+    const open = el('button', 'hl-home-btn primary', activity.actionLabel || copy.button);
     open.onclick = () => navigate(routeForLesson(activity.lessonId));
     actions.appendChild(open);
     if (activity.threeDPreset) {
@@ -485,11 +535,11 @@
         `<div class="hl-v2-section-kicker">Module ${String(module.number).padStart(2, '0')}</div>` +
         `<h1>${module.title}</h1>` +
         `<p>${module.question}</p>` +
-        '<p>This vertical slice stops after Module 1. Later modules remain intentionally out of scope until product and didactic review approve the pattern.</p>';
+        '<p>This module is coming later. For now, keep building Module 1 or explore the 3D Rotor Lab.</p>';
       const actions = el('div', 'hl-home-actions');
       const home = el('button', 'hl-home-btn primary', 'Back to Home');
       home.onclick = () => navigate('#/home');
-      const legacy = el('button', 'hl-home-btn', 'Open legacy lessons');
+      const legacy = el('button', 'hl-home-btn', 'Open extra lessons');
       legacy.onclick = () => navigate('#/legacy');
       actions.appendChild(home);
       actions.appendChild(legacy);
@@ -511,13 +561,13 @@
       const items = (module.activities || []).filter((activity) => activity.mode === mode);
       if (!items.length) return;
       const sec = el('section', 'hl-v2-section');
-      sec.innerHTML = `<div class="hl-v2-section-kicker">${mode.toUpperCase()}</div>`;
+      sec.innerHTML = `<div class="hl-v2-section-kicker">${mode.toUpperCase()}</div><p class="hl-v2-mode-note">${MODE_COPY[mode].section}</p>`;
       const grid = el('div', 'hl-activity-grid');
       items.forEach((activity) => grid.appendChild(buildActivityCard(activity)));
       sec.appendChild(grid);
       if (mode === 'mission') {
         sec.appendChild(el('p', 'hl-v2-protect-note',
-          'M1-04 remains the protected reference Mission and keeps its construct → commit → reveal sequence.'));
+          'Build the picture yourself first: this mission keeps the full construct → commit → reveal sequence.'));
       }
       main.appendChild(sec);
     });
@@ -538,8 +588,8 @@
     const guided = route.mode === 'guided' && route.preset && HL_V2_PRESETS[route.preset];
     const head = el('div', 'hl-lesson-head');
     head.innerHTML = guided
-      ? `<div class="hl-lesson-stage">3D Rotor Lab · Guided preset</div><h1>${guided.title}</h1><div class="hl-lesson-sub">${guided.summary}</div>`
-      : '<div class="hl-lesson-stage">3D Rotor Lab · Full free mode</div><h1>3D Rotor Lab</h1><div class="hl-lesson-sub">The full current Sandbox remains the authoritative free-exploration rotor lab.</div>';
+      ? `<div class="hl-lesson-stage">3D Rotor Lab · Guided view</div><h1>${guided.title}</h1><div class="hl-lesson-sub">${guided.summary}</div>`
+      : '<div class="hl-lesson-stage">3D Rotor Lab · Full controls</div><h1>3D Rotor Lab</h1><div class="hl-lesson-sub">Use the full rotor controls to inspect wake response, local flow and flapping together.</div>';
     main.appendChild(head);
 
     if (guided) {
@@ -569,7 +619,7 @@
     const main = $('#hlMain');
     main.innerHTML = '';
     const head = el('div', 'hl-lesson-head');
-    head.innerHTML = '<div class="hl-lesson-stage">Lab tools · deep dive</div><h1>The Maths Behind the Diagrams</h1><div class="hl-lesson-sub">The exact model the velocity diagram evaluates — for verification and the curious.</div>';
+    head.innerHTML = '<div class="hl-lesson-stage">Lab tools · reference</div><h1>The Maths Behind the Diagrams</h1><div class="hl-lesson-sub">Follow the equations behind the velocity diagram and rotor model.</div>';
     main.appendChild(head);
     const mount = el('div', 'hl-maths-mount');
     main.appendChild(mount);
@@ -585,7 +635,7 @@
     const main = $('#hlMain');
     main.innerHTML = '';
     const head = el('section', 'hl-v2-section');
-    head.innerHTML = '<div class="hl-v2-section-kicker">Compatibility library</div><h1>Legacy lessons</h1><p>The old stage architecture is retained here during the slice, but it no longer drives the primary v2 UI.</p>';
+    head.innerHTML = '<div class="hl-v2-section-kicker">Lesson library</div><h1>Extra lessons</h1><p>Browse the earlier lesson list by topic whenever you want more detail.</p>';
     main.appendChild(head);
     HL_STAGES.forEach((stage) => {
       const sec = el('section', 'hl-v2-section hl-v2-section--compact');
@@ -606,7 +656,7 @@
     const main = $('#hlMain');
     main.innerHTML = '';
     const head = el('section', 'hl-v2-section');
-    head.innerHTML = '<div class="hl-v2-section-kicker">Lab tools</div><h1>Reference tools and compatibility paths</h1><p>Keep the learning journey primary, and place deep-dive or legacy access here.</p>';
+    head.innerHTML = '<div class="hl-v2-section-kicker">Lab tools</div><h1>Reference tools</h1><p>Keep the main learning journey front-and-centre, with deeper references collected here.</p>';
     main.appendChild(head);
     const grid = el('div', 'hl-activity-grid');
     const maths = el('article', 'hl-activity-card', '<div class="hl-activity-card-kicker">TOOL</div><h3>The Maths</h3><p>Inspect the exact BET and inflow relationships behind the diagrams.</p>');
@@ -617,9 +667,9 @@
     maths.appendChild(mathsActions);
     grid.appendChild(maths);
 
-    const legacy = el('article', 'hl-activity-card', '<div class="hl-activity-card-kicker">COMPATIBILITY</div><h3>Legacy lesson library</h3><p>Access stage-grouped lessons while later modules remain out of scope for this slice.</p>');
+    const legacy = el('article', 'hl-activity-card', '<div class="hl-activity-card-kicker">LIBRARY</div><h3>Extra lessons</h3><p>Browse the earlier lesson collection whenever you want a wider topic list.</p>');
     const legacyActions = el('div', 'hl-activity-card-actions');
-    const openLegacy = el('button', 'hl-home-btn', 'Open legacy lessons');
+    const openLegacy = el('button', 'hl-home-btn', 'Open extra lessons');
     openLegacy.onclick = () => navigate('#/legacy');
     legacyActions.appendChild(openLegacy);
     legacy.appendChild(legacyActions);
