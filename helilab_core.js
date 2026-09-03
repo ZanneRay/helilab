@@ -89,17 +89,26 @@ const HL = (function () {
                                  approximate high induced velocity.
 
      Returns { CT, lam, lami, lamc, vi, vih, thrust,
-               Pi_induced, Pp_profile, Pc_vertical, power, vrs, branch }.
+               Pi_induced, Pp_profile, Pvertical_model_term, power, vrs, branch }.
 
-     `power` remains the combined axial power used by existing callers.
-     `Pi_induced` is exposed separately so callers do not have to treat the
-     combined `power` as induced power. */
+     `Pi_induced` is the clean induced-power quantity for M2 reasoning:
+       Pi_induced = κ · T · v_i
+
+     `Pvertical_model_term` is intentionally model-specific:
+       Vc = 0  →  0
+       Vc > 0  →  κ · T · Vc   (chosen only to preserve the pre-existing combined
+                                axial-power convention)
+       Vc < 0  →  T · Vc
+     It is NOT a universal/classical climb-power term.
+
+     `power` remains the combined axial power used by existing callers and must
+     not be presented as induced power in future M2 UI. */
   function axialSolve(st, VcOverride) {
     const OmR = omR(st);
     if (OmR < 1) {
       return {
         CT: 0, lam: 0, lami: 0, lamc: 0, vi: 0, vih: 0, thrust: 0,
-        Pi_induced: 0, Pp_profile: 0, Pc_vertical: 0, power: 0,
+        Pi_induced: 0, Pp_profile: 0, Pvertical_model_term: 0, power: 0,
         vrs: false, branch: 'idle',
       };
     }
@@ -164,18 +173,19 @@ const HL = (function () {
 
     // axial power  P = P_i + P_p + P_c   (no parasite in pure vertical flight)
     // Preserve the existing combined `power` meaning while exposing clean fields:
-    //   Pi_induced  = induced power contribution used for M2 causal reasoning
-    //   Pp_profile  = profile power
-    //   Pc_vertical = model's vertical-speed contribution (positive climb,
-    //                 negative descent) needed to reconstruct the existing total
+    //   Pi_induced           = κ · T · v_i
+    //   Pp_profile           = profile power
+    //   Pvertical_model_term = model-specific vertical-speed term needed ONLY to
+    //                           reconstruct the legacy combined axial-power value;
+    //                           it is not a generic/classical climb-power quantity
     const Pi_induced = st.kappa * thrust * vi;
     const Pp_profile = (solidity(st) * st.cd0 / 8) * rho(st) * area(st) * OmR * OmR * OmR;
-    const Pc_vertical = thrust * (Vc > 0 ? st.kappa * Vc : Vc);
-    const power = Pi_induced + Pp_profile + Pc_vertical;
+    const Pvertical_model_term = thrust * (Vc > 0 ? st.kappa * Vc : Vc);
+    const power = Pi_induced + Pp_profile + Pvertical_model_term;
 
     return {
       CT, lam, lami, lamc, vi, vih, thrust,
-      Pi_induced, Pp_profile, Pc_vertical, power,
+      Pi_induced, Pp_profile, Pvertical_model_term, power,
       vrs, branch,
     };
   }
@@ -191,6 +201,8 @@ const HL = (function () {
   /* ── Bounded hover-trim helper (selected comparisons only) ──────────────────
      Solves for collective θ₀ [deg] so axialSolve(...).thrust matches a target
      thrust within a small bounded tolerance. This WRAPS the existing axial model.
+     It is hover-only: Vc is forced to 0 inside the helper, even if the caller
+     supplies a non-zero vertical speed in `st`.
 
      Defaults:
        toleranceN    = 25 N
@@ -258,6 +270,10 @@ const HL = (function () {
     return finish(bestTheta0, bestSol, maxIterations, 'max-iterations');
   }
 
+  /* ── Canonical fixed-required-thrust IGE/OGE comparison ─────────────────────
+     Hover-only comparison for later Stage 4 use. Both OGE and IGE states are
+     trimmed to the SAME declared target thrust within the hover-trim tolerance;
+     this is not a fixed-power ratio and not a fixed-control comparison. */
   function groundEffectFixedThrustComparison(st, zR, targetThrustN, opts) {
     const target = targetThrustN != null ? targetThrustN : weightN(st);
     const zReff = clampGroundEffectZR(zR);

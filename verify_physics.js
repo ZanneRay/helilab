@@ -229,7 +229,7 @@ section('9. Axial descent: VRS band flagged, steep descent = windmill/autorotati
 }
 
 /* ── TEST 9b — axial power components are exposed cleanly ───────────── */
-section('9b. Axial power components preserve combined power across vertical-speed branches');
+section('9b. Axial power components preserve combined power without treating total power as induced power');
 {
   const st = HL.defaultState();
   const vih = HL.axialSolve({ ...st, Vc: 0 }).vih;
@@ -242,26 +242,37 @@ section('9b. Axial power components preserve combined power across vertical-spee
     const sol = HL.axialSolve(st);
     check(`${name}: Pi_induced exposed`, Number.isFinite(sol.Pi_induced), `Pi=${sol.Pi_induced.toFixed(3)}`);
     check(`${name}: Pp_profile exposed`, Number.isFinite(sol.Pp_profile), `Pp=${sol.Pp_profile.toFixed(3)}`);
-    check(`${name}: Pc_vertical exposed`, Number.isFinite(sol.Pc_vertical), `Pc=${sol.Pc_vertical.toFixed(3)}`);
+    check(`${name}: Pvertical_model_term exposed`, Number.isFinite(sol.Pvertical_model_term), `Pvertical=${sol.Pvertical_model_term.toFixed(3)}`);
     check(`${name}: combined power identity holds`,
-      Math.abs(sol.power - (sol.Pi_induced + sol.Pp_profile + sol.Pc_vertical)) < 1e-6,
-      `P=${sol.power.toFixed(3)} vs sum=${(sol.Pi_induced + sol.Pp_profile + sol.Pc_vertical).toFixed(3)}`);
+      Math.abs(sol.power - (sol.Pi_induced + sol.Pp_profile + sol.Pvertical_model_term)) < 1e-6,
+      `P=${sol.power.toFixed(3)} vs sum=${(sol.Pi_induced + sol.Pp_profile + sol.Pvertical_model_term).toFixed(3)}`);
     check(`${name}: branch preserved`, sol.branch === expectBranch, `branch=${sol.branch}`);
     if (pcSign === 0) {
-      check(`${name}: Pc_vertical = 0`, Math.abs(sol.Pc_vertical) < 1e-9, `Pc=${sol.Pc_vertical.toFixed(6)}`);
+      check(`${name}: Pvertical_model_term = 0 at hover`, Math.abs(sol.Pvertical_model_term) < 1e-9, `Pvertical=${sol.Pvertical_model_term.toFixed(6)}`);
     } else if (pcSign > 0) {
-      check(`${name}: Pc_vertical > 0`, sol.Pc_vertical > 0, `Pc=${sol.Pc_vertical.toFixed(3)}`);
+      check(`${name}: Pvertical_model_term = κ·T·Vc in climb`,
+        Math.abs(sol.Pvertical_model_term - (st.kappa * sol.thrust * st.Vc)) < 1e-6,
+        `Pvertical=${sol.Pvertical_model_term.toFixed(3)} κTVc=${(st.kappa * sol.thrust * st.Vc).toFixed(3)}`);
     } else {
-      check(`${name}: Pc_vertical < 0`, sol.Pc_vertical < 0, `Pc=${sol.Pc_vertical.toFixed(3)}`);
+      check(`${name}: Pvertical_model_term = T·Vc in descent`,
+        Math.abs(sol.Pvertical_model_term - (sol.thrust * st.Vc)) < 1e-6,
+        `Pvertical=${sol.Pvertical_model_term.toFixed(3)} TVc=${(sol.thrust * st.Vc).toFixed(3)}`);
     }
   });
+  const hover = HL.axialSolve({ ...st, Vc: 0 });
+  check('hover: Pi_induced = κ·T·vi',
+    Math.abs(hover.Pi_induced - (st.kappa * hover.thrust * hover.vi)) < 1e-6,
+    `Pi=${hover.Pi_induced.toFixed(3)} κTvi=${(st.kappa * hover.thrust * hover.vi).toFixed(3)}`);
+  check('hover: combined power remains distinct from induced power',
+    Math.abs(hover.power - hover.Pi_induced) > 1e-3,
+    `power=${hover.power.toFixed(3)} Pi=${hover.Pi_induced.toFixed(3)}`);
 }
 
 /* ── TEST 9c — bounded hover trim reaches target thrust ─────────────── */
-section('9c. Hover trim solve hits target thrust within its declared tolerance');
+section('9c. Hover trim solve is hover-only and hits target thrust within its declared tolerance');
 {
   const trimAt = cfg => {
-    const st = { ...HL.defaultState(), ...cfg, Vc: 0 };
+    const st = { ...HL.defaultState(), ...cfg };
     return HL.hoverTrimSolve(st, HL.weightN(st));
   };
   const sea2400 = trimAt({ W_kg: 2400, alt: 0,    ige: false, zR: 1.0 });
@@ -277,6 +288,11 @@ section('9c. Hover trim solve hits target thrust within its declared tolerance')
     check(`${tag}: helper exposes target vs produced thrust`, Math.abs(trim.solution.thrust - trim.producedThrust) < 1e-9,
       `solutionT=${trim.solution.thrust.toFixed(6)} produced=${trim.producedThrust.toFixed(6)}`);
   });
+  const forcedHover = HL.hoverTrimSolve({ ...HL.defaultState(), Vc: 3.5 }, HL.weightN(HL.defaultState()));
+  check('hoverTrimSolve forces Vc = 0 in the returned trimmed state', forcedHover.state.Vc === 0,
+    `returned Vc=${forcedHover.state.Vc}`);
+  check('hoverTrimSolve forces Vc = 0 in the solved axial branch', Math.abs(forcedHover.solution.lamc) < 1e-12 && forcedHover.solution.branch === 'climb',
+    `lamc=${forcedHover.solution.lamc.toFixed(6)} branch=${forcedHover.solution.branch}`);
   check('heavier hover needs more collective at same density', sea3200.theta0 > sea2400.theta0,
     `θ0: 2400kg=${sea2400.theta0.toFixed(3)}° 3200kg=${sea3200.theta0.toFixed(3)}°`);
   check('higher density altitude needs more collective at same weight', hot2800.theta0 > sea2800.theta0,
@@ -287,7 +303,7 @@ section('9c. Hover trim solve hits target thrust within its declared tolerance')
 }
 
 /* ── TEST 9d — ground-effect semantics stay distinct ─────────────────── */
-section('9d. Fixed-power, fixed-control and fixed-thrust ground-effect semantics remain distinct');
+section('9d. Fixed-thrust IGE/OGE comparison trims both states to the same declared target');
 {
   const st = { ...HL.defaultState(), alt: 6000 };
   const cmp = HL.groundEffectFixedThrustComparison(st, 0.5);
@@ -298,12 +314,14 @@ section('9d. Fixed-power, fixed-control and fixed-thrust ground-effect semantics
   const fixedThrustRatio = cmp.ige.producedThrust / cmp.oge.producedThrust;
 
   check('comparison mode is fixed-thrust', cmp.mode === 'fixed-thrust', `mode=${cmp.mode}`);
-  check('OGE trimmed state meets target', cmp.oge.converged && Math.abs(cmp.oge.residualThrust) <= cmp.oge.toleranceN,
+  check('OGE trimmed state meets its declared target', cmp.oge.converged && cmp.oge.targetThrust === cmp.targetThrust && Math.abs(cmp.oge.residualThrust) <= cmp.oge.toleranceN,
     `residual=${cmp.oge.residualThrust.toFixed(2)} N`);
-  check('IGE trimmed state meets same target', cmp.ige.converged && Math.abs(cmp.ige.residualThrust) <= cmp.ige.toleranceN,
+  check('IGE trimmed state meets the same declared target', cmp.ige.converged && cmp.ige.targetThrust === cmp.targetThrust && Math.abs(cmp.ige.residualThrust) <= cmp.ige.toleranceN,
     `residual=${cmp.ige.residualThrust.toFixed(2)} N`);
-  check('canonical comparison holds thrust constant by construction', Math.abs(cmp.ige.producedThrust - cmp.oge.producedThrust) <= Math.max(cmp.ige.toleranceN, cmp.oge.toleranceN),
-    `OGE=${cmp.oge.producedThrust.toFixed(1)} IGE=${cmp.ige.producedThrust.toFixed(1)}`);
+  check('canonical comparison holds the same target thrust on both sides', cmp.oge.targetThrust === cmp.ige.targetThrust,
+    `OGE target=${cmp.oge.targetThrust.toFixed(1)} IGE target=${cmp.ige.targetThrust.toFixed(1)}`);
+  check('canonical comparison holds produced thrust equal within declared tolerance', Math.abs(cmp.ige.producedThrust - cmp.oge.producedThrust) <= Math.max(cmp.ige.toleranceN, cmp.oge.toleranceN),
+    `OGE=${cmp.oge.producedThrust.toFixed(1)} IGE=${cmp.ige.producedThrust.toFixed(1)} tol=${Math.max(cmp.ige.toleranceN, cmp.oge.toleranceN)}`);
   check('IGE lowers induced velocity at fixed thrust', cmp.ige.solution.vi < cmp.oge.solution.vi,
     `OGE vi=${cmp.oge.solution.vi.toFixed(3)} IGE vi=${cmp.ige.solution.vi.toFixed(3)}`);
   check('IGE lowers Pi_induced at fixed thrust', cmp.ige.solution.Pi_induced < cmp.oge.solution.Pi_induced,
