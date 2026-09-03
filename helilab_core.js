@@ -22,6 +22,11 @@
 const HL = (function () {
 
   const D2R = Math.PI / 180, R2D = 180 / Math.PI;
+  const GROUND_EFFECT_MIN_ZR = 0.35;
+  const AXIAL_TRIM_TOLERANCE_N = 25;
+  const AXIAL_TRIM_MAX_ITERATIONS = 32;
+  const AXIAL_TRIM_COLLECTIVE_MIN_DEG = 0;
+  const AXIAL_TRIM_COLLECTIVE_MAX_DEG = 20;
 
   /* ── Canonical rotor state ───────────────────────────────────────────────
      A light medium twin (EC135-class numbers, consistent with the v1 app).
@@ -53,6 +58,11 @@ const HL = (function () {
   function rho(st)    { return rhoAtAltFt(st.alt); }
   function omR(st)    { return tipSpeed(st); }           // Ω·R  [m/s]
   function weightN(st){ return st.W_kg * 9.80665; }
+  function clampGroundEffectZR(zR) { return Math.max(GROUND_EFFECT_MIN_ZR, zR == null ? 1 : zR); }
+  function groundEffectFactor(zR) {
+    const z = clampGroundEffectZR(zR);
+    return { zR: z, K: Math.sqrt(Math.max(0.05, 1 - 1 / (16 * z * z))) };
+  }
 
   /* ── Hover induced velocity  v_h = √(T / 2ρA) ──────────────────────────── */
   function viHover(st, thrustN) {
@@ -78,10 +88,30 @@ const HL = (function () {
                                  teachable fact), so we flag it and hold an
                                  approximate high induced velocity.
 
-     Returns { CT, lam, lami, lamc, vi, vih, thrust, power, vrs, branch }. */
+     Returns { CT, lam, lami, lamc, vi, vih, thrust,
+               Pi_induced, Pp_profile, Pvertical_model_term, power, vrs, branch }.
+
+     `Pi_induced` is the clean induced-power quantity for M2 reasoning:
+       Pi_induced = κ · T · v_i
+
+     `Pvertical_model_term` is intentionally model-specific:
+       Vc = 0  →  0
+       Vc > 0  →  κ · T · Vc   (chosen only to preserve the pre-existing combined
+                                axial-power convention)
+       Vc < 0  →  T · Vc
+     It is NOT a universal/classical climb-power term.
+
+     `power` remains the combined axial power used by existing callers and must
+     not be presented as induced power in future M2 UI. */
   function axialSolve(st, VcOverride) {
     const OmR = omR(st);
-    if (OmR < 1) return { CT: 0, lam: 0, lami: 0, lamc: 0, vi: 0, vih: 0, thrust: 0, power: 0, vrs: false, branch: 'idle' };
+    if (OmR < 1) {
+      return {
+        CT: 0, lam: 0, lami: 0, lamc: 0, vi: 0, vih: 0, thrust: 0,
+        Pi_induced: 0, Pp_profile: 0, Pvertical_model_term: 0, power: 0,
+        vrs: false, branch: 'idle',
+      };
+    }
     const Vc  = (VcOverride != null) ? VcOverride : (st.Vc || 0);
     const lamc = Vc / OmR;
     // Ground effect (Cheeseman–Bennett): near the ground the induced velocity is
@@ -89,8 +119,8 @@ const HL = (function () {
     // fixed collective λ falls, α rises and thrust rises through the BET — rather
     // than an ad-hoc thrust multiplier. (1/K² remains the separate fixed-POWER
     // statement shown in the Ground Effect lesson.)
-    const zRige = Math.max(0.35, st.zR || 1);
-    const Kige = st.ige ? Math.sqrt(Math.max(0.05, 1 - 1 / (16 * zRige * zRige))) : 1;
+    const zRige = clampGroundEffectZR(st.zR);
+    const Kige = st.ige ? groundEffectFactor(zRige).K : 1;
 
     // Stable HOVER induced-inflow reference (v_h in λ units), solved ONCE at
     // λc=0. This is the fixed yardstick for the descent branch boundaries and
@@ -142,21 +172,121 @@ const HL = (function () {
     vrs = (branch === 'vrs') && (rVH < -0.25);
 
     // axial power  P = P_i + P_p + P_c   (no parasite in pure vertical flight)
-    const Pi = st.kappa * thrust * (vi + Math.max(0, Vc));
-    const Pp = (solidity(st) * st.cd0 / 8) * rho(st) * area(st) * OmR * OmR * OmR;
-    const Pc = thrust * (Vc < 0 ? Vc : 0);   // climb energy already in Pi term
-    const power = Math.max(0, Pi + Pp) + Pc;
+    // Preserve the existing combined `power` meaning while exposing clean fields:
+    //   Pi_induced           = κ · T · v_i
+    //   Pp_profile           = profile power
+    //   Pvertical_model_term = model-specific vertical-speed term needed ONLY to
+    //                           reconstruct the legacy combined axial-power value;
+    //                           it is not a generic/classical climb-power quantity
+    const Pi_induced = st.kappa * thrust * vi;
+    const Pp_profile = (solidity(st) * st.cd0 / 8) * rho(st) * area(st) * OmR * OmR * OmR;
+    const Pvertical_model_term = thrust * (Vc > 0 ? st.kappa * Vc : Vc);
+    const power = Pi_induced + Pp_profile + Pvertical_model_term;
 
-    return { CT, lam, lami, lamc, vi, vih, thrust, power, vrs, branch };
+    return {
+      CT, lam, lami, lamc, vi, vih, thrust,
+      Pi_induced, Pp_profile, Pvertical_model_term, power,
+      vrs, branch,
+    };
   }
 
   /* ── Ground-effect ratios (Cheeseman–Bennett) ──────────────────────────────
      v_i,IGE / v_i,OGE = √(1 − 1/(16 (z/R)²)).  Thrust gain at fixed power
      ≈ inverse. Returns { K, viRatio, thrustRatio }. */
   function groundEffect(zR) {
-    const z = Math.max(0.35, zR);
-    const K = Math.sqrt(Math.max(0.05, 1 - 1 / (16 * z * z)));
+    const { zR: z, K } = groundEffectFactor(zR);
     return { K, viRatio: K, thrustRatio: 1 / (K * K) };  // T/T_OGE at fixed power
+  }
+
+  /* ── Bounded hover-trim helper (selected comparisons only) ──────────────────
+     Solves for collective θ₀ [deg] so axialSolve(...).thrust matches a target
+     thrust within a small bounded tolerance. This WRAPS the existing axial model.
+     It is hover-only: Vc is forced to 0 inside the helper, even if the caller
+     supplies a non-zero vertical speed in `st`.
+
+     Defaults:
+       toleranceN    = 25 N
+       maxIterations = 32
+       θ₀ bracket     = 0..20 deg
+
+     Failure behavior:
+       - if the target is not finite, return converged=false / reason=invalid-target
+       - if the target lies outside the bounded θ₀ bracket, return the nearest edge
+         solve with converged=false and reason=target-below-bracket|target-above-bracket
+       - otherwise return the best bounded bisection result. */
+  function hoverTrimSolve(st, targetThrustN, opts) {
+    const cfg = opts || {};
+    const target = targetThrustN != null ? targetThrustN : weightN(st);
+    const toleranceN = cfg.toleranceN != null ? Math.max(0, cfg.toleranceN) : AXIAL_TRIM_TOLERANCE_N;
+    const maxIterations = cfg.maxIterations != null ? Math.max(1, Math.floor(cfg.maxIterations)) : AXIAL_TRIM_MAX_ITERATIONS;
+    const minTheta0 = cfg.minTheta0Deg != null ? cfg.minTheta0Deg : AXIAL_TRIM_COLLECTIVE_MIN_DEG;
+    const maxTheta0 = cfg.maxTheta0Deg != null ? cfg.maxTheta0Deg : AXIAL_TRIM_COLLECTIVE_MAX_DEG;
+    const baseState = { ...st, Vc: 0 };
+    const finish = (theta0, solution, iterations, reason) => {
+      const producedThrust = solution.thrust;
+      const residualThrust = producedThrust - target;
+      return {
+        state: { ...baseState, theta0 },
+        theta0,
+        targetThrust: target,
+        producedThrust,
+        residualThrust,
+        toleranceN,
+        iterations,
+        converged: Math.abs(residualThrust) <= toleranceN,
+        reason,
+        solution,
+      };
+    };
+
+    if (!Number.isFinite(target)) {
+      const theta0 = baseState.theta0;
+      return finish(theta0, axialSolve({ ...baseState, theta0 }, 0), 0, 'invalid-target');
+    }
+
+    let lo = minTheta0, hi = maxTheta0;
+    let loSol = axialSolve({ ...baseState, theta0: lo }, 0);
+    let hiSol = axialSolve({ ...baseState, theta0: hi }, 0);
+
+    if (target <= loSol.thrust + toleranceN) return finish(lo, loSol, 0, 'target-below-bracket');
+    if (target >= hiSol.thrust - toleranceN) return finish(hi, hiSol, 0, 'target-above-bracket');
+
+    let bestTheta0 = baseState.theta0;
+    let bestSol = axialSolve({ ...baseState, theta0: bestTheta0 }, 0);
+    let bestErr = Math.abs(bestSol.thrust - target);
+
+    for (let i = 1; i <= maxIterations; i++) {
+      const theta0 = 0.5 * (lo + hi);
+      const sol = axialSolve({ ...baseState, theta0 }, 0);
+      const err = Math.abs(sol.thrust - target);
+      if (err < bestErr) { bestTheta0 = theta0; bestSol = sol; bestErr = err; }
+      if (err <= toleranceN) return finish(theta0, sol, i, 'converged');
+      if (sol.thrust < target) { lo = theta0; loSol = sol; }
+      else                     { hi = theta0; hiSol = sol; }
+    }
+
+    if (Math.abs(loSol.thrust - target) < bestErr) { bestTheta0 = lo; bestSol = loSol; bestErr = Math.abs(loSol.thrust - target); }
+    if (Math.abs(hiSol.thrust - target) < bestErr) { bestTheta0 = hi; bestSol = hiSol; }
+    return finish(bestTheta0, bestSol, maxIterations, 'max-iterations');
+  }
+
+  /* ── Canonical fixed-required-thrust IGE/OGE comparison ─────────────────────
+     Hover-only comparison for later Stage 4 use. Both OGE and IGE states are
+     trimmed to the SAME declared target thrust within the hover-trim tolerance;
+     this is not a fixed-power ratio and not a fixed-control comparison. */
+  function groundEffectFixedThrustComparison(st, zR, targetThrustN, opts) {
+    const target = targetThrustN != null ? targetThrustN : weightN(st);
+    const zReff = clampGroundEffectZR(zR);
+    const oge = hoverTrimSolve({ ...st, ige: false, zR: 1, Vc: 0 }, target, opts);
+    const ige = hoverTrimSolve({ ...st, ige: true, zR: zReff, Vc: 0 }, target, opts);
+    return {
+      mode: 'fixed-thrust',
+      targetThrust: target,
+      requestedZR: zR,
+      effectiveZR: zReff,
+      oge,
+      ige,
+    };
   }
 
   /* ── Forward-flight power curve  P(V) = P_i + P_p + P_par + P_c ─────────────
@@ -251,7 +381,7 @@ const HL = (function () {
   return {
     D2R, R2D,
     defaultState, solidity, area, rho, omR, weightN, viHover,
-    ctAxial, axialSolve, groundEffect,
+    ctAxial, axialSolve, groundEffect, hoverTrimSolve, groundEffectFixedThrustComparison,
     powerCurve, powerMarkers, clOf, cdOf,
     linearInflowModel, linearInflowAt, inflowRollIndicator,
   };
