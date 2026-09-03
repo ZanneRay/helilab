@@ -1015,3 +1015,105 @@ const HL_LESSONS = [
 
 /* group order for the sidebar */
 const HL_STAGES = ['Basics', 'Hover & Vertical', 'Forward Flight', 'Safety & Limits', 'Advanced'];
+
+const HL_V2_MODULES = [
+  {
+    id: 'm1',
+    number: 1,
+    title: 'Building Rotor Lift',
+    question: 'How can a rotating blade create and control rotor thrust?',
+    reasoning: 'Construct the local model.',
+    spine: ['VELOCITIES', 'ANGLES', 'FORCES', 'COMPONENTS', 'ROTOR'],
+    available: true,
+    activities: [
+      {
+        lessonId: 'bigpicture',
+        mode: 'model',
+        title: 'How a Helicopter Flies',
+        kicker: 'MODEL',
+        summary: 'Start with the rotor as a spinning wing before diving into the blade element.',
+      },
+      {
+        lessonId: 'bladeelement',
+        mode: 'explore',
+        title: 'The Blade Element',
+        kicker: 'EXPLORE',
+        summary: 'Manipulate θ, φ and α and watch the causal chain update live.',
+        threeDPreset: 'm1-rotor-flow',
+      },
+      {
+        lessonId: 'spanwise',
+        mode: 'explore',
+        title: 'Speed Along the Blade',
+        kicker: 'EXPLORE',
+        summary: 'Trace why the outboard blade does most of the lifting.',
+      },
+      {
+        lessonId: 'm1-04',
+        mode: 'mission',
+        title: 'Build a Blade Element',
+        kicker: 'MISSION',
+        summary: 'Construct the full blade-element picture before reveal.',
+      },
+    ],
+  },
+  {
+    id: 'm2',
+    number: 2,
+    title: 'Hover & Vertical Flow',
+    question: 'How does induced and vertical flow change the rotor state?',
+    reasoning: 'Compare flow states.',
+    available: false,
+  },
+  {
+    id: 'm3',
+    number: 3,
+    title: 'Transition, Asymmetry & Rotor Mechanics',
+    question: 'How does the rotor cope with unequal airflow around the disc?',
+    reasoning: 'Reason around the rotor disc.',
+    available: false,
+  },
+  {
+    id: 'm4',
+    number: 4,
+    title: 'Performance & Aerodynamic Limits',
+    question: 'What becomes limiting as speed, loading and operating condition change?',
+    reasoning: 'Integrate competing limits.',
+    available: false,
+  },
+  {
+    id: 'm5',
+    number: 5,
+    title: 'Stability, Control & Anti-Torque',
+    question: 'How are helicopter forces and moments balanced and disturbed?',
+    reasoning: 'Diagnose equilibrium and control problems.',
+    available: false,
+  },
+  {
+    id: 'm6',
+    number: 6,
+    title: 'Autorotation & Rotor Energy',
+    question: 'Where does rotor energy come from without engine torque?',
+    reasoning: 'Trace energy flow and local driving or braking force.',
+    available: false,
+  },
+  {
+    id: 'm7',
+    number: 7,
+    title: 'Integration & Mastery',
+    question: 'Can the learner diagnose a new aerodynamic situation from first principles?',
+    reasoning: 'Transfer.',
+    available: false,
+  },
+];
+
+const HL_V2_PRESETS = {
+  'm1-rotor-flow': {
+    preset: 'm1-rotor-flow',
+    mode: 'guided',
+    title: 'View this in 3D — Rotor Flow',
+    summary: 'Increase airspeed and watch the same rotor state skew its wake aft.',
+    controls: ['airspeed'],
+    state: { coll: 9.2, Vkt: 0, Vc: 0, weight: 2800, alt: 0, psi: 90, showWake: true, showFuselage: true, showVel: false },
+  },
+};
