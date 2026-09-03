@@ -1016,7 +1016,18 @@ const HLW = (function () {
     let gate1 = null, gate2 = null, gate3 = null;
     let gate1Draft = null, gate1Dragging = false, gate1Geom = null;
 
+    const STEP_NAMES = ['Reference', 'Velocities', 'Angles', 'Forces', 'Resolve', 'Connect'];
     const stepBar = el('div', 'hl-step-bar');
+    const stepHead = el('div', 'hl-step-head');
+    stepHead.appendChild(el('div', 'hl-step-kicker', 'Mission objective'));
+    stepHead.appendChild(el('p', 'hl-step-objective', 'Build one fixed blade-element case by committing each prediction before reveal.'));
+    const stepStrip = el('ol', 'hl-step-strip');
+    STEP_NAMES.forEach((name, idx) => {
+      const item = el('li', 'hl-step-chip', `${idx + 1} ${name}`);
+      item.dataset.step = String(idx + 1);
+      stepStrip.appendChild(item);
+    });
+    stepHead.appendChild(stepStrip);
     const stepNav = el('div', 'hl-step-nav');
     const btnBack = el('button', 'hl-step-btn', '← Back');
     const stepCounter = el('span', 'hl-step-counter', 'Step 1 of 6');
@@ -1025,6 +1036,7 @@ const HLW = (function () {
     stepNav.appendChild(btnBack);
     stepNav.appendChild(stepCounter);
     stepNav.appendChild(btnNext);
+    stepBar.appendChild(stepHead);
     stepBar.appendChild(stepNav);
     stepBar.appendChild(stepCaption);
     host.insertBefore(stepBar, host.firstChild);
@@ -1070,6 +1082,9 @@ const HLW = (function () {
     const updateStepUI = () => {
       stepCounter.textContent = 'Step ' + step + ' of 6';
       stepCaption.textContent = CAPTIONS[step - 1];
+      stepStrip.querySelectorAll('.hl-step-chip').forEach((chip) => {
+        chip.classList.toggle('on', Number(chip.dataset.step) === step);
+      });
       btnBack.disabled = step === 1;
       btnNext.disabled = !canAdvance();
     };
@@ -1120,10 +1135,10 @@ const HLW = (function () {
           'Not yet — α is the gap between the blade chord and V_rel, not between the chord and the rotor plane.');
         if (fb2) ui.controls.appendChild(fb2);
       } else if (step === 5) {
-        ui.controls.appendChild(introBox('Gate 3 — Connect this element to the rotor',
-          'What does this blade element do to the rotor? First solve the local force. Then choose the rotor consequence.'));
+        ui.controls.appendChild(introBox('Resolve this element locally',
+          'Resolve TAF into the local normal component and in-plane F_H, then choose the statement that preserves that local-vs-rotor distinction.'));
         segmented(ui.controls, {
-          label: 'What does this blade element do to the rotor?',
+          label: 'Which interpretation of this local force resolution is correct?',
           val: gate3 || '',
           options: [
             { v: 'wrong-whole', t: 'F_H is the whole-rotor thrust vector, so the vertical component no longer matters' },
@@ -1140,7 +1155,7 @@ const HLW = (function () {
         ui.controls.appendChild(introBox('Guided reveal',
           step === 4
             ? 'Use the dashed construction lines to see how F_L and F_D add tip-to-tip into TAF.'
-            : 'What does this blade element do to the rotor? First solve the local force. Then connect it to the rotor.'));
+            : 'Now connect the resolved local force to the rotor story: local normal contribution builds thrust, and F_H remains an in-plane resisting load.'));
       }
     };
 
