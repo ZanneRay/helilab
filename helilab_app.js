@@ -477,14 +477,18 @@
     const continueId = computeContinueActivity();
     const continueActivity = MODULE_ACTIVITY_BY_LESSON[continueId];
     const continueModule = continueActivity ? MODULE_BY_ID[continueActivity.moduleId] : MODULE_BY_ID.m1;
+    const primaryRoute = continueId ? routeForLesson(continueId) : (continueModule ? `#/module/${continueModule.id}` : '#/rotor-lab');
+    const primaryLabel = continueId
+      ? (progress[continueId] ? 'Continue learning' : `Start Module ${continueModule ? continueModule.number : 1}`)
+      : (continueModule ? `Open Module ${continueModule.number}` : 'Explore the 3D Rotor Lab');
     copy.innerHTML =
       '<div class="hl-home-kicker">HELILAB · Interactive Helicopter Aerodynamics for ATPL(H)</div>' +
       '<h1>Understand the rotor. Don’t memorise it.</h1>' +
       '<p>Predict, build, explore and explain the same aerodynamic model — from the first blade element to the full rotor wake.</p>' +
       '<div class="hl-home-sequence">PREDICT → BUILD → EXPLORE → EXPLAIN</div>';
     const actions = el('div', 'hl-home-actions');
-    const primary = el('button', 'hl-home-btn primary', progress[continueId] ? 'Continue learning' : `Start Module ${continueModule ? continueModule.number : 1}`);
-    primary.onclick = () => navigate(routeForLesson(continueId));
+    const primary = el('button', 'hl-home-btn primary', primaryLabel);
+    primary.onclick = () => navigate(primaryRoute);
     const secondary = el('button', 'hl-home-btn', 'Explore the 3D Rotor Lab');
     secondary.onclick = () => navigate('#/rotor-lab');
     actions.appendChild(primary);
