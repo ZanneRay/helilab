@@ -444,12 +444,16 @@
   }
 
   function computeContinueActivity() {
-    const activities = HL_V2_MODULES
-      .filter((module) => module.available)
-      .flatMap((module) => (module.activities || []).map((activity) => activity.lessonId));
-    return activities.find((lessonId) => progress[lessonId] === 'seen')
-      || activities.find((lessonId) => progress[lessonId] !== 'done')
-      || activities[activities.length - 1];
+    const modules = HL_V2_MODULES.filter((module) => module.available && (module.activities || []).length);
+    for (const module of modules) {
+      const activities = (module.activities || []).map((activity) => activity.lessonId);
+      const pending = activities.find((lessonId) => progress[lessonId] !== 'done');
+      if (!pending) continue;
+      return activities.find((lessonId) => progress[lessonId] === 'seen')
+        || pending;
+    }
+    const lastModule = modules[modules.length - 1];
+    return lastModule ? lastModule.activities[lastModule.activities.length - 1].lessonId : null;
   }
 
   function buildModuleCard(module) {

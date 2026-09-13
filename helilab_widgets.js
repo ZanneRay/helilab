@@ -1911,7 +1911,7 @@ const HLW = (function () {
         ui.controls.appendChild(fb);
       }
 
-      if (weightReady()) {
+      if (scenario === 'weight' && weightReady()) {
         const mag = el('div', 'hl-mission-box');
         mag.innerHTML = '<div class="hl-mission-h">15% mass magnitude gate</div><p>Mass increases by 15% at constant density and rotor size. Induced power increases by about:</p>';
         ui.controls.appendChild(mag);
@@ -1935,7 +1935,7 @@ const HLW = (function () {
         }
       }
 
-      if (chainUnlocked()) {
+      if (scenario === 'weight' && chainUnlocked()) {
         const chainBox = el('div', 'hl-mission-box');
         chainBox.innerHTML = '<div class="hl-mission-h">Build the causal chain</div><p>Tap four tiles in order for the heavier-hover case. Leave the decoys out.</p>';
         ui.controls.appendChild(chainBox);
