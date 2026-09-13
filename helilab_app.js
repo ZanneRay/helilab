@@ -44,8 +44,12 @@
 
   const LESSON_BY_ID = Object.fromEntries(HL_LESSONS.map((lesson) => [lesson.id, lesson]));
   const MODULE_BY_ID = Object.fromEntries(HL_V2_MODULES.map((module) => [module.id, module]));
-  const M1 = MODULE_BY_ID.m1;
-  const M1_ACTIVITY_BY_ID = Object.fromEntries((M1.activities || []).map((activity) => [activity.lessonId, activity]));
+  const MODULE_ACTIVITY_BY_LESSON = {};
+  HL_V2_MODULES.forEach((module) => {
+    (module.activities || []).forEach((activity) => {
+      MODULE_ACTIVITY_BY_LESSON[activity.lessonId] = { ...activity, moduleId: module.id };
+    });
+  });
 
   const HL_RELATED = {
     bigpicture:      ['bladeelement', 'hover', 'dissymmetry'],
@@ -71,19 +75,29 @@
   let currentRoute = null;
   let activeCleanup = null;
   const MODE_COPY = {
+    orient: {
+      label: 'ORIENT + PREDICT',
+      lead: 'Commit to one mechanism before the explanation appears.',
+      action: 'Use the first prompt to choose the mechanism, then compare it with the reveal.',
+      section: 'Start by orienting to the problem, then make a committed prediction before you see the explanation.',
+      button: 'Start activity',
+    },
     model: {
+      label: 'MODEL',
       lead: 'See one relationship clearly before you start changing anything.',
       action: 'Watch the labelled diagram first, then name the cause-and-effect link it is showing.',
       section: 'Start with a strongly guided view of one idea before you manipulate it.',
       button: 'See the model',
     },
     explore: {
+      label: 'EXPLORE',
       lead: 'Predict one change, move one control, then explain what changed.',
       action: 'Use the highlighted control on purpose instead of hunting across the full rotor model.',
       section: 'Change one main input at a time and compare the result.',
       button: 'Open activity',
     },
     mission: {
+      label: 'MISSION',
       lead: 'Build the answer first, then commit before the reveal.',
       action: 'Use the workspace to construct the blade-element picture step by step.',
       section: 'Combine the earlier ideas in one committed construction task.',
@@ -112,7 +126,7 @@
   }
 
   function routeForLesson(lessonId, forceLegacy) {
-    if (!forceLegacy && M1_ACTIVITY_BY_ID[lessonId]) return `#/activity/${lessonId}`;
+    if (!forceLegacy && MODULE_ACTIVITY_BY_LESSON[lessonId]) return `#/activity/${lessonId}`;
     return `#/lesson/${lessonId}`;
   }
 
@@ -284,13 +298,13 @@
     const activityMeta = opts && opts.activityMeta;
     const legacy = !!(opts && opts.legacy);
     const v2View = !legacy && !!activityMeta;
-    const bodyHtml = v2View && activityMeta.bodyHtml ? activityMeta.bodyHtml : lesson.body;
-    const takeaways = v2View && activityMeta.takeaways ? activityMeta.takeaways : lesson.takeaways;
-    const checkData = v2View && activityMeta.mode === 'mission'
-      ? (Object.prototype.hasOwnProperty.call(activityMeta, 'check') ? activityMeta.check : null)
-      : (v2View && activityMeta.check ? activityMeta.check : lesson.check);
+    const bodyHtml = v2View && Object.prototype.hasOwnProperty.call(activityMeta, 'bodyHtml') ? activityMeta.bodyHtml : lesson.body;
+    const takeaways = v2View && Object.prototype.hasOwnProperty.call(activityMeta, 'takeaways') ? activityMeta.takeaways : lesson.takeaways;
+    const checkData = v2View && Object.prototype.hasOwnProperty.call(activityMeta, 'check') ? activityMeta.check : lesson.check;
     const relatedIds = legacy ? (HL_RELATED[lesson.id] || []) : ((activityMeta && activityMeta.related) || []);
     const bridgeHtml = legacy ? lesson.bridge : (activityMeta && activityMeta.bridge);
+    const subtitle = v2View && activityMeta.subtitle ? activityMeta.subtitle : lesson.subtitle;
+    const widgetName = v2View && activityMeta.widget ? activityMeta.widget : lesson.widget;
     touchLesson(lesson.id);
     main.innerHTML = '';
 
@@ -303,7 +317,7 @@
       const title = activityMeta.mode === 'mission' ? `MISSION — ${activityMeta.title}` : activityMeta.title;
       head.innerHTML =
         `<div class="hl-lesson-stage">Module ${String(moduleMeta.number).padStart(2, '0')} · ${activityMeta.kicker}</div>` +
-        `<h1>${title}</h1><div class="hl-lesson-sub">${moduleMeta.title} · ${lesson.subtitle}</div>`;
+        `<h1>${title}</h1><div class="hl-lesson-sub">${moduleMeta.title} · ${subtitle}</div>`;
     }
     main.appendChild(head);
 
@@ -313,8 +327,8 @@
       const prompt = el('div', 'hl-inline-actions');
       const guided = el('button', 'hl-foot-btn primary', 'View this in 3D');
       guided.onclick = () => navigate(`#/rotor-lab?preset=${encodeURIComponent(activityMeta.threeDPreset)}&mode=guided`);
-      const moduleBtn = el('button', 'hl-foot-btn', 'Back to Module 1');
-      moduleBtn.onclick = () => navigate('#/module/m1');
+      const moduleBtn = el('button', 'hl-foot-btn', `Back to Module ${moduleMeta.number}`);
+      moduleBtn.onclick = () => navigate(`#/module/${moduleMeta.id}`);
       prompt.appendChild(guided);
       prompt.appendChild(moduleBtn);
       main.appendChild(prompt);
@@ -345,7 +359,7 @@
     grid.appendChild(readCol);
     main.appendChild(grid);
 
-    const widget = HLW[lesson.widget];
+    const widget = HLW[widgetName];
     if (widget) {
       try { setActiveCleanup(widget(mount)); } catch (e) {
         mount.innerHTML = '<div class="hl-err">Widget error: ' + e.message + '</div>';
@@ -397,14 +411,16 @@
     if (!legacy && moduleMeta && activityMeta) {
       const activities = moduleMeta.activities || [];
       const idx = activities.findIndex((activity) => activity.lessonId === lesson.id);
-      const prev = el('button', 'hl-foot-btn', idx > 0 ? '← Previous activity' : '← Module 1');
-      prev.onclick = () => navigate(idx > 0 ? routeForLesson(activities[idx - 1].lessonId) : '#/module/m1');
-      const next = el('button', 'hl-foot-btn primary', idx < activities.length - 1 ? 'Next activity →' : 'Open the 3D Rotor Lab →');
+      const prev = el('button', 'hl-foot-btn', idx > 0 ? '← Previous activity' : `← Module ${moduleMeta.number}`);
+      prev.onclick = () => navigate(idx > 0 ? routeForLesson(activities[idx - 1].lessonId) : `#/module/${moduleMeta.id}`);
+      const finalRoute = activityMeta.completionRoute || (moduleMeta.id === 'm1' ? '#/rotor-lab' : `#/module/${moduleMeta.id}`);
+      const finalLabel = activityMeta.completionLabel || (moduleMeta.id === 'm1' ? 'Open the 3D Rotor Lab →' : `Back to Module ${moduleMeta.number} →`);
+      const next = el('button', 'hl-foot-btn primary', idx < activities.length - 1 ? 'Next activity →' : finalLabel);
       next.onclick = () => {
         progress[lesson.id] = 'done';
         saveProgress();
         buildSidebar(currentRoute);
-        navigate(idx < activities.length - 1 ? routeForLesson(activities[idx + 1].lessonId) : '#/rotor-lab');
+        navigate(idx < activities.length - 1 ? routeForLesson(activities[idx + 1].lessonId) : finalRoute);
       };
       foot.appendChild(prev);
       foot.appendChild(next);
@@ -428,7 +444,9 @@
   }
 
   function computeContinueActivity() {
-    const activities = (M1.activities || []).map((activity) => activity.lessonId);
+    const activities = HL_V2_MODULES
+      .filter((module) => module.available)
+      .flatMap((module) => (module.activities || []).map((activity) => activity.lessonId));
     return activities.find((lessonId) => progress[lessonId] === 'seen')
       || activities.find((lessonId) => progress[lessonId] !== 'done')
       || activities[activities.length - 1];
@@ -453,13 +471,15 @@
     const hero = el('section', 'hl-v2-home-hero');
     const copy = el('div', 'hl-v2-home-copy');
     const continueId = computeContinueActivity();
+    const continueActivity = MODULE_ACTIVITY_BY_LESSON[continueId];
+    const continueModule = continueActivity ? MODULE_BY_ID[continueActivity.moduleId] : MODULE_BY_ID.m1;
     copy.innerHTML =
       '<div class="hl-home-kicker">HELILAB · Interactive Helicopter Aerodynamics for ATPL(H)</div>' +
       '<h1>Understand the rotor. Don’t memorise it.</h1>' +
       '<p>Predict, build, explore and explain the same aerodynamic model — from the first blade element to the full rotor wake.</p>' +
       '<div class="hl-home-sequence">PREDICT → BUILD → EXPLORE → EXPLAIN</div>';
     const actions = el('div', 'hl-home-actions');
-    const primary = el('button', 'hl-home-btn primary', progress[continueId] ? 'Continue learning' : 'Start Module 1');
+    const primary = el('button', 'hl-home-btn primary', progress[continueId] ? 'Continue learning' : `Start Module ${continueModule ? continueModule.number : 1}`);
     primary.onclick = () => navigate(routeForLesson(continueId));
     const secondary = el('button', 'hl-home-btn', 'Explore the 3D Rotor Lab');
     secondary.onclick = () => navigate('#/rotor-lab');
@@ -478,7 +498,7 @@
     }));
 
     const modules = el('section', 'hl-v2-section');
-    modules.innerHTML = '<div class="hl-v2-section-kicker">One model. Seven flight problems.</div><h2>Learning journey</h2><p>Start with Module 1 and build the rotor model from one blade element. More modules will appear here later.</p>';
+    modules.innerHTML = '<div class="hl-v2-section-kicker">One model. Seven flight problems.</div><h2>Learning journey</h2><p>Build the rotor model in Module 1, then carry the same causal thinking into hover and vertical-flow problems in Module 2.</p>';
     const moduleGrid = el('div', 'hl-module-grid');
     HL_V2_MODULES.forEach((module) => moduleGrid.appendChild(buildModuleCard(module)));
     modules.appendChild(moduleGrid);
@@ -556,14 +576,15 @@
       `<div class="hl-v2-section-kicker">Module ${String(module.number).padStart(2, '0')}</div>` +
       `<h1>${module.title}</h1>` +
       `<p class="hl-v2-module-question">${module.question}</p>` +
-      `<div class="hl-v2-spine">${module.spine.join(' → ')}</div>`;
+      `${module.spine && module.spine.length ? `<div class="hl-v2-spine">${module.spine.join(' → ')}</div>` : ''}`;
     main.appendChild(head);
 
-    ['model', 'explore', 'mission'].forEach((mode) => {
+    ['orient', 'model', 'explore', 'mission', 'challenge'].forEach((mode) => {
       const items = (module.activities || []).filter((activity) => activity.mode === mode);
       if (!items.length) return;
+      const copy = MODE_COPY[mode] || MODE_COPY.explore;
       const sec = el('section', 'hl-v2-section');
-      sec.innerHTML = `<div class="hl-v2-section-kicker">${mode.toUpperCase()}</div><p class="hl-v2-mode-note">${MODE_COPY[mode].section}</p>`;
+      sec.innerHTML = `<div class="hl-v2-section-kicker">${copy.label || mode.toUpperCase()}</div><p class="hl-v2-mode-note">${copy.section}</p>`;
       const grid = el('div', 'hl-activity-grid');
       items.forEach((activity) => grid.appendChild(buildActivityCard(activity)));
       sec.appendChild(grid);
@@ -577,7 +598,9 @@
   }
 
   function renderActivity(lessonId) {
-    renderLessonBody($('#hlMain'), LESSON_BY_ID[lessonId], { moduleMeta: M1, activityMeta: M1_ACTIVITY_BY_ID[lessonId] });
+    const activityMeta = MODULE_ACTIVITY_BY_LESSON[lessonId];
+    const moduleMeta = activityMeta ? MODULE_BY_ID[activityMeta.moduleId] : null;
+    renderLessonBody($('#hlMain'), LESSON_BY_ID[lessonId], { moduleMeta, activityMeta });
   }
 
   function renderLegacyLesson(lessonId) {
@@ -598,8 +621,9 @@
       const note = el('div', 'hl-rotor-guide-actions');
       const full = el('button', 'hl-foot-btn primary', 'Open full Rotor Lab');
       full.onclick = () => navigate('#/rotor-lab');
-      const back = el('button', 'hl-foot-btn', 'Back to Module 1');
-      back.onclick = () => navigate('#/module/m1');
+      const backModule = guided.moduleId || 'm1';
+      const back = el('button', 'hl-foot-btn', `Back to Module ${MODULE_BY_ID[backModule] ? MODULE_BY_ID[backModule].number : 1}`);
+      back.onclick = () => navigate(`#/module/${backModule}`);
       note.appendChild(full);
       note.appendChild(back);
       main.appendChild(note);
