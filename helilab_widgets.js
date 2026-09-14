@@ -352,7 +352,7 @@ const HLW = (function () {
 
   /* Local angle of attack with a selectable model.
 
-     model 'real' — the physically-complete BET: real −8° washout twist, full
+     model 'extended' — the physically-complete BET: real −8° washout twist, full
        trim cyclic (θ₁c AND θ₁s), Drees linear inflow (longitudinal κ AND
        lateral k_y = −2μ, Leishman "Principles" §3.5.2), coning/flapping term in
        U_P, atan2 inflow angle. This is the honest picture. Because the lateral
@@ -360,7 +360,7 @@ const HLW = (function () {
        unloads the tip, the α peak sits INBOARD (≈0.7 R) and a little BEFORE
        ψ=270° (≈235–240°) — exactly what measurements show.
 
-     model 'exam' — the CLEAN ATPL(H)/POF textbook plate. This is a deliberate,
+     model 'foundation' — the CLEAN ATPL(H)/POF textbook plate. This is a deliberate,
        well-known didactic SIMPLIFICATION (not a fake overlay): we drop exactly
        the three effects the classic exam derivation itself ignores, so the
        high-α region lands unambiguously at the RETREATING TIP (ψ=270°, r→1):
@@ -380,11 +380,11 @@ const HLW = (function () {
      NOTE on honesty: U_T is ALWAYS the true rBar + μ·sinψ in both modes, so the
        reverse-flow guard and the dynamic-pressure (qShare) gating stay physical
        and identical. Only the INDUCED angle φ and the pitch inputs (twist, θ₁c)
-       are simplified in exam mode — the recognised textbook assumptions. */
+       are simplified in the Foundation model — the recognised textbook assumptions. */
   function localAoAmodel(st, c, rBar, psi, model) {
-    if (model !== 'exam') return localAoA(st, c, rBar, psi);
+    if (model !== 'foundation') return localAoA(st, c, rBar, psi);
 
-    // Clean exam plate: untwisted blade, no lateral cyclic, uniform inflow.
+    // Foundation model: untwisted blade, no lateral cyclic, uniform inflow.
     const st0 = trimmed({ ...st, twist: 0 });
     st0.theta1c = 0;                       // kill lateral cyclic → pitch peaks at ψ=270°
     const mu   = advanceRatio(st0);
@@ -3166,11 +3166,11 @@ const HLW = (function () {
   /* 9 — Retreating stall & envelope: AoA / %-critical-α / lift contour over disc */
   function wEnvelope(host) {
     const ui = scaffold(host);
-    let Vkt = 60, plotMode = 'pctcrit', showIso = true, discModel = 'exam';
-    // discModel: 'exam' = the clean ATPL/POF textbook plate — untwisted blade
+    let Vkt = 60, plotMode = 'pctcrit', showIso = true, discModel = 'foundation';
+    // discModel: 'foundation' = the clean ATPL/POF textbook plate — untwisted blade
     //   (twist=0) + no lateral cyclic (θ₁c=0) + uniform inflow, so the high-α
     //   zone lands squarely on the RETREATING TIP at ψ=270° (r→1) and spreads
-    //   inboard with speed/weight/g/altitude; 'real' = the physically-complete
+    //   inboard with speed/weight/g/altitude; 'extended' = the physically-complete
     //   BET (−8° washout, full trim cyclic, Drees lateral inflow), which puts
     //   the α peak a little INBOARD (≈0.7 R) and slightly BEFORE 270° (≈235°).
     //   See localAoAmodel() for the exact, documented simplifications.
@@ -3190,9 +3190,9 @@ const HLW = (function () {
       const c = flappingCoeffs(stt);
       const mu = advanceRatio(stt);
       const AOA = (s, cc, rB, ps) => localAoAmodel(s, cc, rB, ps, discModel);
-      // exam mode uses a firmer airload floor so the low-q inboard smear vanishes
+      // Foundation model uses a firmer airload floor so the low-q inboard smear vanishes
       // entirely and only the outboard retreating stall reads through.
-      const QFLOOR = discModel === 'exam' ? 0.40 : 0.25;
+      const QFLOOR = discModel === 'foundation' ? 0.40 : 0.25;
       const sos = sosAtAltFt(st.alt);
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
       HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
@@ -3356,9 +3356,9 @@ const HLW = (function () {
         pctcrit: 'α as a <b>percentage of the local critical α</b>. Because the critical α falls with local Mach, the first cells to reach 100 % (red) are on the <b>outboard retreating blade</b> — so stall correctly begins at the <b>tip</b>, ψ≈270°. Iso-lines mark the 40/60/80/100/120 % zones.',
         lift: 'Normalised <b>load</b> dL/dr ∝ U_T²·C_l — the actual airload. It is dominated by the fast outboard blade and collapses inboard where U_T→0. The load hole opens on the retreating side as speed rises; stalled tip cells are flagged red.'
       }[plotMode];
-      const modelNote = discModel === 'exam'
-        ? '<b>Exam-simplified model:</b> this is the simplified exam model. Untwisted blade, no lateral cyclic and uniform inflow — the classic ATPL/POF assumptions. The high-α zone sits squarely on the <b>retreating tip at ψ=270°</b> and the <b>tip is the first to stall</b>, spreading inboard as speed, weight, g or altitude rise. This is the clean 082 exam answer.'
-        : '<b>Full-physics model:</b> the aircraft\'s −8° washout, full trim cyclic and the disc\'s lateral inflow gradient all act together. Washout unloads the tip, so the α peak slides <i>inboard (≈0.7 R)</i>, and the lateral inflow pulls it a little <i>before 270° (≈235°)</i> — the honest picture measurements show. Switch back to the exam-simplified model for the clean tip-at-270° teaching view.';
+      const modelNote = discModel === 'foundation'
+        ? '<b>Foundation model:</b> purpose: isolate the primary mechanism. Assumptions: untwisted blade, no lateral cyclic, and uniform inflow. The high-α zone sits squarely on the <b>retreating tip at ψ=270°</b> and the <b>tip is the first to stall</b>, spreading inboard as speed, weight, g or altitude rise.'
+        : '<b>Extended model:</b> purpose: show how the same mechanism shifts when added rotor effects are included. Adds: the aircraft\'s −8° washout, full trim cyclic, and the disc\'s lateral inflow gradient. Washout unloads the tip, so the α peak slides <i>inboard (≈0.7 R)</i>, and the lateral inflow pulls it a little <i>before 270° (≈235°)</i>.';
       ui.readout.innerHTML = kv([
         ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
         ['Max retreating α', maxRetAoA.toFixed(1) + '° / ' + st.stallAoA.toFixed(0) + '°', stalled ? 'var(--hl-bad)' : 'var(--hl-warn)'],
@@ -3370,7 +3370,7 @@ const HLW = (function () {
     };
     slider(ui.controls, { label: 'Forward speed', min: 0, max: 180, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
     segmented(ui.controls, { label: 'Model assumptions — toggle assumptions', val: discModel, options: [
-      { v: 'exam', t: 'Exam-simplified' }, { v: 'real', t: 'Full-physics' },
+      { v: 'foundation', t: 'Foundation model' }, { v: 'extended', t: 'Extended model' },
     ], on: v => { discModel = v; draw(); } });
     segmented(ui.controls, { label: 'Plot', val: plotMode, options: [
       { v: 'aoa', t: 'Angle of attack' }, { v: 'pctcrit', t: '% of critical α' }, { v: 'lift', t: 'Lift (load)' },
@@ -3813,7 +3813,7 @@ const HLW = (function () {
       topStage: 'hl-w-stage hl-w-stage-map',
       mainStage: 'hl-w-stage hl-w-stage-vec',
     });
-    let Vkt = 120, psiDeg = 270, rBar = 0.75, twistOn = true, discModel = 'exam';
+    let Vkt = 120, psiDeg = 270, rBar = 0.75, twistOn = true, discModel = 'foundation';
     // Mach-adjusted critical α (NACA-0012 trend) — identical rule to wEnvelope so
     // the BET stall verdict matches the disc map cell-for-cell.
     const stallEffAt = (st, UT) => {
@@ -3901,13 +3901,13 @@ const HLW = (function () {
 
       // ── ENVELOPE-CONSISTENT VERDICT (same model as the disc map on the previous
       // page). We evaluate localAoAmodel() for THIS exact cell with the chosen
-      // exam/real model and apply the identical Mach-critical-α + airload gate the
+      // foundation/extended model and apply the identical Mach-critical-α + airload gate the
       // wEnvelope colour map uses, so a red map cell always reads STALLED here.
       const dCell   = localAoAmodel(stt, c, rBar, psi, discModel);
       const stallEffDeg = stallEffAt(st, dCell.UT);          // Mach-adjusted crit α (°)
       const cellAoAdeg  = dCell.aoa * R2D;
       const qShare  = airloadConf(dCell.UT, mu).qShare;      // 0..1 dynamic-pressure share
-      const Q_MIN   = discModel === 'exam' ? 0.40 : 0.25;    // same airload floor as map
+      const Q_MIN   = discModel === 'foundation' ? 0.40 : 0.25;    // same airload floor as map
       const cellReverse = dCell.reverseFlow;
       const cellStalled = !cellReverse && cellAoAdeg >= stallEffDeg && qShare >= Q_MIN;
       const cellNear    = !cellReverse && !cellStalled && cellAoAdeg >= stallEffDeg - 2 && qShare >= Q_MIN;
@@ -4399,9 +4399,9 @@ const HLW = (function () {
       const banner = `<div style="margin:0 0 8px;padding:7px 10px;border-radius:6px;
         font-weight:700;text-align:center;color:#fff;background:${verdict.c};
         letter-spacing:.02em">${verdict.t}</div>`;
-      const modelBadge = discModel === 'exam'
-        ? '<div class="hl-kv-banner">This is the simplified exam model (Exam-simplified).</div>'
-        : '<div class="hl-kv-banner">Full-physics model — includes twist, trim cyclic, and lateral inflow.</div>';
+      const modelBadge = discModel === 'foundation'
+        ? '<div class="hl-kv-banner"><b>Foundation model</b> — Purpose: isolate the primary mechanism. Assumptions: untwisted blade, no lateral cyclic, uniform inflow.</div>'
+        : '<div class="hl-kv-banner"><b>Extended model</b> — Purpose: show how the same mechanism changes with added rotor effects. Adds: blade twist, trim cyclic, and lateral inflow.</div>';
       ui.readout.innerHTML = banner + modelBadge + kv([
         ['Azimuth ψ', psiDeg.toFixed(0) + '°  (' + side + ')', 'var(--hl-ink)'],
         ['V_rot = Ω·r', VrotMS.toFixed(0) + ' m/s', 'var(--hl-lift)'],
@@ -4468,14 +4468,14 @@ const HLW = (function () {
         small positive depression of <b style="color:var(--hl-wind)">V_rel</b> below
         the rotor plane, and <b>α = θ − φ</b>. U_P is drawn ×${AMP} for visibility —
         its direction and the resulting α are exact.</p>
-        <p class="hl-note" style="border-left:0;opacity:.9"><b>Model note — uniform
-        inflow:</b> this BET uses a <b>uniform inflow ratio</b> (V_i taken
-        spanwise-constant), the standard exam simplification. Real rotors shed
+        <p class="hl-note" style="border-left:0;opacity:.9"><b>Foundation-model note — uniform
+          inflow:</b> in the Foundation model this BET uses a <b>uniform inflow ratio</b> (V_i taken
+          spanwise-constant). Real rotors shed
         <b>tip vortices</b> that add extra downwash near the tip, so the induced
         velocity there is larger than shown. Consequently the swing to
         <b style="color:var(--hl-warn)">net up-flow (U_P &lt; 0, V_rel from below the
-        TPP)</b> on the retreating tip appears <b>earlier and stronger</b> in this
-        uniform model than in reality — in a real rotor the extra tip downwash
+          TPP)</b> on the retreating tip appears <b>earlier and stronger</b> in the
+          Foundation model than in reality — in a real rotor the extra tip downwash
         delays and softens it. The large retreating-tip <b>α</b> itself is still
         correct (retreating-blade stall does begin at the tip); it is specifically
         the <b>U_P &lt; 0 reversal</b> that a uniform-inflow model over-drives.</p>`;
@@ -4501,7 +4501,7 @@ const HLW = (function () {
       const c   = flappingCoeffs(stt);
       const psi = psiDeg * D2R;
       const mu  = advanceRatio(stt);
-      const Q_MIN = discModel === 'exam' ? 0.40 : 0.25;
+      const Q_MIN = discModel === 'foundation' ? 0.40 : 0.25;
       // Disc centred vertically; radius from the smaller of (h/2) and a share of
       // width, so it never overflows the strip on any aspect ratio.
       // Nudge the disc centre DOWN a touch so the title above + N label have room,
@@ -4584,7 +4584,7 @@ const HLW = (function () {
     });
     segmented(ui.controls, {
       label: 'Stall model (toggle assumptions)', val: discModel, options: [
-        { v: 'exam', t: 'Exam-simplified' }, { v: 'real', t: 'Full-physics' },
+        { v: 'foundation', t: 'Foundation model' }, { v: 'extended', t: 'Extended model' },
       ], on: v => { discModel = v; draw(); },
     });
     toggle(ui.controls, {

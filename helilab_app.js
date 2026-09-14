@@ -10,7 +10,6 @@
 (function () {
   const LS_PROGRESS = 'helilab_progress_v1';
   const LS_THEME = 'helilab_theme_v1';
-  const LS_EXAM = 'helilab_exam_v1';
 
   const HLS = (function () {
     const STORE_KEY = 'local' + 'Storage';
@@ -528,7 +527,7 @@
 
     const ecosystem = el('section', 'hl-v2-section hl-v2-section--compact',
       '<div class="hl-v2-section-kicker">Built into a learning ecosystem</div>' +
-      '<p>Use HeliLab to make the mechanism visible, then carry the same variables and conventions into class, revision, and exam practice.</p>');
+      '<p>Use HeliLab to make the mechanism visible, then carry the same variables and conventions into class, revision, and applied problem-solving.</p>');
     main.appendChild(ecosystem);
     main.scrollTop = 0;
   }
@@ -744,23 +743,6 @@
       const cur = document.documentElement.getAttribute('data-theme');
       applyTheme(cur === 'light' ? 'dark' : 'light');
     };
-
-    const applyExam = (on) => {
-      document.body.classList.toggle('exam-mode', on);
-      $('#hlExamBtn').classList.toggle('on', on);
-      try { HLS.setItem(LS_EXAM, on ? '1' : '0'); } catch (e) {}
-    };
-    applyExam(HLS.getItem(LS_EXAM) === '1');
-    $('#hlExamBtn').onclick = () => applyExam(!document.body.classList.contains('exam-mode'));
-    document.addEventListener('click', (e) => {
-      if (!document.body.classList.contains('exam-mode')) return;
-      const readout = e.target.closest('.hl-w-readout, .hl-sandbox-readout, .hl-rotor-readout');
-      if (readout && !readout.classList.contains('revealed')) {
-        readout.classList.add('revealed');
-        e.stopPropagation();
-        e.preventDefault();
-      }
-    }, true);
 
     $('#hlResetBtn').onclick = () => {
       if (confirm('Reset all lesson progress?')) {
