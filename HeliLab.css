@@ -263,6 +263,145 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
 .hl-takeaways ul { margin: 0; padding-left: 18px; }
 .hl-takeaways li { margin-bottom: 4px; font-size: 14px; color: var(--text2); }
 
+.hl-mission-briefing {
+  margin-top: 14px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel2) 92%, transparent), var(--panel));
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--border));
+  border-radius: 14px;
+  box-shadow: 0 8px 24px var(--shadow);
+  padding: 12px;
+}
+.hl-mission-briefing-h {
+  color: color-mix(in srgb, var(--warn) 75%, var(--text));
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+}
+.hl-mission-briefing-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.hl-mission-briefing-tab {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--warn) 25%, var(--border));
+  background: color-mix(in srgb, var(--panel2) 85%, transparent);
+  color: var(--text2);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  letter-spacing: .4px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+}
+.hl-mission-briefing-tab:hover {
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
+  color: var(--text);
+}
+.hl-mission-briefing-tab.is-active {
+  color: #15171c;
+  background: color-mix(in srgb, var(--warn) 72%, white 8%);
+  border-color: color-mix(in srgb, var(--warn) 90%, transparent);
+}
+.hl-mission-briefing-body { margin-top: 12px; }
+.hl-mission-briefing-panel p {
+  margin: 0 0 10px;
+  color: var(--text2);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.hl-mission-briefing-panel ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.hl-mission-briefing-panel li {
+  color: var(--text2);
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.hl-mission-briefing-flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 8px 0 10px;
+}
+.hl-mission-briefing-flow span {
+  position: relative;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  color: color-mix(in srgb, var(--warn) 70%, var(--text));
+  border: 1px solid color-mix(in srgb, var(--warn) 32%, var(--border));
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+.hl-mission-briefing-q {
+  border: 1px solid color-mix(in srgb, var(--warn) 22%, var(--border));
+  border-radius: 10px;
+  padding: 10px;
+  background: color-mix(in srgb, var(--panel2) 65%, transparent);
+}
+.hl-mission-briefing-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hl-mission-briefing-q-text {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.hl-mission-briefing-q-opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.hl-mission-briefing-q-opt {
+  border: 1px solid color-mix(in srgb, var(--warn) 26%, var(--border));
+  border-radius: 9px;
+  padding: 7px 10px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  color: var(--text2);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+.hl-mission-briefing-q-opt:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--warn) 46%, var(--border));
+}
+.hl-mission-briefing-q-opt.is-correct {
+  border-color: color-mix(in srgb, var(--warn) 72%, transparent);
+  color: var(--text);
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+}
+.hl-mission-briefing-q-opt.is-wrong {
+  border-color: var(--bad);
+  color: var(--text);
+}
+.hl-mission-briefing-q-fb {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, var(--border));
+  font-size: 13px;
+  color: var(--text2);
+}
+.hl-mission-briefing-q-fb.ok {
+  border-color: color-mix(in srgb, var(--warn) 58%, transparent);
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+.hl-mission-briefing-q-fb.no {
+  border-color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+
 /* ── widget internals ───────────────────────────────────────────────────── */
 .hl-w { display: flex; flex-direction: column; gap: 10px; }
 .hl-w-stage { width: 100%; aspect-ratio: 16 / 11; background: var(--hl-canvas);
@@ -762,6 +901,8 @@ body.exam-mode .hl-rotor-readout:not(.revealed) {
   .hl-v2-placeholder { padding: 16px; }
   .hl-v2-home-copy h1,
   .hl-v2-module-head h1 { font-size: 28px; }
+  .hl-mission-briefing { padding: 11px; }
+  .hl-mission-briefing-tab { font-size: 11.5px; padding: 8px 10px; }
   .hl-v2-spine,
   .hl-home-sequence { border-radius: 14px; }
   .hl-rotor-stage { min-height: 200px; }

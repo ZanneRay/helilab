@@ -276,6 +276,152 @@
     return box;
   }
 
+  function buildM104BriefingPanel() {
+    const panel = el('section', 'hl-mission-briefing');
+    panel.setAttribute('aria-label', 'Mission briefing');
+    panel.appendChild(el('div', 'hl-mission-briefing-h', 'MISSION BRIEFING'));
+
+    const tabs = [
+      { id: 'overview', label: 'OVERVIEW' },
+      { id: 'takeaways', label: 'KEY TAKEAWAYS' },
+      { id: 'checks', label: 'QUICK CHECKS' },
+    ];
+    const tabButtons = [];
+    const tabPanels = [];
+
+    const tabBar = el('div', 'hl-mission-briefing-tabs');
+    tabBar.setAttribute('role', 'tablist');
+    tabBar.setAttribute('aria-label', 'Mission briefing tabs');
+    panel.appendChild(tabBar);
+
+    const body = el('div', 'hl-mission-briefing-body');
+    panel.appendChild(body);
+
+    const activateTab = (nextId) => {
+      tabButtons.forEach((btn, idx) => {
+        const on = btn.dataset.tab === nextId;
+        btn.classList.toggle('is-active', on);
+        btn.setAttribute('aria-selected', String(on));
+        btn.setAttribute('tabindex', on ? '0' : '-1');
+        tabPanels[idx].hidden = !on;
+      });
+    };
+
+    const handleTabKey = (ev, idx) => {
+      const key = ev.key;
+      if (!['ArrowRight', 'ArrowLeft', 'Home', 'End'].includes(key)) return;
+      ev.preventDefault();
+      const max = tabs.length - 1;
+      let next = idx;
+      if (key === 'ArrowRight') next = idx === max ? 0 : idx + 1;
+      else if (key === 'ArrowLeft') next = idx === 0 ? max : idx - 1;
+      else if (key === 'Home') next = 0;
+      else if (key === 'End') next = max;
+      activateTab(tabs[next].id);
+      tabButtons[next].focus();
+    };
+
+    const makeQuestion = (question, options, answerIndex, explainCorrect, explainWrong) => {
+      const q = el('div', 'hl-mission-briefing-q');
+      q.appendChild(el('div', 'hl-mission-briefing-q-text', question));
+      const opts = el('div', 'hl-mission-briefing-q-opts');
+      const fb = el('div', 'hl-mission-briefing-q-fb');
+      fb.hidden = true;
+      fb.setAttribute('role', 'status');
+      fb.setAttribute('aria-live', 'polite');
+      options.forEach((option, idx) => {
+        const b = el('button', 'hl-mission-briefing-q-opt', option);
+        b.type = 'button';
+        b.addEventListener('click', () => {
+          opts.querySelectorAll('.hl-mission-briefing-q-opt').forEach((btn, j) => {
+            btn.classList.remove('is-correct', 'is-wrong');
+            if (j !== idx) btn.classList.remove('is-picked');
+          });
+          const correct = idx === answerIndex;
+          b.classList.add('is-picked', correct ? 'is-correct' : 'is-wrong');
+          fb.hidden = false;
+          fb.className = 'hl-mission-briefing-q-fb ' + (correct ? 'ok' : 'no');
+          fb.textContent = correct ? explainCorrect : explainWrong;
+        });
+        opts.appendChild(b);
+      });
+      q.appendChild(opts);
+      q.appendChild(fb);
+      return q;
+    };
+
+    tabs.forEach((tab, idx) => {
+      const tabBtn = el('button', 'hl-mission-briefing-tab', tab.label);
+      tabBtn.type = 'button';
+      tabBtn.dataset.tab = tab.id;
+      tabBtn.id = `hl-m104-tab-${tab.id}`;
+      tabBtn.setAttribute('role', 'tab');
+      tabBtn.setAttribute('aria-controls', `hl-m104-panel-${tab.id}`);
+      tabBtn.addEventListener('click', () => activateTab(tab.id));
+      tabBtn.addEventListener('keydown', (ev) => handleTabKey(ev, idx));
+      tabButtons.push(tabBtn);
+      tabBar.appendChild(tabBtn);
+
+      const tabPanel = el('section', 'hl-mission-briefing-panel');
+      tabPanel.id = `hl-m104-panel-${tab.id}`;
+      tabPanel.setAttribute('role', 'tabpanel');
+      tabPanel.setAttribute('aria-labelledby', tabBtn.id);
+      tabPanel.hidden = idx !== 0;
+      if (tab.id === 'overview') {
+        tabPanel.innerHTML =
+          '<p>This mission uses one fixed blade-element case. Build the aerodynamic picture in causal order before each reveal.</p>' +
+          '<div class="hl-mission-briefing-flow">' +
+          '<span>REFERENCE</span><span>VELOCITIES</span><span>ANGLES</span><span>FORCES</span><span>RESOLVE</span><span>CONNECT</span>' +
+          '</div>' +
+          '<ul>' +
+          '<li>construct V<sub>rel</sub></li>' +
+          '<li>determine inflow angle φ and angle of attack α</li>' +
+          '<li>combine F<sub>L</sub> and F<sub>D</sub> into TAF</li>' +
+          '<li>resolve the local force into normal and in-plane components</li>' +
+          '<li>connect the local blade-element result to the rotor</li>' +
+          '</ul>';
+      } else if (tab.id === 'takeaways') {
+        tabPanel.innerHTML =
+          '<ul>' +
+          '<li>V<sub>rel</sub>, φ, α, F<sub>L</sub>, F<sub>D</sub> and TAF are revealed in causal order.</li>' +
+          '<li>α = θ − φ is used only after the geometry is constructed.</li>' +
+          '<li>F<sub>L</sub> is perpendicular to V<sub>rel</sub> and F<sub>D</sub> acts parallel/opposite the adopted relative-flow direction.</li>' +
+          '<li>F<sub>L</sub> and F<sub>D</sub> combine into TAF.</li>' +
+          '<li>The local normal component contributes to rotor thrust; F<sub>H</sub> is a local in-plane braking-force contribution, not whole-rotor thrust.</li>' +
+          '</ul>';
+      } else {
+        const checks = el('div', 'hl-mission-briefing-checks');
+        checks.appendChild(makeQuestion(
+          '1) If φ increases while θ stays constant, what happens to α?',
+          ['α decreases', 'α increases', 'α stays constant'],
+          0,
+          'α decreases because α = θ − φ after the geometry is established.',
+          'Not quite — with θ fixed, a larger φ reduces α in α = θ − φ.'
+        ));
+        checks.appendChild(makeQuestion(
+          '2) Which force is perpendicular to V_rel?',
+          ['F_L', 'F_D', 'TAF'],
+          0,
+          'Lift is defined perpendicular to the local relative airflow.',
+          'Not quite — drag is parallel/opposite V_rel; lift is perpendicular to it.'
+        ));
+        checks.appendChild(makeQuestion(
+          '3) What does the local normal component contribute to?',
+          ['Rotor thrust', 'Only blade drag', 'Rotor RPM directly'],
+          0,
+          'Summing local normal components around the rotor contributes to rotor thrust.',
+          'Not quite — this local normal component contributes into the rotor thrust total.'
+        ));
+        tabPanel.appendChild(checks);
+      }
+      tabPanels.push(tabPanel);
+      body.appendChild(tabPanel);
+    });
+
+    activateTab('overview');
+    return panel;
+  }
+
   function buildModeFocus(activityMeta) {
     const copy = MODE_COPY[activityMeta.mode] || MODE_COPY.explore;
     const panel = el('section', 'hl-mode-focus hl-mode-focus--' + activityMeta.mode);
@@ -305,6 +451,7 @@
     const bridgeHtml = legacy ? lesson.bridge : (activityMeta && activityMeta.bridge);
     const subtitle = v2View && activityMeta.subtitle ? activityMeta.subtitle : lesson.subtitle;
     const widgetName = v2View && activityMeta.widget ? activityMeta.widget : lesson.widget;
+    const useMissionBriefing = v2View && activityMeta.mode === 'mission' && lesson.id === 'm1-04';
     touchLesson(lesson.id);
     main.innerHTML = '';
 
@@ -338,13 +485,17 @@
       + (lesson.wide ? ' hl-lesson-grid--wide' : '')
       + (v2View ? ` hl-lesson-grid--${activityMeta.mode}` : ''));
     const readCol = el('div', 'hl-lesson-read');
-    readCol.appendChild(el('div', 'hl-lesson-body', bodyHtml));
-    const tk = el('div', 'hl-takeaways');
-    tk.appendChild(el('div', 'hl-takeaways-h', 'Key takeaways'));
-    const ul = el('ul');
-    takeaways.forEach((takeaway) => ul.appendChild(el('li', null, takeaway)));
-    tk.appendChild(ul);
-    readCol.appendChild(tk);
+    if (useMissionBriefing) {
+      readCol.appendChild(buildM104BriefingPanel());
+    } else {
+      readCol.appendChild(el('div', 'hl-lesson-body', bodyHtml));
+      const tk = el('div', 'hl-takeaways');
+      tk.appendChild(el('div', 'hl-takeaways-h', 'Key takeaways'));
+      const ul = el('ul');
+      takeaways.forEach((takeaway) => ul.appendChild(el('li', null, takeaway)));
+      tk.appendChild(ul);
+      readCol.appendChild(tk);
+    }
 
     const wCol = el('div', 'hl-lesson-widget');
     if (!(v2View && activityMeta.mode === 'mission')) {
@@ -367,7 +518,7 @@
       }
     }
 
-    if (checkData) main.appendChild(buildCheck(lesson, checkData));
+    if (checkData && !useMissionBriefing) main.appendChild(buildCheck(lesson, checkData));
 
     if (lesson.appendix) {
       const ap = el('div', 'hl-appendix');
