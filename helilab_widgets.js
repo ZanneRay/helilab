@@ -3358,7 +3358,7 @@ const HLW = (function () {
       }[plotMode];
       const modelNote = discModel === 'foundation'
         ? '<b>Foundation model:</b> purpose: isolate the primary mechanism. Assumptions: untwisted blade, no lateral cyclic, and uniform inflow. The high-α zone sits squarely on the <b>retreating tip at ψ=270°</b> and the <b>tip is the first to stall</b>, spreading inboard as speed, weight, g or altitude rise.'
-        : '<b>Extended model:</b> purpose: show how the same mechanism shifts when added rotor effects are included. Adds: the aircraft\'s −8° washout, full trim cyclic, and the disc\'s lateral inflow gradient. Washout unloads the tip, so the α peak slides <i>inboard (≈0.7 R)</i>, and the lateral inflow pulls it a little <i>before 270° (≈235°)</i>.';
+        : '<b>Extended model:</b> purpose: show how the same mechanism shifts when additional rotor-system effects are included in this teaching model. Adds: blade twist, full trim cyclic, and lateral inflow treatment where this widget applies them. Washout unloads the tip, so the α peak slides <i>inboard (≈0.7 R)</i>, and the lateral inflow pulls it a little <i>before 270° (≈235°)</i>.';
       ui.readout.innerHTML = kv([
         ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
         ['Max retreating α', maxRetAoA.toFixed(1) + '° / ' + st.stallAoA.toFixed(0) + '°', stalled ? 'var(--hl-bad)' : 'var(--hl-warn)'],
@@ -4401,7 +4401,24 @@ const HLW = (function () {
         letter-spacing:.02em">${verdict.t}</div>`;
       const modelBadge = discModel === 'foundation'
         ? '<div class="hl-kv-banner"><b>Foundation model</b> — Purpose: isolate the primary mechanism. Assumptions: untwisted blade, no lateral cyclic, uniform inflow.</div>'
-        : '<div class="hl-kv-banner"><b>Extended model</b> — Purpose: show how the same mechanism changes with added rotor effects. Adds: blade twist, trim cyclic, and lateral inflow.</div>';
+        : '<div class="hl-kv-banner"><b>Extended model</b> — Purpose: show how the same mechanism changes with added rotor effects. Adds: trim cyclic and lateral inflow, using the currently configured blade-twist state.</div>';
+      const inflowNote = discModel === 'foundation'
+        ? `<p class="hl-note" style="border-left:0;opacity:.9"><b>Foundation-model note — uniform
+          inflow:</b> in the Foundation model this BET uses a <b>uniform inflow ratio</b> (V_i taken
+          spanwise-constant). Real rotors shed
+        <b>tip vortices</b> that add extra downwash near the tip, so the induced
+        velocity there is larger than shown. Consequently the swing to
+        <b style="color:var(--hl-warn)">net up-flow (U_P &lt; 0, V_rel from below the
+          TPP)</b> on the retreating tip appears <b>earlier and stronger</b> in the
+          Foundation model than in reality — in a real rotor the extra tip downwash
+        delays and softens it. The large retreating-tip <b>α</b> itself is still
+        correct (retreating-blade stall does begin at the tip); it is specifically
+        the <b>U_P &lt; 0 reversal</b> that a uniform-inflow model over-drives.</p>`
+        : `<p class="hl-note" style="border-left:0;opacity:.9"><b>Extended-model note:</b>
+        this view keeps the same instructional inflow treatment while adding the selected
+        rotor effects (trim cyclic, lateral inflow, and the currently configured blade twist).
+        Use it to compare how the same BET relationships shift without changing the
+        underlying causal chain.</p>`;
       ui.readout.innerHTML = banner + modelBadge + kv([
         ['Azimuth ψ', psiDeg.toFixed(0) + '°  (' + side + ')', 'var(--hl-ink)'],
         ['V_rot = Ω·r', VrotMS.toFixed(0) + ' m/s', 'var(--hl-lift)'],
@@ -4468,17 +4485,7 @@ const HLW = (function () {
         small positive depression of <b style="color:var(--hl-wind)">V_rel</b> below
         the rotor plane, and <b>α = θ − φ</b>. U_P is drawn ×${AMP} for visibility —
         its direction and the resulting α are exact.</p>
-        <p class="hl-note" style="border-left:0;opacity:.9"><b>Foundation-model note — uniform
-          inflow:</b> in the Foundation model this BET uses a <b>uniform inflow ratio</b> (V_i taken
-          spanwise-constant). Real rotors shed
-        <b>tip vortices</b> that add extra downwash near the tip, so the induced
-        velocity there is larger than shown. Consequently the swing to
-        <b style="color:var(--hl-warn)">net up-flow (U_P &lt; 0, V_rel from below the
-          TPP)</b> on the retreating tip appears <b>earlier and stronger</b> in the
-          Foundation model than in reality — in a real rotor the extra tip downwash
-        delays and softens it. The large retreating-tip <b>α</b> itself is still
-        correct (retreating-blade stall does begin at the tip); it is specifically
-        the <b>U_P &lt; 0 reversal</b> that a uniform-inflow model over-drives.</p>`;
+        ${inflowNote}`;
 
       // ---- ROTOR-MAP (own top canvas) ---------------------------------------
       // Draw the live, clickable envelope disc on its OWN wide canvas above the
