@@ -366,30 +366,32 @@
       tabPanel.id = `hl-m104-panel-${tab.id}`;
       tabPanel.setAttribute('role', 'tabpanel');
       tabPanel.setAttribute('aria-labelledby', tabBtn.id);
-      tabPanel.setAttribute('tabindex', '0');
       tabPanel.hidden = idx !== 0;
       if (tab.id === 'overview') {
-        tabPanel.innerHTML =
-          '<p>This mission uses one fixed blade-element case. Build the aerodynamic picture in causal order before each reveal.</p>' +
-          '<div class="hl-mission-briefing-flow">' +
-          '<span>REFERENCE</span><span>VELOCITIES</span><span>ANGLES</span><span>FORCES</span><span>RESOLVE</span><span>CONNECT</span>' +
-          '</div>' +
-          '<ul>' +
-          '<li>construct V<sub>rel</sub></li>' +
-          '<li>determine inflow angle φ and angle of attack α</li>' +
-          '<li>combine F<sub>L</sub> and F<sub>D</sub> into TAF</li>' +
-          '<li>resolve the local force into normal and in-plane components</li>' +
-          '<li>connect the local blade-element result to the rotor</li>' +
-          '</ul>';
+        tabPanel.appendChild(el('p', null, 'This mission uses one fixed blade-element case. Build the aerodynamic picture in causal order before each reveal.'));
+        const flow = el('div', 'hl-mission-briefing-flow');
+        ['REFERENCE', 'VELOCITIES', 'ANGLES', 'FORCES', 'RESOLVE', 'CONNECT']
+          .forEach((stepName) => flow.appendChild(el('span', null, stepName)));
+        tabPanel.appendChild(flow);
+        const list = el('ul');
+        [
+          'construct V_rel',
+          'determine inflow angle φ and angle of attack α',
+          'combine F_L and F_D into TAF',
+          'resolve the local force into normal and in-plane components',
+          'connect the local blade-element result to the rotor',
+        ].forEach((item) => list.appendChild(el('li', null, item)));
+        tabPanel.appendChild(list);
       } else if (tab.id === 'takeaways') {
-        tabPanel.innerHTML =
-          '<ul>' +
-          '<li>V<sub>rel</sub>, φ, α, F<sub>L</sub>, F<sub>D</sub> and TAF are revealed in causal order.</li>' +
-          '<li>α = θ − φ is used only after the geometry is constructed.</li>' +
-          '<li>F<sub>L</sub> is perpendicular to V<sub>rel</sub> and F<sub>D</sub> acts parallel/opposite the adopted relative-flow direction.</li>' +
-          '<li>F<sub>L</sub> and F<sub>D</sub> combine into TAF.</li>' +
-          '<li>The local normal component contributes to rotor thrust; F<sub>H</sub> is a local in-plane braking-force contribution, not whole-rotor thrust.</li>' +
-          '</ul>';
+        const list = el('ul');
+        [
+          'V_rel, φ, α, F_L, F_D and TAF are revealed in causal order.',
+          'α = θ − φ is used only after the geometry is constructed.',
+          'F_L is perpendicular to V_rel and F_D acts parallel/opposite the adopted relative-flow direction.',
+          'F_L and F_D combine into TAF.',
+          'The local normal component contributes to rotor thrust; F_H is a local in-plane braking-force contribution, not whole-rotor thrust.',
+        ].forEach((item) => list.appendChild(el('li', null, item)));
+        tabPanel.appendChild(list);
       } else {
         const checks = el('div', 'hl-mission-briefing-checks');
         checks.appendChild(makeQuestion(
