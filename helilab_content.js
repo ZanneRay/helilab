@@ -433,18 +433,22 @@ const HL_LESSONS = [
       rigid-blade beam-element model with the full Drees inflow. The <b>Blade
       twist</b> switch changes just one input:</p>
       <ul>
-        <li><b>Exam-simplified (no twist)</b> — the default. This is the simplified exam model. An untwisted blade keeps full
-            pitch out to the tip, so the high-α zone sits <b>outboard on the
+        <li><b>Foundation model (no twist)</b> — the default.
+            <br><b>Purpose:</b> isolate the primary stall-onset mechanism.
+            <br><b>Assumptions:</b> untwisted blade with full pitch to the tip, so the high-α zone sits <b>outboard on the
             retreating side and the tip stalls first</b> (≈0.9–1.0 R, ψ≈270°),
-            spreading inboard as speed, weight, g or density altitude rise. This
-            is the clean ATPL/POF plate and the 082 exam answer.</li>
-        <li><b>Full-physics (with twist)</b> — the aircraft's real −8° washout unloads
+            spreading inboard as speed, weight, g or density altitude rise.</li>
+        <li><b>Extended model (with twist)</b> —
+            <br><b>Purpose:</b> show how the same mechanism shifts with added rotor effects.
+            <br><b>Adds:</b> the aircraft's real −8° washout while keeping the same core model.
+            This washout unloads
             the tip and loads the mid-span, so the α peak slides a little
             <b>inboard (≈0.7 R)</b> and the tip is no longer strictly the first to
             go. Nothing is faked — only the twist input changes.</li>
       </ul>
-      <p>Learn the <b>No-twist tip-first picture</b> for the exam; flip the toggle
-      to see how real blade twist shifts the onset inboard.</p>`,
+      <p>Use the <b>Foundation model</b> to learn the no-twist tip-first picture,
+      then switch to the <b>Extended model</b> to inspect how blade twist shifts
+      the onset inboard.</p>`,
     takeaways: [
       'Retreating blade stall sets the upper speed limit — slow blade, high α.',
       'Advancing-tip compressibility (shock waves) limits from the other side.',
@@ -530,7 +534,7 @@ const HL_LESSONS = [
       <p>The banner over the read-out then gives the verdict using the
       <i>identical</i> critical-α and airload model as the map, so a <b>red</b> cell
       always reads <b>STALLED</b> and a <b>purple</b> cell reads <b>REVERSE FLOW</b>
-      here too. Use the <b>stall-model toggle</b> (Exam-plate / Realistic) to keep
+      here too. Use the <b>stall-model toggle</b> (Foundation / Extended) to keep
       the BET and the map in step. This is how you learn the envelope — cell by
       cell, vector by vector: click a red patch, watch V<sub>T</sub> subtract and
       α climb past critical.</p>
@@ -558,7 +562,7 @@ const HL_LESSONS = [
       root (most pitch) to the tip (least — the −8° washout unloads the tip). The
       sharp section is your current blade station, sitting between them. Toggle
       <b>twist off</b> and watch the whole section swing up to the full untwisted
-      pitch — the reason the untwisted exam blade stalls at the tip first.</p>`,
+      pitch — the reason the untwisted Foundation-model blade stalls at the tip first.</p>`,
     takeaways: [
       'V_T (μ·sinψ) adds on the advancing side and subtracts on the retreating side.',
       'On the retreating blade the net U_T is small, forcing a high α to hold lift.',

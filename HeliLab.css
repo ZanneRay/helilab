@@ -106,13 +106,7 @@ body {
   transition: all .15s;
 }
 .hl-icon-btn:hover { color: var(--text); border-color: var(--border2); background: var(--panel); }
-.hl-icon-btn.on { border-color: var(--brand); color: var(--brand); }
 #hlMenuBtn { display: none; }
-
-/* exam mode: readouts blurred until clicked — predict first, then reveal */
-body.exam-mode .hl-w-readout:not(.revealed),
-body.exam-mode .hl-sandbox-readout:not(.revealed) {
-  filter: blur(7px); cursor: pointer; user-select: none; transition: filter .15s ease; }
 
 /* ── layout ─────────────────────────────────────────────────────────────── */
 .hl-layout { display: flex; height: calc(100% - 54px); }
@@ -722,13 +716,6 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
 .hl-legacy-item small { display: block; color: var(--text3); margin-top: 4px; }
 .hl-inline-actions,
 .hl-rotor-guide-actions { margin-bottom: 16px; }
-body.exam-mode .hl-rotor-readout:not(.revealed) {
-  filter: blur(7px);
-  cursor: pointer;
-  user-select: none;
-  transition: filter .15s ease;
-}
-
 /* ── responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 1080px) {
   .hl-lesson-grid { grid-template-columns: 1fr; }

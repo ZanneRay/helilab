@@ -1,4 +1,4 @@
-# HeliLab — Interactive Helicopter Aerodynamics for ATPL(H)
+# HeliLab — Interactive Helicopter Aerodynamics Concept Lab for ATPL(H)
 
 An interactive, browser-based learning app that teaches how a helicopter flies —
 from the first blade element to autorotation — for ATPL(H) students and
@@ -21,8 +21,8 @@ visualisations instead of static diagrams.
   azimuth, weight and density altitude drive a 3-D rotor (coning, disc tilt,
   tip-vortex wake, reverse-flow vectors) plus live AoA-disc, blade-element,
   power-curve and flapping panels.
-- **Exam mode** (🎓) — readouts stay blurred until clicked: predict first,
-  then reveal.
+- **Guided prediction/reveal interactions** — selected missions ask you to
+  commit to a prediction before key values or explanations are revealed.
 - Progress tracking, light/dark theme, tablet-friendly layout,
   colour-vision-safe overlays (hatching on stall / reverse-flow / VRS zones).
 
@@ -35,6 +35,9 @@ visualisations instead of static diagrams.
   (*Principles of Helicopter Aerodynamics*) and Wagtendonk (*Principles of
   Helicopter Flight*). Simplifications are stated in-app where they matter
   (e.g. the steady rigid-blade stall map vs. real tip-first stall onset).
+- Where model selection is shown, **Foundation model** isolates the primary
+  mechanism with constrained assumptions, and **Extended model** adds the
+  additional rotor-system effects used in the lab for comparison.
 
 ## Running locally
 
@@ -57,6 +60,6 @@ lesson content, drawing primitives and the app shell.
 
 ## License & disclaimer
 
-Educational use. This app is a teaching aid — **not** a flight manual, not
-type-specific performance data, and no substitute for approved training
-documentation.
+Educational use. This app is a conceptual and formative teaching aid — **not**
+a flight manual, not type-specific performance data, not a formal exam
+simulator, and no substitute for approved training documentation.
