@@ -366,6 +366,7 @@
       tabPanel.id = `hl-m104-panel-${tab.id}`;
       tabPanel.setAttribute('role', 'tabpanel');
       tabPanel.setAttribute('aria-labelledby', tabBtn.id);
+      tabPanel.setAttribute('tabindex', '0');
       tabPanel.hidden = idx !== 0;
       if (tab.id === 'overview') {
         tabPanel.innerHTML =

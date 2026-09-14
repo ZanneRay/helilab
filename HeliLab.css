@@ -303,6 +303,10 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
   border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
   color: var(--text);
 }
+.hl-mission-briefing-tab:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--warn) 75%, white 10%);
+  outline-offset: 2px;
+}
 .hl-mission-briefing-tab.is-active {
   color: #15171c;
   background: color-mix(in srgb, var(--warn) 72%, white 8%);
