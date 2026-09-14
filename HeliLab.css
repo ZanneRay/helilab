@@ -405,6 +405,69 @@ body.exam-mode .hl-sandbox-readout:not(.revealed) {
 .hl-check-fb { margin-top: 12px; padding: 11px 14px; border-radius: 9px; font-size: 13.5px; line-height: 1.5; }
 .hl-check-fb.ok { background: color-mix(in srgb, var(--good) 12%, transparent); border: 1px solid var(--good); }
 .hl-check-fb.no { background: color-mix(in srgb, var(--bad) 10%, transparent); border: 1px solid var(--bad); }
+.hl-causal-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.hl-causal-compare-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.hl-causal-compare-card h4 {
+  margin: 0 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text2);
+}
+.hl-causal-slots {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+.hl-causal-slot {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px dashed var(--border2);
+  background: var(--panel2);
+  color: var(--text2);
+  font-size: 13px;
+}
+.hl-causal-bank {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.hl-causal-tile {
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.hl-causal-tile:hover:not(:disabled) {
+  border-color: var(--brand);
+  background: color-mix(in srgb, var(--brand) 12%, transparent);
+}
+.hl-causal-tile.is-used,
+.hl-causal-tile:disabled {
+  opacity: .55;
+  cursor: default;
+}
+@media (max-width: 820px) {
+  .hl-causal-compare { grid-template-columns: 1fr; }
+}
 
 /* ── math-model appendix ────────────────────────────────────────────────── */
 .hl-appendix { max-width: 1100px; margin: 22px auto 0; background: var(--panel);

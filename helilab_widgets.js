@@ -1486,6 +1486,603 @@ const HLW = (function () {
     ui.onDraw(draw);
   }
 
+  function hoverCue(tw) {
+    if (tw > 1.03) return 'more thrust than hover needs';
+    if (tw < 0.97) return 'less thrust than hover needs';
+    return 'close to the hover condition';
+  }
+
+  function drawHoverStatePanel(ctx, box, col, cfg) {
+    const x = box.x, y = box.y, w = box.w, h = box.h;
+    const pad = Math.min(18, w * 0.06);
+    const discY = y + h * 0.26;
+    const cx = x + w * 0.42;
+    const dR = Math.min(w * 0.22, 92);
+    const tw = cfg.weight > 0 ? cfg.thrust / cfg.weight : 0;
+    ctx.fillStyle = 'rgba(120,140,170,0.08)';
+    ctx.strokeStyle = 'rgba(120,140,170,0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 12);
+    ctx.fill();
+    ctx.stroke();
+
+    HLD.text(ctx, cfg.label, x + pad, y + 14, col.dim, '11px IBM Plex Sans', 'left', 'top');
+    HLD.text(ctx, `T/W ${tw.toFixed(2)}`, x + w - pad, y + 14,
+      Math.abs(tw - 1) < 0.03 ? col.good : (tw > 1 ? col.warn : col.bad), 'bold 11px IBM Plex Sans', 'right', 'top');
+
+    HLD.drawHeliWire(ctx, {
+      cx,
+      cy: discY,
+      scale: Math.min(w * 0.30, h * 0.42),
+      color: col.dim,
+      width: 1.2,
+      alpha: 0.9,
+    });
+    ctx.strokeStyle = col.accent;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - dR, discY);
+    ctx.lineTo(cx + dR, discY);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    HLD.dot(ctx, cx, discY, 3.5, col.accent);
+
+    if (cfg.showFlow) {
+      const viLen = Math.min(h * 0.34, 18 + cfg.vi * 3.6);
+      ctx.globalAlpha = 0.82;
+      for (let i = -2; i <= 2; i++) {
+        const ax = cx + i * (dR / 1.9);
+        HLD.arrow(ctx, ax, discY + 10, ax, discY + 10 + viLen, col.wind, 2.3, 7);
+      }
+      ctx.globalAlpha = 1;
+      HLD.text(ctx, 'air accelerated downward through the disc', cx, discY + Math.min(h * 0.43, 24 + cfg.vi * 3.8), col.wind, '10px IBM Plex Sans', 'center');
+    } else {
+      HLD.text(ctx, 'Hovering — no horizontal motion to explain the power', cx, discY + 32, col.dim, '10px IBM Plex Sans', 'center');
+    }
+
+    const barX = x + w - pad - 24;
+    const barTop = y + h * 0.24;
+    const barH = h * 0.44;
+    ctx.fillStyle = 'rgba(120,140,170,0.22)';
+    ctx.fillRect(barX - 15, barTop, 30, barH);
+    const fillH = Math.max(0, Math.min(barH, barH * Math.min(1.4, tw) / 1.4));
+    ctx.fillStyle = Math.abs(tw - 1) < 0.03 ? col.good : (tw > 1 ? col.warn : col.bad);
+    ctx.fillRect(barX - 15, barTop + barH - fillH, 30, fillH);
+    const hoverY = barTop + barH - barH / 1.4;
+    HLD.dline(ctx, barX - 21, hoverY, barX + 21, hoverY, col.drag, 1.2, [4, 3]);
+    HLD.text(ctx, 'hover', barX, hoverY - 8, col.drag, '9px IBM Plex Sans', 'center', 'bottom');
+
+    const lines = [
+      `Produced thrust  ${(cfg.thrust / 1000).toFixed(1)} kN`,
+      `Required thrust  ${(cfg.weight / 1000).toFixed(1)} kN`,
+      `Induced velocity  ${cfg.vi.toFixed(1)} m/s`,
+      `Induced power  ${(cfg.pi / 1000).toFixed(0)} kW`,
+    ];
+    lines.forEach((line, i) => {
+      HLD.text(ctx, line, x + pad, y + h * 0.70 + i * 16, i < 2 ? col.ink : (i === 2 ? col.wind : col.accent), '11px IBM Plex Sans', 'left', 'top');
+    });
+    if (cfg.collective != null) HLD.text(ctx, `Collective ${cfg.collective.toFixed(1)}°`, x + pad, y + h - 12, col.chord, '10px IBM Plex Sans', 'left', 'bottom');
+  }
+
+  function wM2HoverWhy(host) {
+    const ui = scaffold(host);
+    const hover = HL.hoverTrimSolve(HL.defaultState(), HL.weightN(HL.defaultState()));
+    const options = [
+      'The power is mainly spent simply holding the helicopter up in one place.',
+      'The rotor is giving energy to the air by driving a downward flow through the disc.',
+      'Most of the hover power is explained by blade drag alone.',
+      'Because the helicopter is stationary, the power mostly goes into spinning parts rather than the air.',
+    ];
+    let choice = null;
+
+    function buildControls() {
+      ui.controls.innerHTML = '';
+      const intro = el('div', 'hl-mission-box');
+      intro.innerHTML = '<div class="hl-mission-h">Committed prediction</div><p>A helicopter is stationary in the air. The rotor is still using power. Where is the energy going?</p>';
+      ui.controls.appendChild(intro);
+
+      const opts = el('div', 'hl-check-opts');
+      options.forEach((text, i) => {
+        const btn = el('button', 'hl-check-opt', text);
+        if (choice != null) {
+          btn.classList.add('done');
+          btn.disabled = true;
+          if (i === 1) btn.classList.add('correct');
+          else if (i === choice) btn.classList.add('wrong');
+        }
+        btn.onclick = () => { if (choice == null) { choice = i; refresh(); } };
+        opts.appendChild(btn);
+      });
+      ui.controls.appendChild(opts);
+
+      const hint = el('div', 'hl-stage-note',
+        choice == null
+          ? 'Your first choice is the committed answer. The explanation appears only after that click.'
+          : 'Now compare your choice with the rotor-flow reveal.');
+      ui.controls.appendChild(hint);
+    }
+
+    function updateReadout() {
+      ui.readout.innerHTML = choice == null
+        ? '<div class="hl-mission-box"><div class="hl-mission-h">Before reveal</div><p>Commit to one mechanism first. No equation or completed explanation appears before that commitment.</p></div>'
+        : `<div class="hl-check-fb ${choice === 1 ? 'ok' : 'no'}">${choice === 1 ? '✓' : '↺'} Hover costs power because the rotor keeps accelerating air downward through the disc. That energy transfer to the airflow is the core hover cost; blade drag is real, but it is not the main mechanism that explains why a stationary helicopter still needs substantial power.</div>`
+          + kv([
+            ['Hover condition', 'stationary in the air', 'var(--hl-ink)'],
+            ['What the rotor is doing', 'accelerating air downward', 'var(--hl-wind)'],
+            ['Why power is still needed', 'energy is being transferred into the flow', 'var(--brand)'],
+          ])
+          + '<p class="hl-note">Think of hover as a continuous energy transfer into the air, not as a motionless aircraft somehow costing nothing.</p>';
+    }
+
+    function draw() {
+      const { ctx, W, H, col } = HLD.setup(ui.canvas);
+      HLD.clear(ctx, W, H, col);
+      HLD.grid(ctx, W, H, col, 30);
+      drawHoverStatePanel(ctx, { x: W * 0.08, y: H * 0.10, w: W * 0.84, h: H * 0.80 }, col, {
+        label: choice == null ? 'Hover question' : 'Reveal',
+        thrust: hover.solution.thrust,
+        weight: HL.weightN(hover.state),
+        vi: hover.solution.vi,
+        pi: hover.solution.Pi_induced,
+        collective: choice == null ? null : hover.theta0,
+        showFlow: choice != null,
+      });
+      if (choice != null) {
+        HLD.text(ctx, 'The power goes into the air the rotor is driving through the disc.', W * 0.50, H * 0.08, col.accent, 'bold 12px IBM Plex Sans', 'center', 'middle');
+      }
+    }
+
+    function refresh() { buildControls(); updateReadout(); draw(); }
+    ui.onDraw(draw);
+    buildControls();
+    updateReadout();
+  }
+
+  function wM2RotorFlowPower(host) {
+    const ui = scaffold(host);
+    const st = HL.defaultState();
+    const baseCollective = 8.6;
+    const changedCollective = 10.2;
+    const predictions = [
+      'Induced velocity rises and induced power rises because the higher collective makes the rotor produce more thrust, so it has to accelerate more air through the disc.',
+      'Induced velocity rises and induced power rises because the blades rotate faster.',
+      'Induced velocity falls while induced power rises because the helicopter unloads itself as soon as collective is raised.',
+      'Induced velocity stays about the same and induced power rises only because blade drag rises.',
+    ];
+    let prediction = null;
+    let collective = baseCollective;
+    let changed = false;
+    let firstLinkChoice = null;
+
+    function currentSol(theta0) {
+      return HL.axialSolve({ ...st, theta0 }, 0);
+    }
+
+    function buildControls() {
+      ui.controls.innerHTML = '';
+      const stateBox = el('div', 'hl-mission-box');
+      stateBox.innerHTML = '<div class="hl-mission-h">State</div><p><b>Hover trim OFF.</b> The collective is manual, so the rotor can produce less or more thrust than hover requires.</p>';
+      ui.controls.appendChild(stateBox);
+
+      const prompt = el('div', 'hl-mission-box');
+      prompt.innerHTML = '<div class="hl-mission-h">Predict before the control change</div><p>You are about to increase collective once. What happens to induced velocity and induced power, and why?</p>';
+      ui.controls.appendChild(prompt);
+
+      const opts = el('div', 'hl-check-opts');
+      predictions.forEach((text, i) => {
+        const btn = el('button', 'hl-check-opt', text);
+        if (prediction != null) {
+          btn.classList.add('done');
+          btn.disabled = true;
+          if (i === 0) btn.classList.add('correct');
+          else if (i === prediction) btn.classList.add('wrong');
+        }
+        btn.onclick = () => { if (prediction == null) { prediction = i; refresh(); } };
+        opts.appendChild(btn);
+      });
+      ui.controls.appendChild(opts);
+
+      const actions = el('div', 'hl-inline-actions');
+      const apply = el('button', 'hl-foot-btn primary', changed ? 'Collective increased' : 'Increase collective');
+      apply.disabled = prediction == null || changed;
+      apply.onclick = () => { changed = true; collective = changedCollective; refresh(); };
+      const reset = el('button', 'hl-foot-btn', 'Reset');
+      reset.onclick = () => { prediction = null; collective = baseCollective; changed = false; firstLinkChoice = null; refresh(); };
+      actions.appendChild(apply);
+      actions.appendChild(reset);
+      ui.controls.appendChild(actions);
+
+      if (changed) {
+        const first = el('div', 'hl-mission-box');
+        first.innerHTML = '<div class="hl-mission-h">Which link changed first?</div><p>After the collective increase, which part of the hover chain moved first?</p>';
+        ui.controls.appendChild(first);
+        const firstOpts = el('div', 'hl-check-opts');
+        [
+          'Produced thrust',
+          'Induced velocity',
+          'Induced power',
+          'Aircraft weight',
+        ].forEach((text, i) => {
+          const btn = el('button', 'hl-check-opt', text);
+          if (firstLinkChoice != null) {
+            btn.classList.add('done');
+            btn.disabled = true;
+            if (i === 0) btn.classList.add('correct');
+            else if (i === firstLinkChoice) btn.classList.add('wrong');
+          }
+          btn.onclick = () => { if (firstLinkChoice == null) { firstLinkChoice = i; refresh(); } };
+          firstOpts.appendChild(btn);
+        });
+        ui.controls.appendChild(firstOpts);
+      }
+    }
+
+    function updateReadout() {
+      const base = currentSol(baseCollective);
+      const cur = currentSol(collective);
+      const tw = cur.thrust / HL.weightN(st);
+      const deltaVi = changed ? (cur.vi - base.vi) : 0;
+      const deltaPi = changed ? (cur.Pi_induced - base.Pi_induced) : 0;
+      ui.readout.innerHTML = kv([
+        ['Collective', collective.toFixed(1) + '°', 'var(--hl-chord)'],
+        ['Produced thrust', (cur.thrust / 1000).toFixed(1) + ' kN', 'var(--hl-lift)'],
+        ['Hover-condition cue', hoverCue(tw), Math.abs(tw - 1) < 0.03 ? 'var(--hl-good)' : (tw > 1 ? 'var(--hl-warn)' : 'var(--hl-bad)')],
+        ['T/W', tw.toFixed(2), Math.abs(tw - 1) < 0.03 ? 'var(--hl-good)' : (tw > 1 ? 'var(--hl-warn)' : 'var(--hl-bad)')],
+        ['Induced velocity v_i', cur.vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+        ['Induced power P_i', (cur.Pi_induced / 1000).toFixed(0) + ' kW', 'var(--brand)'],
+      ]);
+      if (prediction == null) {
+        ui.readout.innerHTML += '<p class="hl-note">The readout shows the current state only. Commit to your prediction before you unlock the collective change.</p>';
+      } else if (!changed) {
+        ui.readout.innerHTML += `<div class="hl-check-fb ${prediction === 0 ? 'ok' : 'no'}">${prediction === 0 ? 'Prediction locked.' : 'Prediction locked.'} Now make the collective change and compare the new rotor state with the baseline.</div>`;
+      } else {
+        ui.readout.innerHTML += '<div class="hl-check-fb ok">Collective increased → produced thrust rises first → the rotor must drive more air through the disc → induced velocity rises → induced power rises.</div>';
+        ui.readout.innerHTML += kv([
+          ['Δ v_i', (deltaVi >= 0 ? '+' : '') + deltaVi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+          ['Δ P_i', (deltaPi >= 0 ? '+' : '') + (deltaPi / 1000).toFixed(0) + ' kW', 'var(--brand)'],
+        ]);
+        if (firstLinkChoice != null) {
+          ui.readout.innerHTML += `<div class="hl-check-fb ${firstLinkChoice === 0 ? 'ok' : 'no'}">${firstLinkChoice === 0
+            ? 'Yes — in this stage the control changes the thrust the rotor produces first. The airflow and induced power follow from that new thrust state.'
+            : 'The earliest change is the thrust the rotor produces. Induced velocity and induced power are consequences of that changed thrust, and the aircraft weight did not change at all.'}</div>`;
+        }
+      }
+    }
+
+    function draw() {
+      const { ctx, W, H, col } = HLD.setup(ui.canvas);
+      HLD.clear(ctx, W, H, col);
+      HLD.grid(ctx, W, H, col, 30);
+      const base = currentSol(baseCollective);
+      const cur = currentSol(collective);
+      if (!changed) {
+        drawHoverStatePanel(ctx, { x: W * 0.08, y: H * 0.10, w: W * 0.84, h: H * 0.80 }, col, {
+          label: 'Before the change',
+          thrust: cur.thrust,
+          weight: HL.weightN(st),
+          vi: cur.vi,
+          pi: cur.Pi_induced,
+          collective,
+          showFlow: true,
+        });
+      } else {
+        drawHoverStatePanel(ctx, { x: W * 0.05, y: H * 0.11, w: W * 0.42, h: H * 0.76 }, col, {
+          label: 'Before',
+          thrust: base.thrust,
+          weight: HL.weightN(st),
+          vi: base.vi,
+          pi: base.Pi_induced,
+          collective: baseCollective,
+          showFlow: true,
+        });
+        drawHoverStatePanel(ctx, { x: W * 0.53, y: H * 0.11, w: W * 0.42, h: H * 0.76 }, col, {
+          label: 'After collective increase',
+          thrust: cur.thrust,
+          weight: HL.weightN(st),
+          vi: cur.vi,
+          pi: cur.Pi_induced,
+          collective,
+          showFlow: true,
+        });
+        HLD.text(ctx, 'Compare what the rotor produces with what hover requires.', W * 0.50, H * 0.93, col.dim, '11px IBM Plex Sans', 'center', 'middle');
+      }
+    }
+
+    function refresh() { buildControls(); updateReadout(); draw(); }
+    ui.onDraw(draw);
+    buildControls();
+    updateReadout();
+  }
+
+  function wM2ChangeDemand(host) {
+    const ui = scaffold(host);
+    const baseState = HL.defaultState();
+    const scenarios = {
+      weight: {
+        label: 'Mass +15%',
+        prompt: 'At the same density and rotor size, what happens when the helicopter mass increases by 15%?',
+        options: [
+          'Required thrust increases first, so induced velocity rises and induced power rises once hover trim restores the hover condition.',
+          'Collective increases first, and that causes the helicopter to need more thrust.',
+          'Density is unchanged, so induced power stays about the same in hover.',
+          'Required thrust decreases because the helicopter is already in a hover.',
+        ],
+        changedState: { ...baseState, W_kg: baseState.W_kg * 1.15 },
+      },
+      density: {
+        label: 'Thinner air',
+        prompt: 'At the same mass, what happens if the helicopter must hover at a density altitude of 8000 ft?',
+        options: [
+          'Required thrust stays the same, but thinner air raises induced velocity, so induced power rises.',
+          'Required thrust falls because the rotor gets more lift from thinner air.',
+          'Required thrust rises first, and that is why induced power rises.',
+          'Nothing changes because hover trim keeps T = W.',
+        ],
+        changedState: { ...baseState, alt: 8000 },
+      },
+    };
+    const predictions = { weight: null, density: null };
+    const reveals = { weight: false, density: false };
+    let scenario = 'weight';
+    let magnitudeChoice = null;
+    const chainBank = [
+      'required thrust increases',
+      'induced velocity increases',
+      'induced power increases',
+      'rotor transfers more energy to the air',
+      'collective increases',
+      'thrust decreases',
+    ];
+    const chainAnswer = [
+      'required thrust increases',
+      'induced velocity increases',
+      'induced power increases',
+      'rotor transfers more energy to the air',
+    ];
+    let chain = [];
+    let chainChecked = false;
+
+    function trimData(st) {
+      const target = HL.weightN(st);
+      const tr = HL.hoverTrimSolve(st, target);
+      return {
+        trim: tr,
+        thrust: tr.producedThrust,
+        weight: target,
+        vi: tr.solution.vi,
+        pi: tr.solution.Pi_induced,
+        collective: tr.theta0,
+      };
+    }
+
+    function predictionDone(key) { return predictions[key] != null; }
+    function weightReady() { return reveals.weight; }
+    function chainUnlocked() { return reveals.weight && reveals.density && magnitudeChoice != null; }
+
+    function buildScenarioButtons(parent) {
+      const grp = el('div', 'hl-seg');
+      [['weight', 'Heavier hover'], ['density', 'Thinner air']].forEach(([key, text]) => {
+        const btn = el('button', 'hl-seg-btn' + (scenario === key ? ' on' : ''), text);
+        btn.onclick = () => { scenario = key; refresh(); };
+        grp.appendChild(btn);
+      });
+      parent.appendChild(grp);
+    }
+
+    function buildControls() {
+      ui.controls.innerHTML = '';
+      const stateBox = el('div', 'hl-mission-box');
+      stateBox.innerHTML = '<div class="hl-mission-h">State</div><p><b>Hover trim ON.</b> Each revealed comparison is solved back to the hover condition so the rotor still matches the required thrust.</p>';
+      ui.controls.appendChild(stateBox);
+      buildScenarioButtons(ui.controls);
+
+      const cur = scenarios[scenario];
+      const prompt = el('div', 'hl-mission-box');
+      prompt.innerHTML = `<div class="hl-mission-h">Predict first</div><p>${cur.prompt}</p>`;
+      ui.controls.appendChild(prompt);
+
+      const opts = el('div', 'hl-check-opts');
+      cur.options.forEach((text, i) => {
+        const btn = el('button', 'hl-check-opt', text);
+        if (predictionDone(scenario)) {
+          btn.classList.add('done');
+          btn.disabled = true;
+          if (i === 0) btn.classList.add('correct');
+          else if (i === predictions[scenario]) btn.classList.add('wrong');
+        }
+        btn.onclick = () => {
+          if (!predictionDone(scenario)) {
+            predictions[scenario] = i;
+            reveals[scenario] = true;
+            refresh();
+          }
+        };
+        opts.appendChild(btn);
+      });
+      ui.controls.appendChild(opts);
+
+      if (reveals[scenario]) {
+        const fb = el('div', 'hl-check-fb ' + (predictions[scenario] === 0 ? 'ok' : 'no'),
+          scenario === 'weight'
+            ? 'The demand change starts with required thrust. Hover trim then adjusts collective so the rotor produces that new thrust, which raises induced velocity and induced power.'
+            : 'The hover demand stays the same, but thinner air means the rotor needs more induced velocity to produce the same thrust, so induced power rises.');
+        ui.controls.appendChild(fb);
+      }
+
+      if (scenario === 'weight' && weightReady()) {
+        const mag = el('div', 'hl-mission-box');
+        mag.innerHTML = '<div class="hl-mission-h">15% mass magnitude gate</div><p>Mass increases by 15% at constant density and rotor size. Induced power increases by about:</p>';
+        ui.controls.appendChild(mag);
+        const magOpts = el('div', 'hl-check-opts');
+        ['15%', '25%', '40%'].forEach((text, i) => {
+          const btn = el('button', 'hl-check-opt', text);
+          if (magnitudeChoice != null) {
+            btn.classList.add('done');
+            btn.disabled = true;
+            if (i === 1) btn.classList.add('correct');
+            else if (i === magnitudeChoice) btn.classList.add('wrong');
+          }
+          btn.onclick = () => { if (magnitudeChoice == null) { magnitudeChoice = i; refresh(); } };
+          magOpts.appendChild(btn);
+        });
+        ui.controls.appendChild(magOpts);
+        if (magnitudeChoice != null) {
+          const fb = el('div', 'hl-check-fb ' + (magnitudeChoice === 1 ? 'ok' : 'no'),
+            'About 25%. The thrust demand rises by 15%, but induced power climbs faster because the rotor also needs a higher induced velocity in the new hover state.');
+          ui.controls.appendChild(fb);
+        }
+      }
+
+      if (scenario === 'weight' && chainUnlocked()) {
+        const chainBox = el('div', 'hl-mission-box');
+        chainBox.innerHTML = '<div class="hl-mission-h">Build the causal chain</div><p>Tap four tiles in order for the heavier-hover case. Leave the decoys out.</p>';
+        ui.controls.appendChild(chainBox);
+
+        const slots = el('div', 'hl-causal-slots');
+        for (let i = 0; i < 4; i++) {
+          slots.appendChild(el('div', 'hl-causal-slot', chain[i] || `Step ${i + 1}`));
+        }
+        ui.controls.appendChild(slots);
+
+        const bank = el('div', 'hl-causal-bank');
+        chainBank.forEach((tile) => {
+          const used = chain.indexOf(tile) >= 0;
+          const btn = el('button', 'hl-causal-tile' + (used ? ' is-used' : ''), tile);
+          btn.disabled = used || chainChecked || chain.length >= 4;
+          btn.onclick = () => {
+            if (!used && !chainChecked && chain.length < 4) {
+              chain.push(tile);
+              refresh();
+            }
+          };
+          bank.appendChild(btn);
+        });
+        ui.controls.appendChild(bank);
+
+        const actions = el('div', 'hl-inline-actions');
+        const checkBtn = el('button', 'hl-foot-btn primary', 'Check chain');
+        checkBtn.disabled = chain.length !== 4 || chainChecked;
+        checkBtn.onclick = () => { if (chain.length === 4) { chainChecked = true; refresh(); } };
+        const resetBtn = el('button', 'hl-foot-btn', 'Reset chain');
+        resetBtn.onclick = () => { chain = []; chainChecked = false; refresh(); };
+        actions.appendChild(checkBtn);
+        actions.appendChild(resetBtn);
+        ui.controls.appendChild(actions);
+
+        if (chainChecked) {
+          const ok = chain.every((tile, i) => tile === chainAnswer[i]);
+          const fb = el('div', 'hl-check-fb ' + (ok ? 'ok' : 'no'),
+            ok
+              ? 'Yes — the demand change starts with required thrust. Collective is only the trim consequence that restores hover in the new state.'
+              : 'Rebuild the chain from the demand change. Required thrust must increase first; “collective increases” is a trim consequence, and “thrust decreases” belongs to a different misconception.');
+          ui.controls.appendChild(fb);
+        }
+      }
+    }
+
+    function comparisonHtml(label, base, changed, note) {
+      const sameDemand = Math.abs(changed.weight - base.weight) < 20;
+      return `<div class="hl-causal-compare">
+        <div class="hl-causal-compare-card">
+          <h4>Reference hover</h4>
+          ${kv([
+            ['Required thrust', (base.weight / 1000).toFixed(1) + ' kN', 'var(--hl-ink)'],
+            ['Produced thrust', (base.thrust / 1000).toFixed(1) + ' kN', 'var(--hl-lift)'],
+            ['Induced velocity', base.vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+            ['Induced power', (base.pi / 1000).toFixed(0) + ' kW', 'var(--brand)'],
+          ])}
+        </div>
+        <div class="hl-causal-compare-card">
+          <h4>${label}</h4>
+          ${kv([
+            ['Required thrust', (changed.weight / 1000).toFixed(1) + ' kN', sameDemand ? 'var(--hl-ink)' : 'var(--hl-warn)'],
+            ['Produced thrust', (changed.thrust / 1000).toFixed(1) + ' kN', 'var(--hl-lift)'],
+            ['Induced velocity', changed.vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+            ['Induced power', (changed.pi / 1000).toFixed(0) + ' kW', 'var(--brand)'],
+            ['Trim consequence', 'collective ' + changed.collective.toFixed(1) + '°', 'var(--hl-chord)'],
+          ])}
+        </div>
+      </div><p class="hl-note">${note}</p>`;
+    }
+
+    function updateReadout() {
+      const base = trimData(baseState);
+      const changed = trimData(scenarios[scenario].changedState);
+      ui.readout.innerHTML = kv([
+        ['Hover trim', 'ON', 'var(--hl-good)'],
+        ['Reference required thrust', (base.weight / 1000).toFixed(1) + ' kN', 'var(--hl-ink)'],
+        ['Reference induced velocity', base.vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+        ['Reference induced power', (base.pi / 1000).toFixed(0) + ' kW', 'var(--brand)'],
+      ]);
+      if (!reveals[scenario]) {
+        ui.readout.innerHTML += '<p class="hl-note">The changed-state outputs stay hidden until you commit to a prediction.</p>';
+        return;
+      }
+      ui.readout.innerHTML += comparisonHtml(
+        scenarios[scenario].label,
+        base,
+        changed,
+        scenario === 'weight'
+          ? 'The heavier helicopter needs more required thrust first. Hover trim then restores that higher thrust, which raises both induced velocity and induced power.'
+          : 'The same mass still needs the same required thrust. Thin air changes the induced-flow requirement, so induced velocity and induced power rise even though the hover demand does not.'
+      );
+      if (reveals.weight && !reveals.density) {
+        ui.readout.innerHTML += '<div class="hl-check-fb ok">Next, compare the same hover demand in thinner air.</div>';
+      }
+      if (chainChecked) {
+        ui.readout.innerHTML += `<div class="hl-check-fb ${chain.every((tile, i) => tile === chainAnswer[i]) ? 'ok' : 'no'}">Keep the distinction clear: demand changes begin with required thrust, while trim changes are how the rotor catches up to that demand.</div>`;
+      }
+    }
+
+    function draw() {
+      const { ctx, W, H, col } = HLD.setup(ui.canvas);
+      HLD.clear(ctx, W, H, col);
+      HLD.grid(ctx, W, H, col, 30);
+      const base = trimData(baseState);
+      const cur = trimData(scenarios[scenario].changedState);
+      if (!reveals[scenario]) {
+        drawHoverStatePanel(ctx, { x: W * 0.08, y: H * 0.10, w: W * 0.84, h: H * 0.80 }, col, {
+          label: 'Reference hover',
+          thrust: base.thrust,
+          weight: base.weight,
+          vi: base.vi,
+          pi: base.pi,
+          collective: null,
+          showFlow: true,
+        });
+      } else {
+        drawHoverStatePanel(ctx, { x: W * 0.05, y: H * 0.11, w: W * 0.42, h: H * 0.76 }, col, {
+          label: 'Reference hover',
+          thrust: base.thrust,
+          weight: base.weight,
+          vi: base.vi,
+          pi: base.pi,
+          collective: null,
+          showFlow: true,
+        });
+        drawHoverStatePanel(ctx, { x: W * 0.53, y: H * 0.11, w: W * 0.42, h: H * 0.76 }, col, {
+          label: scenarios[scenario].label,
+          thrust: cur.thrust,
+          weight: cur.weight,
+          vi: cur.vi,
+          pi: cur.pi,
+          collective: reveals[scenario] ? cur.collective : null,
+          showFlow: true,
+        });
+        HLD.text(ctx,
+          scenario === 'weight' ? 'Demand changed first: the rotor must support more weight.' : 'Demand is unchanged: the air is thinner, so hover costs more flow.',
+          W * 0.50, H * 0.93, col.dim, '11px IBM Plex Sans', 'center', 'middle');
+      }
+    }
+
+    function refresh() { buildControls(); updateReadout(); draw(); }
+    ui.onDraw(draw);
+    buildControls();
+    updateReadout();
+  }
+
   /* 5 — Vertical flight: animated climb/descent transient + VRS
      Models the vertical dynamics  m·dV_c/dt = T(V_c) − W  at a fixed (stepped)
      collective: raise collective → T>W → accelerate up → the climb raises the
@@ -5359,7 +5956,7 @@ const HLW = (function () {
   }
 
   return {
-    wBigPicture, wBladeElement, wM104BladeElement, wSpanwise, wHover, wVertical, wGroundEffect,
+    wBigPicture, wBladeElement, wM104BladeElement, wSpanwise, wHover, wM2HoverWhy, wM2RotorFlowPower, wM2ChangeDemand, wVertical, wGroundEffect,
     wDissymmetry, wFlapping, wFlappingRoll, wEnvelope, wCoriolis, wDynamicRollover, wLTE,
     wAutorotation, wPerformance, wBetDiagram, wBetVelocity, wBetModel,
     wSandbox, wRotorTeaser, wGuidedRotorLab,

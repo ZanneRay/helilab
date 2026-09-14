@@ -1103,7 +1103,82 @@ const HL_V2_MODULES = [
     title: 'Hover & Vertical Flow',
     question: 'How does induced and vertical flow change the rotor state?',
     reasoning: 'Compare flow states.',
-    available: false,
+    spine: ['REQUIRED THRUST', 'v_i', 'P_i', 'ROTOR FLOW'],
+    available: true,
+    activities: [
+      {
+        lessonId: 'hover',
+        mode: 'orient',
+        title: 'Why does Hovering Cost Anything?',
+        subtitle: 'Commit to a mechanism before the rotor-flow explanation appears',
+        kicker: 'ORIENT + PREDICT',
+        summary: 'Start Module 2 by deciding where the hover power is really going.',
+        modeLead: 'A helicopter can be stationary and still be spending power.',
+        modeText: 'Choose the mechanism first. The explanation only unlocks after you commit.',
+        modeAction: 'Pick the most convincing mechanism, then compare it with the reveal.',
+        actionLabel: 'Start activity',
+        widget: 'wM2HoverWhy',
+        bodyHtml: `
+      <p>A helicopter can look motionless in the air while the engine is still working.
+      Before you see the explanation, commit to the mechanism you think best accounts for that power use.</p>
+      <p>Stay with one question only: <b>where is the energy going in a hover?</b>
+      The interaction reveals the answer only after your first commitment.</p>`,
+        takeaways: [
+          'Start with a committed mechanism choice before any answer is revealed.',
+          'Treat hover as an energy-transfer question, not just a position question.',
+          'Use the reveal to connect the rotor with what happens to the air.',
+        ],
+        check: null,
+      },
+      {
+        lessonId: 'verticalflight',
+        mode: 'model',
+        title: 'Rotor Flow & Power',
+        subtitle: 'Manual collective, trim off, and one visible causal chain',
+        kicker: 'MODEL',
+        summary: 'Increase collective once, then track what changes in thrust, induced velocity, and induced power.',
+        modeLead: 'Hold trim off so the rotor can under-produce or over-produce thrust.',
+        modeText: 'Predict what happens after a collective increase, then make the change and identify what moved first.',
+        modeAction: 'Commit to the direction and cause before you unlock the collective change.',
+        actionLabel: 'See the model',
+        widget: 'wM2RotorFlowPower',
+        bodyHtml: `
+      <p>This activity keeps the rotor in a simple hover-state comparison: <b>manual collective</b>,
+      <b>hover trim OFF</b>, and only the key quantities needed for this task.</p>
+      <p>First predict what happens after a collective increase. Then make the change and decide
+      which link in the hover chain changed first.</p>`,
+        takeaways: [
+          'Track produced thrust, the hover-condition cue, induced velocity, and induced power.',
+          'With trim off, the rotor can produce more or less thrust than hover requires.',
+          'After the reveal, identify which part of the chain moved first.',
+        ],
+        check: null,
+      },
+      {
+        lessonId: 'groundeffect',
+        mode: 'explore',
+        title: 'Change the Demand',
+        subtitle: 'Hover trim on: compare weight and density without losing the hover condition',
+        kicker: 'EXPLORE',
+        summary: 'Keep hover trim on, compare heavier and thinner-air hover states, then build the causal chain.',
+        modeLead: 'Change the demand, not the meaning of the model.',
+        modeText: 'Predict the consequence of a heavier helicopter and thinner air before the trimmed comparison is revealed.',
+        modeAction: 'Use the guided comparisons, the 15% mass magnitude gate, and the tile chain to explain what changed.',
+        actionLabel: 'Open activity',
+        widget: 'wM2ChangeDemand',
+        bodyHtml: `
+      <p>This stage keeps <b>hover trim ON</b> so each selected comparison returns to the hover condition.
+      Your job is to decide what changed in the demand and what the rotor had to do in response.</p>
+      <p>Work through the weight comparison, the density comparison, the 15% mass magnitude gate,
+      and the short causal-chain build.</p>`,
+        takeaways: [
+          'Treat required thrust as the starting point when the hover demand changes.',
+          'Use trimmed hover comparisons so the rotor still satisfies the hover condition.',
+          'Build the chain from demand to induced flow and induced power.',
+        ],
+        check: null,
+      },
+    ],
   },
   {
     id: 'm3',
