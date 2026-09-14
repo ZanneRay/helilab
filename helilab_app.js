@@ -304,6 +304,7 @@
         btn.setAttribute('aria-selected', String(on));
         btn.setAttribute('tabindex', on ? '0' : '-1');
         tabPanels[idx].hidden = !on;
+        tabPanels[idx].setAttribute('tabindex', on ? '0' : '-1');
       });
     };
 
@@ -366,6 +367,7 @@
       tabPanel.id = `hl-m104-panel-${tab.id}`;
       tabPanel.setAttribute('role', 'tabpanel');
       tabPanel.setAttribute('aria-labelledby', tabBtn.id);
+      tabPanel.setAttribute('tabindex', idx === 0 ? '0' : '-1');
       tabPanel.hidden = idx !== 0;
       if (tab.id === 'overview') {
         tabPanel.appendChild(el('p', null, 'This mission uses one fixed blade-element case. Build the aerodynamic picture in causal order before each reveal.'));
