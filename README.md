@@ -24,7 +24,7 @@ The server binds only to your computer. The fixed address keeps browser-local pr
 | 6. Autorotation & rotor energy | Connect local torque with the stored-energy relationship | 3 |
 | 7. Integrated flight problems | Choose evidence across mechanisms in two supplied cases | 2 |
 
-There are **29 activities**. Modules 1–6 each end with a task containing two changed-condition checks; Module 7 has two integrated cases with three decisions each. The velocity triangle precedes the construction mission, and guided BET and Coriolis precede the rotor-response transfer. Stable activity IDs are retained even when a task moves to an earlier module. The 19 earlier lessons remain a reference library. The 3D Rotor Lab and maths reference are optional tools, outside the numbered route.
+There are **29 activities**. Modules 1–6 each end with a changed-condition transfer task and its own decision checks; Module 7 has two integrated cases with three decisions each. The velocity triangle precedes the construction mission, and guided BET and Coriolis precede the rotor-response transfer. Stable activity IDs are retained even when a task moves to an earlier module. The 19 earlier lessons remain a reference library. The 3D Rotor Lab and maths reference are optional tools, outside the numbered route.
 
 Home recommends the **first unfinished activity in curriculum order**. A later visited activity cannot displace earlier open work. Each task shows its module and activity number, current phase and earlier open steps. The primary footer advances only after the current task is complete; the final activity opens the module result. All completed work leads to the course summary. Learners can explicitly explore or revisit other steps, with their status visible.
 
@@ -35,6 +35,8 @@ Each activity has its own task, model-evidence requirements and questions. Ordin
 Transfer also requires a free explanation using the evidence and a stated limitation. The app checks that these were supplied; it **does not grade their quality** or use minimum character counts as evidence of understanding. Incorrect decisions can be retried after feedback. Attempts remain recorded, and the repeated question is labelled as supported. New cases change conditions; both integrated cases have changing datasets. The finite variant bank may repeat: a previously revealed question remains supported even in a later attempt.
 
 Completion records performed practice, **not assessed pilot competence**. Checks before feedback, supported retries, self-review and human observations remain distinct. Locally entered instructor/peer observations use five separate criteria: conditions, prediction, evidence, mechanism and limits. Reviewer identities are not verified. This is a formative standalone training tool.
+
+Observations name the selected activity and current case, with a task version and a fingerprint of the questions and saved work. A changed case, explanation, decision or saved comparison makes the previous observation non-current. Earlier notes and ratings remain available; re-observation retains up to twelve earlier entries per module. Navigation and unsaved exploration do not invalidate observed work. This fingerprint detects changes locally; it does not authenticate an assessor or protect an assessment record against deliberate editing. Unbound observations from earlier app versions remain visible and need reconfirmation. Saved inputs and outputs and practical criterion anchors are available in Learning record. Course and module results distinguish these case-specific observations from practice completion.
 
 ## Learning records and privacy
 
@@ -53,6 +55,8 @@ The physics follows existing Van Holten/Melkert, Leishman and Wagtendonk referen
 ## Verification and maintenance
 
 The [content review](CONTENT-REVIEW.md) covers all 29 activities and 19 references, their corrected explanations, source checks and remaining learner evaluation. The velocity triangle now uses one consistent signed trim state. Advanced disc diagnostics are optional after the local triangle; yaw sectors explain mechanisms without an invented authority index. Text revisions preserve saved comparisons; updated questions require new decisions, and the corrected velocity-model task archives its earlier version.
+
+The [user-validation protocol](USER-VALIDATION.md) provides neutral route tasks, module performance coverage, five criterion anchors, instructor calibration, delayed transfer and an observation sheet. It is ready to run; participant testing and confirmed syllabus coverage have not been completed.
 
 `node verify_physics.js` runs the physics checks; `node tests/learning.cjs` checks curriculum and record integrity. `npm test` runs both. Browser checks require the pinned development-only Playwright dependency: `npm ci`, `npx playwright install chromium`, then `npm run test:browser`. These dependencies are not required to use the app. `CHROMIUM_PATH` and `PLAYWRIGHT_MODULE` can point the tests to an existing installation.
 

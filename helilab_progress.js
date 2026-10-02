@@ -9,6 +9,10 @@ const HLProgress = (() => {
   const text=(x,n=4000)=>typeof x==='string'?x.slice(0,n):'';
   const integer=(x,max=10000)=>Number.isInteger(x)&&x>=0&&x<=max?x:0;
   function json(x,max=40000){if(x==null)return null;const s=JSON.stringify(x);if(s.length>max)throw Error('Model evidence exceeds its size limit.');return JSON.parse(s);}
+  function cleanReview(r){
+    const criteria={};for(const k of ['conditions','prediction','evidence','mechanism','limits'])if(['unobserved','discuss','supported','independent'].includes(r.criteria?.[k]))criteria[k]=r.criteria[k];
+    return {reviewer:text(r.reviewer,120),note:text(r.note),status:['discuss','supported','independent'].includes(r.status)?r.status:'discuss',at:text(r.at,40),version:integer(r.version),criteria,activityId:typeof r.activityId==='string'&&/^cbt-[a-z0-9-]+$/.test(r.activityId)?r.activityId:'',taskVersion:integer(r.taskVersion),variant:integer(r.variant),rubricVersion:integer(r.rubricVersion),evidenceKey:typeof r.evidenceKey==='string'&&/^[a-z0-9]{1,16}$/.test(r.evidenceKey)?r.evidenceKey:''};
+  }
   function validate(x){
     if(!plain(x)||![3,4].includes(x.schema)||!plain(x.activities)||!plain(x.reviews))throw Error('This is not a HeliLab training backup.');
     const clean=empty();
@@ -24,8 +28,7 @@ const HLProgress = (() => {
       clean.activities[id]=s;
     }
     for(const [id,r] of Object.entries(x.reviews))if(/^m[1-7]$/.test(id)&&plain(r)){
-      const criteria={};for(const k of ['conditions','prediction','evidence','mechanism','limits'])if(['unobserved','discuss','supported','independent'].includes(r.criteria?.[k]))criteria[k]=r.criteria[k];
-      clean.reviews[id]={reviewer:text(r.reviewer,120),note:text(r.note),status:['discuss','supported','independent'].includes(r.status)?r.status:'discuss',at:text(r.at,40),version:integer(r.version),criteria};
+      clean.reviews[id]={...cleanReview(r),history:Array.isArray(r.history)?r.history.filter(plain).slice(-12).map(cleanReview):[]};
     }
     clean.lastActivity=typeof x.lastActivity==='string'&&/^cbt-[a-z0-9-]+$/.test(x.lastActivity)?x.lastActivity:null;
     return clean;
@@ -42,5 +45,6 @@ const HLProgress = (() => {
   }
   function attempt(id,kind,correct,detail='',extra={}){const s=get(id);patch(id,{attempts:[...s.attempts,{kind,correct:!!correct,detail:String(detail).slice(0,4000),at:new Date().toISOString(),...extra}].slice(-100)});}
   function status(id){const s=get(id);return s.complete?'Complete':s.viewed?'In progress':s.prior?'Updated task · previous work saved':'Not started';}
-  return {get,patch,prepare,attempt,status,persistent:()=>persistent,export:()=>JSON.stringify(data,null,2),all:()=>JSON.parse(JSON.stringify(data)),validate:s=>validate(JSON.parse(s)),import:s=>{data=validate(JSON.parse(s));save();},reset:()=>{data=empty();save();},visit:id=>{data.lastActivity=id;patch(id,{viewed:true});},review:(id,r)=>{data.reviews[id]={...r,at:new Date().toISOString()};save();}};
+  function review(id,r){const previous=data.reviews[id],history=[...(previous?.history||[]),...(previous?[cleanReview(previous)]:[])].slice(-12);data.reviews[id]={...cleanReview({...r,at:new Date().toISOString()}),history};save();}
+  return {get,patch,prepare,attempt,status,persistent:()=>persistent,export:()=>JSON.stringify(data,null,2),all:()=>JSON.parse(JSON.stringify(data)),validate:s=>validate(JSON.parse(s)),import:s=>{data=validate(JSON.parse(s));save();},reset:()=>{data=empty();save();},visit:id=>{data.lastActivity=id;patch(id,{viewed:true});},review};
 })();

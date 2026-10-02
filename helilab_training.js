@@ -2,6 +2,14 @@
 'use strict';
 const HLTraining=(()=>{
   const VERSION=2;
+  const RUBRIC_VERSION=1;
+  const reviewCriteria=[
+    {key:'conditions',label:'States the changed conditions and what stays constant',anchor:'Names the changed input, controlled inputs and relevant sign convention before comparing.'},
+    {key:'prediction',label:'Predicts direction and, where relevant, magnitude',anchor:'Commits a reasoned direction before the reveal; uses the supplied ratios when a magnitude is requested.'},
+    {key:'evidence',label:'Chooses and compares relevant model evidence',anchor:'Selects the appropriate model, stations and layer; compares saved outputs with other inputs held constant.'},
+    {key:'mechanism',label:'Connects the causal steps and avoids the identified misconception',anchor:'Explains the variable-to-variable chain using the saved evidence, including the distinction named in the activity criterion.'},
+    {key:'limits',label:'States an assumption, missing datum or limit of the conclusion',anchor:'Names a relevant model assumption or missing datum and explains which conclusion it prevents.'}
+  ];
   const original=Object.fromEntries(HL_LESSONS.map(l=>[l.id,l]));
   const oldMetadata=Object.fromEntries(HL_V2_MODULES.flatMap(m=>(m.activities||[]).map(a=>[a.lessonId,a])));
   const lessons=[];
@@ -104,5 +112,22 @@ const HLTraining=(()=>{
   const status=a=>complete(a)?'Complete':HLProgress.get(a.lessonId).viewed?'In progress':HLProgress.get(a.lessonId).prior?'Updated task · previous work saved':'Not started';
   const next=()=>activities().find(a=>!complete(a))||null;
   const independent=a=>{const s=HLProgress.get(a.lessonId);return complete(a)&&questions(a).every(q=>s.decisions[q.key]?.correct&&!s.decisions[q.key]?.assisted);};
-  return {VERSION,activities,questions,evidence,complete,status,next,independent,lessons:()=>lessons};
+  // A local observation applies to the actual observed case, not every case in a module.
+  const stable=x=>Array.isArray(x)?x.map(stable):x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,stable(x[k])])):x;
+  function observationContext(a){
+    const s=HLProgress.get(a.lessonId);
+    const work={task:a.task,criterion:a.criteria,requirements:a.requirements,questions:questions(a).map(q=>q.id),version:s.version,variant:s.variant,prediction:s.prediction,reflection:s.reflection,limitation:s.limitation,decisions:s.decisions,snapshots:s.snapshots,selfReview:s.selfReview,complete:complete(a)};
+    return {activityId:a.lessonId,taskVersion:a.version,variant:s.variant,evidenceKey:hash(JSON.stringify(stable(work))),rubricVersion:RUBRIC_VERSION};
+  }
+  function observation(m){
+    const review=HLProgress.all().reviews[m.id];
+    if(!review)return {current:false,label:'No local observation saved'};
+    const a=m.activities.find(a=>a.lessonId===review.activityId);
+    if(!a||!review.evidenceKey||review.version!==VERSION||review.rubricVersion!==RUBRIC_VERSION)return {current:false,label:'Earlier observation retained — confirm the observed activity and evidence again'};
+    const context=observationContext(a);
+    if(review.taskVersion!==context.taskVersion||review.variant!==context.variant||review.evidenceKey!==context.evidenceKey)return {current:false,label:'Observed case or evidence changed — earlier observation retained; a new observation is needed'};
+    const counts=Object.fromEntries(['independent','supported','discuss','unobserved'].map(v=>[v,reviewCriteria.filter(c=>(review.criteria?.[c.key]||'unobserved')===v).length]));
+    return {current:true,activity:a,counts,label:`Observed case: ${a.title} · case ${context.variant+1}. Criteria: ${counts.independent} independent, ${counts.supported} with support, ${counts.discuss} need discussion, ${counts.unobserved} not observed.`};
+  }
+  return {VERSION,activities,questions,evidence,complete,status,next,independent,reviewCriteria,observationContext,observation,lessons:()=>lessons};
 })();

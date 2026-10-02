@@ -27,6 +27,8 @@ User-directed scope, 2026-10-02: execute the full pedagogical and UI/UX review, 
 
 ## Evaluation boundary
 
+The next evaluation is specified in [USER-VALIDATION.md](USER-VALIDATION.md). The app now binds a local observation to its selected case and saved work, preserves earlier notes and ratings, and displays the five criterion outcomes. Changed evidence requires a new observation. Saved numerical comparisons are directly available to an observer. Course-summary cells and optional reference/module-result links are visible after correcting multiple-node DOM insertion. These implementation changes do not claim that the learner pilot or syllabus confirmation has occurred.
+
 Technical acceptance tests the implementation and the specified learning flow. It does not measure training effectiveness or authenticate observers. Before adopting an assessed or approved course, a qualified instructor should observe representative learners, review explanations against the five criteria and test unfamiliar cases without prompts. The app stores that evidence; no such learner study is claimed here.
 
 References informing the design: [ICAO CBTA](https://www.icao.int/competency-based-training), [EASA Area 100 KSA material](https://www.easa.europa.eu/en/downloads/46157/en). This trains aerodynamic reasoning and does not claim complete pilot competency coverage or regulatory approval.
