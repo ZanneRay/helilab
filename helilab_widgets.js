@@ -990,6 +990,12 @@ const HLW = (function () {
     toggle(toggleRow, { label: 'Link φ to θ (realistic)', val: false, on: v => { linked = v; draw(); } });
     updateStepUI();
     ui.onDraw(draw);
+    const savedControls = HLModelState.controls(host);
+    host._hlModel = {
+      get: () => ({...savedControls.get(), step}),
+      set: x => { step = Math.max(1,Math.min(4,Number(x.step)||1)); savedControls.set(x); updateStepUI(); draw(); },
+      evidence: () => ({})
+    };
   }
 
   function wM104BladeElement(host) {
@@ -1357,6 +1363,11 @@ const HLW = (function () {
 
     updateStepUI();
     ui.onDraw(draw);
+    host._hlModel = {
+      get: () => { const r=ui.canvas.getBoundingClientRect();return {step,gate1,gate2,gate3,draft:gate1Draft&&{x1:gate1Draft.x1/(r.width||1),y1:gate1Draft.y1/(r.height||1),x2:gate1Draft.x2/(r.width||1),y2:gate1Draft.y2/(r.height||1)}}; },
+      set: x => { step=Math.max(1,Math.min(6,Number(x.step)||1));gate1=['correct','wrong'].includes(x.gate1)?x.gate1:null;gate2=['2','6','14'].includes(x.gate2)?x.gate2:null;gate3=['correct','wrong-whole','wrong-span'].includes(x.gate3)?x.gate3:null;const r=ui.canvas.getBoundingClientRect();gate1Draft=x.draft?{x1:x.draft.x1*r.width,y1:x.draft.y1*r.height,x2:x.draft.x2*r.width,y2:x.draft.y2*r.height}:null;updateStepUI();draw(); },
+      evidence: () => ({gates:{construction:gate1==='correct'&&gate2==='6'&&gate3==='correct'}})
+    };
   }
 
   /* 3 — Spanwise speed & lift distribution */
@@ -1635,6 +1646,11 @@ const HLW = (function () {
     ui.onDraw(draw);
     buildControls();
     updateReadout();
+    host._hlModel = {
+      get: () => ({choice}),
+      set: x => { choice=Number.isInteger(x.choice)&&x.choice>=0&&x.choice<options.length?x.choice:null;refresh(); },
+      evidence: () => ({gates:{'hover-choice':choice!=null},support:choice!==1})
+    };
   }
 
   function wM2RotorFlowPower(host) {
@@ -1792,6 +1808,11 @@ const HLW = (function () {
     ui.onDraw(draw);
     buildControls();
     updateReadout();
+    host._hlModel = {
+      get: () => ({prediction,changed,firstLinkChoice}),
+      set: x => { prediction=Number.isInteger(x.prediction)&&x.prediction>=0&&x.prediction<predictions.length?x.prediction:null;changed=prediction!=null&&x.changed===true;collective=changed?changedCollective:baseCollective;firstLinkChoice=changed&&Number.isInteger(x.firstLinkChoice)&&x.firstLinkChoice>=0&&x.firstLinkChoice<4?x.firstLinkChoice:null;refresh(); },
+      evidence: () => ({gates:{'collective-change':prediction!=null&&changed,'first-link':firstLinkChoice!=null},support:prediction!==0||firstLinkChoice!==0,comparison:{reference:currentSol(baseCollective),changed:currentSol(collective)}})
+    };
   }
 
   function wM2ChangeDemand(host) {
@@ -2081,6 +2102,11 @@ const HLW = (function () {
     ui.onDraw(draw);
     buildControls();
     updateReadout();
+    host._hlModel = {
+      get: () => ({scenario,predictions:{...predictions},reveals:{...reveals},magnitudeChoice,chain:[...chain],chainChecked}),
+      set: x => { scenario=x.scenario==='density'?'density':'weight';for(const k of ['weight','density']){predictions[k]=Number.isInteger(x.predictions?.[k])&&x.predictions[k]>=0&&x.predictions[k]<4?x.predictions[k]:null;reveals[k]=predictions[k]!=null;}magnitudeChoice=Number.isInteger(x.magnitudeChoice)&&x.magnitudeChoice>=0&&x.magnitudeChoice<3?x.magnitudeChoice:null;chain=Array.isArray(x.chain)?x.chain.filter(v=>chainBank.includes(v)).slice(0,4):[];chainChecked=x.chainChecked===true&&chain.length===4;refresh(); },
+      evidence: () => ({gates:{'mass-comparison':reveals.weight,'density-comparison':reveals.density,magnitude:magnitudeChoice!=null,'causal-chain':chainChecked&&chain.every((v,i)=>v===chainAnswer[i])},support:predictions.weight!==0||predictions.density!==0||magnitudeChoice!==1,comparison:{reference:trimData(baseState),mass:reveals.weight?trimData(scenarios.weight.changedState):null,density:reveals.density?trimData(scenarios.density.changedState):null}})
+    };
   }
 
   /* 5 — Vertical flight: animated climb/descent transient + VRS
@@ -2223,7 +2249,7 @@ const HLW = (function () {
 
     const phaseNote = () => {
       if (phase.indexOf('in VRS band') >= 0) return '⚠ Transiting the <b>vortex-ring band</b> on the way down — thrust is erratic in here (the model holds an approximate value). A real descent should not linger in this band.';
-      if (phase.indexOf('VRS') >= 0) return '⚠ The descent settled in the <b>vortex ring</b> band — momentum theory breaks down here and thrust gets erratic. This is exactly why a slow vertical descent is dangerous; recover with forward speed.';
+      if (phase.indexOf('VRS') >= 0) return '⚠ The descent settled in the <b>vortex ring</b> band — momentum theory breaks down here and thrust gets erratic. The illustration identifies an unreliable model region; it cannot establish a type-specific recovery procedure.';
       if (phase === 'ACCELERATING ↑') return 'Collective raised → <b>T &gt; W</b> → accelerating up. As the climb builds, <b>U_P = v_i + V_c grows</b> → φ grows → α shrinks, pulling T back toward W.';
       if (phase === 'ACCELERATING ↓') return 'Collective lowered → <b>T &lt; W</b> → accelerating down. The descent <b>shrinks U_P</b> (v_i + V_c ↓) → φ shrinks → α grows, pushing T back up toward W.';
       if (phase === 'STEADY CLIMB') return '✔ <b>T = W</b> again at a steady rate of climb. U_P sits above its hover value, so α is back near hover — the extra collective went into beating the higher inflow, not into more AoA. That is why climbing costs collective/power.';
@@ -3440,27 +3466,27 @@ const HLW = (function () {
     // Region info panel data for clickable regions
     const regionInfo = {
       driven: {
-        name: 'Driven Region (inner root area)',
+        name: 'Driven region — braking torque',
         label: 'Drag region — consumes energy',
-        condition: 'φ > θ → α is negative',
+        condition: 'Local in-plane aerodynamic force opposes rotation; α need not be negative',
         energy: 'Consuming — blade is dragged, takes energy from the rotor',
         tip: 'NOT stalled — it produces lift, but the total force vector tilts aft. Often confused with stall on exams.',
         color: 'rgb(232,170,60)',
       },
       driving: {
-        name: 'Driving Region (mid-span)',
+        name: 'Driving region — driving torque',
         label: 'Driving region — sustains rotation',
-        condition: 'φ ≈ optimal → F_H points forward of shaft',
+        condition: 'Local in-plane aerodynamic force acts with rotation',
         energy: 'Sustaining — in-plane component accelerates the rotor',
-        tip: 'The sole energy source in autorotation. F_H must point WITH rotation. Manage collective to keep this band wide.',
+        tip: 'The aircraft energy budget supplies the upflow. Driving and braking contributions must be considered over the whole rotor.',
         color: 'rgb(60,175,95)',
       },
       stall: {
-        name: 'Stall Region (outer tip — low Nr or high collective)',
-        label: 'Stall region — RPM decay risk',
-        condition: 'α > stall angle (low Nr or excessive collective)',
-        energy: 'Decaying — lift collapses, drag spikes, rotor decelerates rapidly',
-        tip: 'Lowering collective moves the stall region outward. Collective up too early at flare = Nr decay = unrecoverable.',
+        name: 'Stall region — local α exceeds the model stall angle',
+        label: 'Stall region — altered aerodynamic forces',
+        condition: 'Local α exceeds the stated model stall angle',
+        energy: 'Local lift and drag coefficients change; the summed torque determines the rotor tendency',
+        tip: 'Often inboard in vertical autorotation. Region boundaries vary with flow, pitch and RPM; this map does not establish recoverability.',
         color: '#d05a6e',
       },
     };
@@ -3514,7 +3540,9 @@ const HLW = (function () {
           const pm = (p0 + p1) / 2, rm = (r0 + r1) / 2;
           const rg = regionAt(st, rm, pm, upInflow, mu);
           cnt[rg.reg]++;
-          if (rg.reg === 'driving' || rg.reg === 'driven') net += (-rg.fx) * rm;
+          // Relative-speed squared and radius weight each local force coefficient.
+          // Include stalled elements; this remains a fixed-RPM torque comparison.
+          if (rg.reg !== 'reverse') net += (-rg.fx) * (rg.UT * rg.UT + upInflow * upInflow) * rm;
           // Dim non-selected regions when a region is selected
           const isSelected = selectedRegion && rg.reg === selectedRegion;
           const isDimmed = selectedRegion && rg.reg !== selectedRegion;
@@ -3634,8 +3662,8 @@ const HLW = (function () {
       const { ctx: c2, W: w2, H: h2, col: col2 } = HLD.setup(canvas);
       drawTriangle(c2, w2, h2, col2);
       const rg = regionAt(st, rBar, psiDeg * D2R, upInflow, mu);
-      const rrpm = net > 0.02 ? 'increasing ↑' : net < -0.02 ? 'decaying ↓' : 'steady (balanced)';
-      const rrpmCol = net > 0.02 ? 'var(--hl-good)' : net < -0.02 ? 'var(--hl-bad)' : 'var(--hl-warn)';
+      const rrpm = net > 1e-6 ? 'positive · driving exceeds braking' : net < -1e-6 ? 'negative · braking exceeds driving' : 'approximately zero';
+      const rrpmCol = net > 1e-6 ? 'var(--hl-good)' : net < -1e-6 ? 'var(--hl-bad)' : 'var(--hl-warn)';
       ui.readout.innerHTML = kv([
         ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
         ['Collective θ₀', coll.toFixed(1) + '°', 'var(--hl-chord)'],
@@ -3645,7 +3673,7 @@ const HLW = (function () {
         ['F_H direction', rg.reg === 'reverse' ? 'undefined (reverse)' : (rg.fx < 0 ? 'forward → drives rotor' : 'aft → brakes rotor'),
           rg.fx < 0 ? 'var(--hl-good)' : 'var(--hl-warn)'],
         ['Driving cells', cnt.driving + ' / ' + (14 * 72), 'var(--hl-good)'],
-        ['Rotor RPM trend', rrpm, rrpmCol],
+        ['Aerodynamic torque tendency at fixed RPM', rrpm, rrpmCol],
       ]) + `<p class="hl-note">The disc classifies every element: the <b>driving</b> band
         (green) speeds the rotor up, the <b>driven</b> tip (amber) brakes it, and the
         root <b>stalls</b>. <b>Click a coloured region</b> on the disc for a cause-effect
@@ -3654,7 +3682,8 @@ const HLW = (function () {
         tip); add <b>forward speed</b> and the driving zone migrates toward the
         <b>retreating side (ψ 270°)</b> as the advancing side speeds up and goes driven,
         with a reverse/stall wedge at the retreating root. Balance driving vs driven with
-        the collective to hold RRPM.</p>`;
+        the collective to compare aerodynamic torque. RPM is held fixed in this map;
+        the displayed tendency is not an integrated RPM or energy history.</p>`;
       renderRegionPanel();
     };
 
@@ -3699,6 +3728,9 @@ const HLW = (function () {
     });
 
     ui.onDraw(draw);
+    const savedControls=HLModelState.controls(host);
+    host._hlModel={get:()=>({...savedControls.get(),selectedRegion}),set:x=>{selectedRegion=['driving','driven','stall'].includes(x.selectedRegion)?x.selectedRegion:null;savedControls.set(x);draw();},evidence:()=>({})};
+
   }
 
   /* 11 — Power required curve */
@@ -4722,7 +4754,7 @@ const HLW = (function () {
       const zDeg = z * R2D;
       ui.readout.innerHTML = kv([
         ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
-        ['Head type', articulated ? 'Articulated (lead–lag hinge)' : 'Underslung (teetering/rigid)', 'var(--hl-accent)'],
+        ['Head type', articulated ? 'Articulated (lead–lag hinge)' : 'Underslung model (teetering)', 'var(--hl-accent)'],
         ['Flap β (out-of-plane) at ψ=' + psiDeg.toFixed(0) + '°', beta.toFixed(1) + '°', 'var(--hl-lift)'],
         ['Lead/lag ζ (in-plane) at ψ=' + psiDeg.toFixed(0) + '°', (zDeg >= 0 ? '+' : '') + zDeg.toFixed(2) + '° ' + (zDeg >= 0 ? '(lead)' : '(lag)'),
           zDeg >= 0 ? 'var(--hl-good)' : '#c060d0'],
@@ -4995,7 +5027,7 @@ const HLW = (function () {
         ['State', severe ? 'LTE — uncommanded yaw' : (lte ? 'marginal — degrading' : 'controllable'),
           severe ? 'var(--hl-bad)' : (lte ? 'var(--hl-warn)' : 'var(--hl-good)')],
       ]) + `<p class="hl-note">${lte
-          ? '<b>Tail-rotor thrust can no longer balance torque.</b> Mechanism: <b>' + cause + '</b>. <b>Recover:</b> increase <b>forward airspeed</b> — translational lift restores tail rotor inflow. Full left (anti-torque) pedal and <b>lower collective</b> to cut torque demand.'
+          ? '<b>In this illustrative state, available anti-torque is below demand.</b> Mechanism: <b>' + cause + '</b>. The assumed authority and wind sectors do not establish an aircraft operating limit or recovery procedure.'
           : 'Margin is above the demand line. LTE is a <b>conditional</b> loss of yaw control — no single wind direction is dangerous alone. Activate risk factors or rotate to a critical sector to watch the margin collapse.'} <i>(CCW main rotor — anti-torque pedal is left. Sector angles are advisory.)</i></p>`;
       // sector info panel
       infoPanel.innerHTML = activeSector
@@ -5982,7 +6014,50 @@ const HLW = (function () {
     return { draw, dispose() { playing=false; clearInterval(sweepTimer); } };
   }
 
+  function wRotorEnergy(host) {
+    const ui=scaffold(host);
+    let rpm=100;
+    const draw=()=>{
+      const energy=(rpm/100)**2*100;
+      const {ctx,W,H,col}=HLD.setup(ui.canvas);HLD.clear(ctx,W,H,col);HLD.grid(ctx,W,H,col,30);
+      const x=W*.12,y=H*.25,width=W*.7,height=34;
+      HLD.text(ctx,'Stored rotor energy · constant inertia',W*.5,H*.1,col.ink,'bold 14px IBM Plex Sans','center');
+      ctx.fillStyle=col.dim;ctx.globalAlpha=.3;ctx.fillRect(x,y,width,height);ctx.globalAlpha=1;
+      HLD.text(ctx,'Reference 100%',x,y-12,col.dim,'12px IBM Plex Sans','left');
+      ctx.fillStyle=col.lift;ctx.fillRect(x,y+height+44,width*Math.min(energy/100,1.21),height);
+      HLD.text(ctx,`${energy.toFixed(1)}% energy at ${rpm}% RPM`,x,y+height+32,col.lift,'bold 12px IBM Plex Sans','left');
+      HLD.text(ctx,'E / E_ref = (RPM / RPM_ref)²',W*.5,H*.82,col.ink,'13px IBM Plex Sans','center');
+      ui.readout.innerHTML=kv([['Rotor RPM',rpm.toFixed(0)+'% of reference','var(--hl-chord)'],['Stored rotor energy',energy.toFixed(1)+'% of reference','var(--hl-lift)'],['Energy change',(energy-100).toFixed(1)+' percentage points','var(--hl-ink)'],['Inertia','held constant','var(--hl-dim)']])+'<p class="hl-note">This is an energy-state comparison. It does not simulate a flare, an RPM time history or an aircraft operating limit.</p>';
+    };
+    slider(ui.controls,{label:'Rotor RPM (% of reference)',min:50,max:110,step:5,val:rpm,unit:'%',on:v=>{rpm=v;draw();}});
+    ui.onDraw(draw);
+  }
+
+  function wLearningWorkspace(host,config={}) {
+    host.innerHTML='';
+    const models=config.models||[['wBladeElement','Blade element']];
+    const bar=el('div','hl-workspace-views'),mount=el('div','hl-workspace-model');
+    bar.setAttribute('role','group');bar.setAttribute('aria-label','Choose evidence model');
+    host.append(bar,mount);
+    let active=null,handle=null,states={};
+    const open=name=>{
+      if(active&&mount._hlModel)states[active]=mount._hlModel.get();
+      handle?.dispose();active=name;handle=HLW[name](mount);
+      if(states[name])mount._hlModel.set(states[name]);
+      for(const b of bar.querySelectorAll('button')){b.classList.toggle('on',b.dataset.model===name);b.setAttribute('aria-pressed',String(b.dataset.model===name));}
+    };
+    for(const [name,label] of models){const b=el('button','hl-foot-btn',label);b.type='button';b.dataset.model=name;b.onclick=()=>open(name);bar.append(b);}
+    open(models[0][0]);
+    host._hlModel={
+      get:()=>{states[active]=mount._hlModel.get();return {...states[active],model:active,workspace:states};},
+      set:x=>{states=x.workspace&&typeof x.workspace==='object'?x.workspace:{};const name=models.some(([n])=>n===x.model)?x.model:models[0][0];active=null;open(name);mount._hlModel.set(x);},
+      evidence:()=>mount._hlModel.evidence?.()||{}
+    };
+    return {dispose:()=>handle?.dispose()};
+  }
+
   const registry = {
+    wRotorEnergy, wLearningWorkspace,
     wCBTGroundEffect, wBigPicture, wBladeElement, wM104BladeElement, wSpanwise, wHover, wM2HoverWhy, wM2RotorFlowPower, wM2ChangeDemand, wVertical, wGroundEffect,
     wDissymmetry, wFlapping, wFlappingRoll, wEnvelope, wCoriolis, wDynamicRollover, wLTE,
     wAutorotation, wPerformance, wBetDiagram, wBetVelocity, wBetModel,
@@ -6000,7 +6075,10 @@ const HLW = (function () {
   };
   return Object.fromEntries(Object.entries(registry).map(([name, fn]) => [name, (host, ...args) => {
     host._hlDisposers = [];
+    host._hlModel = null;
+    host.dataset.model = name;
     const handle = fn(host, ...args);
+    host._hlModel ||= HLModelState.controls(host);
     let disposed = false;
     return { ...(handle && typeof handle === 'object' ? handle : {}), dispose() {
       if (disposed) return; disposed = true;
