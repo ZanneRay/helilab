@@ -964,3 +964,28 @@ body {
   .hl-step-nav { justify-content: space-between; }
   .hl-step-counter { order: -1; width: 100%; text-align: left; }
 }
+
+/* Standalone learning evidence: readable forms at every viewport. */
+[hidden] { display: none !important; }
+.cbt-panel { margin: 24px 0; padding: clamp(16px,3vw,28px); border: 1px solid var(--border2); border-radius: 16px; background: var(--panel); }
+.cbt-panel h2,.cbt-panel h3 { margin: 0 0 12px; }
+.cbt-panel p { line-height: 1.65; }
+.cbt-field { display: grid; gap: 8px; margin: 18px 0; font-weight: 600; }
+.cbt-field textarea,.cbt-field input,.cbt-field select { box-sizing: border-box; width: 100%; max-width: 100%; padding: 12px; color: var(--hl-ink,#e5e7eb); background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; font: inherit; }
+.cbt-field textarea { resize: vertical; font-weight: 400; }
+.cbt-case { min-width: 0; margin: 20px 0; padding: 16px; border: 1px solid var(--border2); border-radius: 10px; }
+.cbt-case legend { padding: 0 8px; font-weight: 600; line-height: 1.6; }
+.cbt-option { display: flex; align-items: flex-start; gap: 12px; margin: 12px 0; padding: 10px; min-height: 44px; box-sizing: border-box; line-height: 1.5; cursor: pointer; }
+.cbt-option input { flex: 0 0 auto; margin-top: 4px; width: 18px; height: 18px; }
+.cbt-status { font-size: .9rem; line-height: 1.6; color: var(--text2); }
+.cbt-evidence-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.cbt-panel details { margin: 12px 0; padding: 12px; border-bottom: 1px solid var(--border2); }
+.cbt-panel summary { cursor: pointer; line-height: 1.6; }
+.cbt-panel button:disabled { opacity: .55; cursor: not-allowed; }
+.cbt-skip { position: fixed; left: 12px; top: -100px; z-index: 10000; padding: 12px; background: white; color: black; }
+.cbt-skip:focus { top: 12px; }
+:focus-visible { outline: 3px solid #38bdf8; outline-offset: 3px; }
+@media(max-width:600px) { .cbt-panel { padding: 16px; } .cbt-panel .hl-inline-actions { flex-wrap: wrap; } .cbt-panel input[type=file] { max-width: 230px; } }
+@media print { .hl-header,.hl-sidebar,.hl-inline-actions,button { display: none !important; } .hl-layout,.hl-main { display:block !important; height:auto !important; overflow:visible !important; } .hl-main { margin:0 !important; } .cbt-panel { break-inside:avoid; color:black; background:white; } details { display:block; } }
+.hl-hover-stage { aspect-ratio: auto !important; height: 560px; }
+.cbt-case select { display:block; width:100%; padding:10px; margin:10px 0; background:var(--bg2); color:var(--text); border:1px solid var(--border2); border-radius:6px; }

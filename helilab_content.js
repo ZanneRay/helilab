@@ -711,13 +711,13 @@ const HL_LESSONS = [
 
       <h4 style="margin:0.6em 0 0.2em">Advanced: additional lateral inflow asymmetry</h4>
       <p>A separate, optional scenario: a lateral wind, sideslip, or yaw rate introduces
-      a <em>lateral</em> inflow gradient (λ_s in the Pitt-Peters first-harmonic model)
+      a <em>lateral</em> inflow gradient (λ_s in the prescribed first-harmonic illustration)
       — more inflow on one side of the disc (ADV or RET) than the other. This creates an
       <strong>additional roll moment</strong> that is trimmed by lateral cyclic, but it
       is a <em>different</em> input from the fore-aft asymmetry described above.
       The Inflow Roll and Compare modes let you explore both, clearly labelled.</p>
       <p><em>Model limitation: this widget uses a prescribed first-harmonic inflow
-      (Pitt-Peters style) + quasi-steady flapping. It is a pedagogical tool, not a
+      (prescribed wake-skew approximation) + quasi-steady flapping. It is a pedagogical tool, not a
       free-wake or fully transient rotor–body-coupled simulation.</em></p>`,
     takeaways: [
       'Flapback: the rotor disc tilts backward in forward flight because peak flapping lags peak aerodynamic forcing by ~90° (gyroscopic / angular-momentum effect).',
@@ -744,74 +744,26 @@ const HL_LESSONS = [
     subtitle: 'The pivot-point trap on the ground',
     widget: 'wDynamicRollover',
     body: `
-      <p>On the ground a helicopter can roll over at a bank angle far smaller than
-      you would expect — because it is not pivoting about its centre of gravity,
-      but about a <b>fixed point</b>: a skid or wheel still touching the ground
-      (often held by a stuck skid, a slope, or a tie-down).</p>
-      <p>Once a roll starts about that pivot, the <b>tilted thrust vector</b> gains
-      a horizontal component that <b>feeds the roll further</b>. Past a
-      <b>critical rollover angle</b> — small, typically <b>5–8° at high thrust</b>
-      (higher — about 12° in this model — when collective/thrust is reduced) — recovery
-      by lateral cyclic alone becomes impossible: the disc simply cannot generate
-      enough restoring moment, and reducing collective is the only fix.</p>
-      <ul>
-        <li><b>Cause:</b> a pivot point + a rolling moment (cross-slope, stuck
-            skid, cyclic input, or crosswind) while thrust is near flying weight.</li>
-        <li><b>The trap:</b> the more it rolls, the more the thrust drives the
-            roll — it is a <b>divergent</b>, self-amplifying motion.</li>
-        <li><b>Recovery:</b> <b>smoothly lower the collective</b> to remove the
-            thrust that powers the roll. Never try to "fly out" of it with cyclic
-            once past the critical angle.</li>
-      </ul>
-      <h4>Recognition criteria — onset phases</h4>
-      <ul>
-        <li><b>Pivot point established:</b> one skid or wheel is in contact and
-            acting as a fulcrum (slope ops, slope landing, wire snag, uneven
-            surface).</li>
-        <li><b>Roll rate onset:</b> slow, progressive roll toward the pivot —
-            often feels like a normal slope correction at first.</li>
-        <li><b>Control effectiveness decay:</b> as roll angle increases past
-            ~5°, lateral cyclic authority decreases and collective effect
-            reverses.</li>
-        <li><b>Critical roll angle:</b> beyond ~8–10° (type-dependent) recovery
-            is no longer possible with flight controls alone.</li>
-      </ul>
-      <p class="hl-note">The instinct is to pull collective to get airborne — but
-      if the pivot point is established, increasing collective increases total rotor
-      thrust AND the rolling moment around the pivot. This accelerates the rollover,
-      not stops it. The correct response is: <b>cyclic away from the pivot first,
-      then reduce collective to unload the rotor if the roll rate is not
-      arrested.</b></p>
-      <h4>Contributing factors</h4>
-      <ul>
-        <li>Slope landings and takeoffs (most common scenario).</li>
-        <li>Crosswind from the downslope side (adds lateral cyclic
-            displacement).</li>
-        <li>Long-line or sling load snagged on terrain.</li>
-        <li>Tail rotor thrust on the ground (especially relevant for
-            left-skid-low on a counter-clockwise rotor system).</li>
-        <li>Inattention during slope power checks.</li>
-      </ul>
-      <p>Increase the bank angle in the widget and watch the restoring moment
-      turn into a rolling moment past the critical angle.</p>`,
+      <p>A ground contact can become a pivot. Rotor thrust and the other forces then create moments about that contact, rather than only about the centre of gravity.</p>
+      <p>Once a roll develops, opposite cyclic alone may be unable to stop it. Reducing collective reduces the thrust that drives the rolling moment. The appropriate response and its timing must follow approved aircraft instruction.</p>
+      <p>There is no universal safe bank angle. Aircraft geometry, control range, roll rate, loading and surface conditions all affect the situation. The widget's threshold is an illustrative model parameter, not an aircraft limit.</p>
+      <p>Compare thrust settings at the same bank angle. Explain why a trapped skid changes the moment balance and why adding thrust can worsen the roll.</p>
+      <p class="hl-note">Reference: FAA Helicopter Flying Handbook, chapter 11, Dynamic Rollover. Use the current rotorcraft flight manual for operating procedures.</p>`,
     takeaways: [
-      'Dynamic rollover = rolling about a fixed pivot (skid/wheel), not the CofG.',
-      'Critical angle is small (~5–8° at high thrust, larger at reduced collective); past it, tilted thrust drives the roll — divergent.',
-      'Recovery: cyclic away from the pivot first to arrest roll rate, then smoothly lower collective to unload the rotor — do not rely on cyclic alone once past the critical angle.',
-      'Dynamic rollover is a pivot-point problem, not a slope problem — any fixed contact point on one side can cause it.',
-      'Raising collective with a pivot point established accelerates rollover — the instinctive response is the wrong response.',
-      'Critical roll angle is 8–10° for most types — beyond that, flight controls cannot recover the situation.',
-      'Prevention: avoid establishing a pivot point; if one side is stuck, reduce collective and reassess before attempting lift-off.',
+      'A ground pivot changes the moment balance.',
+      'Opposite cyclic alone may be insufficient once dynamic rollover develops.',
+      'Reducing rotor thrust removes a source of the rolling moment.',
+      'A model threshold is not a universal safe angle or an approved operating limit.',
     ],
     check: {
-      q: 'You feel a dynamic rollover developing during a slope take-off. What is the correct recovery action?',
+      q: 'Which change reduces the rotor-thrust contribution to a rolling moment about a trapped skid?',
       options: [
-        'Smoothly lower the collective to remove the thrust driving the roll',
+        'Reduce collective and thus rotor thrust',
         'Apply full opposite lateral cyclic and hold collective',
         'Increase collective to lift clear of the pivot',
         'Apply opposite pedal',
       ], answer: 0,
-      explain: 'Past the critical rollover angle, cyclic cannot generate enough restoring moment and raising collective only increases the thrust that feeds the roll. Smoothly lowering the collective removes the driving force — the one reliable recovery.',
+      explain: 'Reducing collective reduces the rotor-thrust contribution to the moment. This mechanism does not establish a universal recovery angle or replace approved procedures.',
     },
   },
   {

@@ -32,7 +32,7 @@ load('flapping.js', ['BET_STATE']);
 load('helilab_core.js', ['HL']);
 
 const {
-  BET_STATE, tipSpeed, advanceRatio, omega, inflowRatio, thrustCoeff,
+  BET_STATE, tipSpeed, advanceRatio, omega, inflowRatio, inducedInflowRatio, thrustCoeff,
   localInflow, flappingCoeffs, flappingAngle, flappingRate, localVelocities, localVelocityDecomposition, bladePitch,
   inflowAngle, localAoA, profileVsPsi, profileVsR, computeTrimCyclic,
   discTiltAngles, sosAtAltFt, HL,
@@ -541,8 +541,19 @@ section('Linear inflow model — gradient signs and consistency');
   // (i) Gradients grow with forward speed (more pronounced inflow asymmetry at higher \u03bc)
   const st40 = defaultState(); st40.V = 40 * 0.5144;
   const m40 = linearInflowModel(st40);
-  check('\u03bb_c grows with forward speed (80 kt > 40 kt)', m80.lamc > m40.lamc,
+  check('Normalised skew grows with speed', m80.lamc/m80.lam0 > m40.lamc/m40.lam0,
     `lamc(80kt)=${m80.lamc.toFixed(4)} lamc(40kt)=${m40.lamc.toFixed(4)}`);
+
+  // Independent bounds: first harmonic <= 4/3 of mean; the old defect was ~33 times mean.
+  check('Induced harmonic is bounded relative to mean', Math.abs(m80.lamc) <= 4/3*m80.lam0);
+  check('80 kt: local front/aft induced speeds remain below 10 m/s',
+    Math.abs(lamAft*HL.omR(st80))<10 && Math.abs(lamFwd*HL.omR(st80))<10);
+  // At fore/aft azimuths the existing core localInflow lateral term vanishes.
+  check('Longitudinal prescription agrees with established localInflow',
+    Math.abs(lamAft-localInflow(m80.lam0,.75,0,advanceRatio(st80)))<1e-10);
+  const stClimb={...st80,Vc:4};
+  check('Mean is induced-only, excluding aircraft throughflow',
+    Math.abs(linearInflowModel(stClimb).lam0-inducedInflowRatio(stClimb))<1e-12);
 
   // (j) Coning/blade flapping terms can change local velocity triangle, but do not
   //     alter the wake-induced inflow map itself (λ-model is independent of coeffs).
@@ -589,17 +600,17 @@ section('Transverse Flow Effect — fore-aft inflow asymmetry');
   speeds.forEach(V => {
     const st = defaultState(); st.V = V * 0.5144;
     const m  = linearInflowModel(st);
-    const dFA = linearInflowAt(m, rBar, 0) - linearInflowAt(m, rBar, Math.PI);
+    const dFA = (linearInflowAt(m, rBar, 0) - linearInflowAt(m, rBar, Math.PI)) / m.lam0;
     if (dFA < prev - 1e-6) monotone = false;
     prev = dFA;
   });
-  check('Fore-aft Δλ grows monotonically with speed', monotone,
+  check('Normalised fore-aft gradient grows with speed', monotone,
     `speeds checked: ${speeds.join(', ')} kt`);
 
   // (d) At station A (front, ψ=π) in forward flight:
   //     less inflow → smaller φ_A → larger α_A relative to station B (aft, ψ=0)
-  const phiA = inflowAngle(rBar, Math.max(0, lFwd80));
-  const phiB = inflowAngle(rBar, Math.max(0, lAft80));
+  const phiA = inflowAngle(rBar, lFwd80);
+  const phiB = inflowAngle(rBar, lAft80);
   check('φ_A (front) < φ_B (aft) in forward flight — TFE mechanism',
     phiA < phiB,
     `φ_A=${(phiA*180/Math.PI).toFixed(2)}° φ_B=${(phiB*180/Math.PI).toFixed(2)}°`);

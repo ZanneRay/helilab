@@ -64,11 +64,12 @@ const HLW = (function () {
 
     let drawFn = null;
     const ro = new ResizeObserver(() => { if (drawFn) drawFn(); });
+    (host._hlDisposers ||= []).push(() => { ro.disconnect(); drawFn = null; });
     ro.observe(stage);
     if (topStage) ro.observe(topStage);
     return {
       canvas, topCanvas, controls, readout,
-      onDraw(fn) { drawFn = fn; requestAnimationFrame(fn); },
+      onDraw(fn) { drawFn = fn; requestAnimationFrame(() => { if (drawFn && host.isConnected) drawFn(); }); },
     };
   }
 
@@ -119,14 +120,18 @@ const HLW = (function () {
     grp.setAttribute('role', 'radiogroup');
     if (o.label) grp.setAttribute('aria-label', o.label);
     let cur = o.val;
-    o.options.forEach(opt => {
+    o.options.forEach((opt, index) => {
       const b = el('button', 'hl-seg-btn' + (opt.v === cur ? ' on' : ''), opt.t);
       b.setAttribute('role', 'radio');
+      b.tabIndex = opt.v === cur || (!o.options.some(x=>x.v===cur) && index===0) ? 0 : -1;
+      b.onkeydown = e => { const keys=['ArrowRight','ArrowDown','ArrowLeft','ArrowUp','Home','End']; if(!keys.includes(e.key))return; e.preventDefault();const delta=['ArrowRight','ArrowDown'].includes(e.key)?1:-1;const n=e.key==='Home'?0:e.key==='End'?o.options.length-1:(index+delta+o.options.length)%o.options.length;const target=grp.children[n];target.focus();target.click(); };
       b.setAttribute('aria-checked', opt.v === cur ? 'true' : 'false');
       b.addEventListener('click', () => {
+        const hadFocus = document.activeElement === b;
         cur = opt.v;
-        grp.querySelectorAll('.hl-seg-btn').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); });
-        b.classList.add('on'); b.setAttribute('aria-checked', 'true'); o.on(opt.v);
+        grp.querySelectorAll('.hl-seg-btn').forEach(x => { x.classList.remove('on'); x.setAttribute('aria-checked', 'false'); x.tabIndex=-1; });
+        b.classList.add('on'); b.setAttribute('aria-checked', 'true'); b.tabIndex=0; o.on(opt.v);
+        if(hadFocus) [...parent.querySelectorAll('[role=radio]')].find(x=>x.textContent===b.textContent)?.focus({preventScroll:true});
       });
       grp.appendChild(b);
     });
@@ -187,7 +192,7 @@ const HLW = (function () {
     ctx.restore();
     HLD.dot(ctx, ox, oy, 4, col.chord);
     const lex = ox + ac * Math.cos(thV), ley = oy - ac * Math.sin(thV);
-    HLD.chipLabel(ctx, opts.airfoilName || 'NACA 0012', lex + 8, ley - 12, col.chord, '10px IBM Plex Sans', 'left');
+    if(len >= 140) HLD.chipLabel(ctx, opts.airfoilName || 'NACA 0012', lex + 8, ley - 12, col.chord, '10px IBM Plex Sans', 'left');
 
     if (opts.showAngles) {
       const arcLbl = (r, a0, a1, color, str, font, dy) => {
@@ -208,7 +213,7 @@ const HLW = (function () {
         const aLblDy = (thV >= phV ? -1 : 1) * (len < 140 ? 8 : 12);
         const aLblX = ox + aLblR * Math.cos(aMid), aLblY = oy - aLblR * Math.sin(aMid) + aLblDy;
         HLD.dline(ctx, wedgeX, wedgeY, aLblX, aLblY + 6, aCol, 1, [2, 3]);
-        HLD.chipLabel(ctx, 'α ' + ((th - ph) * 180 / Math.PI).toFixed(1) + '° (AoA)',
+        HLD.chipLabel(ctx, 'α ' + ((th - ph) * 180 / Math.PI).toFixed(1) + (len < 140 ? '°' : '° (AoA)'),
           aLblX, aLblY, aCol, 'bold 12px IBM Plex Sans', 'center');
       }
     }
@@ -255,7 +260,7 @@ const HLW = (function () {
         const tpx = Ty / tmag, tpy = -Tx / tmag;
         HLD.arrow(ctx, ox, oy, ox, oy + Ty, col.good, 2.4, 9);
         HLD.chipLabel(ctx, opts.resolveLabel || 'Thrust',
-          ox - 44, oy + Ty + (Ty < 0 ? 4 : -12), col.good, 'bold 10px IBM Plex Sans', 'right');
+          ox - 20, oy + Ty + (Ty < 0 ? -12 : 16), col.good, 'bold 10px IBM Plex Sans', 'right');
         const fhCol = Tx > 0 ? col.good : col.warn;
         HLD.arrow(ctx, ox, oy, ox + Tx, oy, fhCol, 2.4, 9);
         HLD.chipLabel(ctx, opts.fhLabel || 'F_H ×6',
@@ -284,18 +289,7 @@ const HLW = (function () {
 
   /* explain why the 3-D view didn't load (most often: opened via file://) */
   function noThreeHTML() {
-    const fileProto = location.protocol === 'file:';
-    if (typeof window.HL3D === 'undefined') {
-      return '<div class="hl-sb-3d-fallback"><div>' +
-        '<b>3-D view needs a local web server</b><br>' +
-        (fileProto
-          ? 'This page was opened directly from disk (file://). Browsers block the ES-module 3-D engine from file paths. Serve the folder instead:'
-          : 'The Three.js module did not load — try a hard refresh (Ctrl/Cmd+Shift+R), or serve the folder:') +
-        '<br><code>npx serve</code> &nbsp;or&nbsp; <code>python -m http.server</code><br>' +
-        'then open the shown <b>http://</b> address. (The 2-D panels work either way.)' +
-        '</div></div>';
-    }
-    return '<div class="hl-sb-3d-fallback">3-D view could not start — WebGL may be disabled. See the browser console.</div>';
+    return '<div class="hl-sb-3d-fallback"><div><b>Continue with the 2D models</b><p>3D is unavailable in this browser. All training outcomes remain accessible.</p><p><a href="#/activity/cbt-m1-bigpicture">Explore rotor force</a> · <a href="#/activity/cbt-m7-bet-guided">Inspect the velocity triangle</a></p></div></div>';
   }
 
   /* value→colour ramps */
@@ -830,8 +824,7 @@ const HLW = (function () {
         ['Drag / T_h', DN.toFixed(0) + ' N  ·  ' + ThN.toFixed(0) + ' N', DN > ThN ? 'var(--hl-bad)' : 'var(--hl-drag)'],
         ['Pedals / yaw', yawTxt, Math.abs(netYaw) < 0.06 ? 'var(--hl-good)' : 'var(--hl-warn)'],
         ['Result', result, 'var(--hl-warn)'],
-      ]) + `<p class="hl-note">Collective sets total thrust: <b>T/W &gt; 1 climbs, &lt; 1
-        descends</b>. Cyclic <b>tilts the thrust</b> — its forward component T·sinθ
+      ]) + `<p class="hl-note">Collective sets total thrust: <b>vertical thrust greater than weight accelerates upward; less accelerates downward</b>. Cyclic <b>tilts the thrust</b> — its forward component T·sinθ
         accelerates the helicopter, but as speed builds <b>parasite drag</b> (½ρV²f)
         grows until T·sinθ = Drag and you cruise at steady speed. The main rotor's
         <b>torque</b> spins the fuselage the other way — the <b>tail rotor</b> cancels it.
@@ -1080,6 +1073,7 @@ const HLW = (function () {
       !((step === 2 && gate1 !== 'correct') || (step === 3 && gate2 !== '6') || (step === 5 && gate3 !== 'correct') || step === 6);
 
     const updateStepUI = () => {
+      if (gate1 === 'correct' && gate2 === '6' && gate3 === 'correct') host.dispatchEvent(new CustomEvent('hl-evidence', {detail:{correct:true,detail:'Constructed V_rel, identified α and local force component.'}}));
       stepCounter.textContent = 'Step ' + step + ' of 6';
       stepCaption.textContent = CAPTIONS[step - 1];
       stepStrip.querySelectorAll('.hl-step-chip').forEach((chip) => {
@@ -1113,6 +1107,17 @@ const HLW = (function () {
         commitBtn.disabled = !gate1Draft;
         commitBtn.addEventListener('click', () => { gate1 = gate1State(); updateStepUI(); draw(); });
         ui.controls.appendChild(commitBtn);
+        const keyboard = el('fieldset', 'cbt-case');
+        keyboard.appendChild(el('legend', null, 'Keyboard construction: choose vector endpoints'));
+        const starts = el('select'); starts.setAttribute('aria-label','V_rel start point');
+        const ends = el('select'); ends.setAttribute('aria-label','V_rel end point');
+        [['','Choose start'],['wind','Tip of induced-velocity vector'],['element','Blade-element point']].forEach(([v,t])=>{const o=el('option',null,t);o.value=v;starts.append(o);});
+        [['','Choose end'],['element','Blade-element point'],['horizontal','End of horizontal component']].forEach(([v,t])=>{const o=el('option',null,t);o.value=v;ends.append(o);});
+        const construct = el('button','hl-foot-btn','Construct from endpoints');construct.type='button';
+        construct.onclick=()=>{if(!starts.value||!ends.value||!gate1Geom)return;const g=gate1Geom;
+          gate1Draft={x1:starts.value==='wind'?g.wtx:g.ox,y1:starts.value==='wind'?g.wty:g.oy,x2:ends.value==='element'?g.ox:g.fX,y2:g.oy};
+          gate1=null;draw();ui.controls.querySelector('.hl-link-btn').focus();};
+        keyboard.append(starts,ends,construct);ui.controls.append(keyboard);
         const fb1 = gateFeedback(gate1,
           'Correct — your vector starts at the v_i tip and follows the correct V_rel line into the blade element.',
           'Not yet — start at the v_i tip and keep the resultant aimed into the blade-element point with a downward component.');
@@ -1250,8 +1255,8 @@ const HLW = (function () {
       HLD.clear(ctx, W, H, col);
       HLD.grid(ctx, W, H, col, 30);
       const forceStep = step >= 5;
-      const ox = Math.max(W * (forceStep ? 0.21 : 0.18), forceStep ? 112 : 0);
-      const oy = H * 0.64, len = Math.min(W * 0.58, 330);
+      const ox = W * (forceStep ? 0.40 : 0.24);
+      const oy = H * 0.66, len = Math.min(W * (forceStep ? 0.43 : 0.50), 300);
       if (step === 1) {
         drawReference(ctx, W, H, col);
         ui.readout.innerHTML = readout('Start from the blank reference frame. The element location and the known inputs are given, but V_rel, φ, α and the forces are still hidden.');
@@ -1315,7 +1320,7 @@ const HLW = (function () {
           showResolve: true,
           liftLabel: 'F_L',
           dragLabel: 'F_D',
-          resolveLabel: 'Local normal',
+          resolveLabel: 'Normal',
           fhLabel: 'F_H ×6',
           cl, cd, aoa,
         }, col);
@@ -1338,19 +1343,10 @@ const HLW = (function () {
           showResolve: true,
           liftLabel: 'F_L',
           dragLabel: 'F_D',
-          resolveLabel: 'Local normal',
+          resolveLabel: 'Normal',
           fhLabel: 'F_H ×6',
           cl, cd, aoa,
         }, col);
-        const compactStep6 = W < 420;
-        HLD.chipLabel(ctx, 'Local normal component → contributes to rotor thrust',
-          compactStep6 ? 12 : W * 0.55, compactStep6 ? H * 0.13 : H * 0.15,
-          col.good, compactStep6 ? 'bold 10px IBM Plex Sans' : 'bold 11px IBM Plex Sans',
-          compactStep6 ? 'left' : 'center');
-        HLD.chipLabel(ctx, 'F_H → in-plane braking load that rotor torque must overcome',
-          compactStep6 ? 12 : W * 0.58, compactStep6 ? H * 0.24 : H * 0.22,
-          col.warn, compactStep6 ? 'bold 10px IBM Plex Sans' : 'bold 11px IBM Plex Sans',
-          compactStep6 ? 'left' : 'center');
         ui.readout.innerHTML = kv([
           ['Scenario', 'Fixed canonical element', 'var(--hl-accent)'],
           ['Local normal', 'Contributes to overall rotor thrust', 'var(--hl-good)'],
@@ -1537,7 +1533,7 @@ const HLW = (function () {
         HLD.arrow(ctx, ax, discY + 10, ax, discY + 10 + viLen, col.wind, 2.3, 7);
       }
       ctx.globalAlpha = 1;
-      HLD.text(ctx, 'air accelerated downward through the disc', cx, discY + Math.min(h * 0.43, 24 + cfg.vi * 3.8), col.wind, '10px IBM Plex Sans', 'center');
+      HLD.text(ctx, 'downward airflow', cx, discY + Math.min(h * 0.43, 24 + cfg.vi * 3.8), col.wind, '10px IBM Plex Sans', 'center');
     } else {
       HLD.text(ctx, 'Hovering — no horizontal motion to explain the power', cx, discY + 32, col.dim, '10px IBM Plex Sans', 'center');
     }
@@ -1561,13 +1557,14 @@ const HLW = (function () {
       `Induced power  ${(cfg.pi / 1000).toFixed(0)} kW`,
     ];
     lines.forEach((line, i) => {
-      HLD.text(ctx, line, x + pad, y + h * 0.70 + i * 16, i < 2 ? col.ink : (i === 2 ? col.wind : col.accent), '11px IBM Plex Sans', 'left', 'top');
+      HLD.text(ctx, line, x + pad, y + h * 0.65 + i * 16, i < 2 ? col.ink : (i === 2 ? col.wind : col.accent), '11px IBM Plex Sans', 'left', 'top');
     });
     if (cfg.collective != null) HLD.text(ctx, `Collective ${cfg.collective.toFixed(1)}°`, x + pad, y + h - 12, col.chord, '10px IBM Plex Sans', 'left', 'bottom');
   }
 
   function wM2HoverWhy(host) {
     const ui = scaffold(host);
+    ui.canvas.parentElement.classList.add('hl-hover-stage');
     const hover = HL.hoverTrimSolve(HL.defaultState(), HL.weightN(HL.defaultState()));
     const options = [
       'The power is mainly spent simply holding the helicopter up in one place.',
@@ -1642,6 +1639,7 @@ const HLW = (function () {
 
   function wM2RotorFlowPower(host) {
     const ui = scaffold(host);
+    ui.canvas.parentElement.classList.add('hl-hover-stage');
     const st = HL.defaultState();
     const baseCollective = 8.6;
     const changedCollective = 10.2;
@@ -1676,8 +1674,8 @@ const HLW = (function () {
         if (prediction != null) {
           btn.classList.add('done');
           btn.disabled = true;
-          if (i === 0) btn.classList.add('correct');
-          else if (i === prediction) btn.classList.add('wrong');
+          if (changed && i === 0) btn.classList.add('correct');
+          else if (changed && i === prediction) btn.classList.add('wrong');
         }
         btn.onclick = () => { if (prediction == null) { prediction = i; refresh(); } };
         opts.appendChild(btn);
@@ -1736,7 +1734,7 @@ const HLW = (function () {
       if (prediction == null) {
         ui.readout.innerHTML += '<p class="hl-note">The readout shows the current state only. Commit to your prediction before you unlock the collective change.</p>';
       } else if (!changed) {
-        ui.readout.innerHTML += `<div class="hl-check-fb ${prediction === 0 ? 'ok' : 'no'}">${prediction === 0 ? 'Prediction locked.' : 'Prediction locked.'} Now make the collective change and compare the new rotor state with the baseline.</div>`;
+        ui.readout.innerHTML += `<div class="hl-check-fb neutral">${prediction === 0 ? 'Prediction locked.' : 'Prediction locked.'} Now make the collective change and compare the new rotor state with the baseline.</div>`;
       } else {
         ui.readout.innerHTML += '<div class="hl-check-fb ok">Collective increased → produced thrust rises first → the rotor must drive more air through the disc → induced velocity rises → induced power rises.</div>';
         ui.readout.innerHTML += kv([
@@ -1768,7 +1766,7 @@ const HLW = (function () {
           showFlow: true,
         });
       } else {
-        drawHoverStatePanel(ctx, { x: W * 0.05, y: H * 0.11, w: W * 0.42, h: H * 0.76 }, col, {
+        drawHoverStatePanel(ctx, (W < 560 ? {x:W*.05,y:H*.02,w:W*.90,h:H*.43} : { x: W * 0.05, y: H * 0.11, w: W * 0.42, h: H * 0.76 }), col, {
           label: 'Before',
           thrust: base.thrust,
           weight: HL.weightN(st),
@@ -1777,7 +1775,7 @@ const HLW = (function () {
           collective: baseCollective,
           showFlow: true,
         });
-        drawHoverStatePanel(ctx, { x: W * 0.53, y: H * 0.11, w: W * 0.42, h: H * 0.76 }, col, {
+        drawHoverStatePanel(ctx, (W < 560 ? {x:W*.05,y:H*.50,w:W*.90,h:H*.43} : { x: W * 0.53, y: H * 0.11, w: W * 0.42, h: H * 0.76 }), col, {
           label: 'After collective increase',
           thrust: cur.thrust,
           weight: HL.weightN(st),
@@ -1786,7 +1784,7 @@ const HLW = (function () {
           collective,
           showFlow: true,
         });
-        HLD.text(ctx, 'Compare what the rotor produces with what hover requires.', W * 0.50, H * 0.93, col.dim, '11px IBM Plex Sans', 'center', 'middle');
+        HLD.text(ctx, 'Produced thrust ≠ required thrust', W * 0.50, H * 0.93, col.dim, '11px IBM Plex Sans', 'center', 'middle');
       }
     }
 
@@ -1798,6 +1796,7 @@ const HLW = (function () {
 
   function wM2ChangeDemand(host) {
     const ui = scaffold(host);
+    ui.canvas.parentElement.classList.add('hl-hover-stage');
     const baseState = HL.defaultState();
     const scenarios = {
       weight: {
@@ -1835,6 +1834,7 @@ const HLW = (function () {
       'collective increases',
       'thrust decreases',
     ];
+    for (let i=chainBank.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [chainBank[i],chainBank[j]]=[chainBank[j],chainBank[i]]; }
     const chainAnswer = [
       'required thrust increases',
       'induced velocity increases',
@@ -2053,7 +2053,7 @@ const HLW = (function () {
           showFlow: true,
         });
       } else {
-        drawHoverStatePanel(ctx, { x: W * 0.05, y: H * 0.11, w: W * 0.42, h: H * 0.76 }, col, {
+        drawHoverStatePanel(ctx, (W < 560 ? {x:W*.05,y:H*.02,w:W*.90,h:H*.43} : { x: W * 0.05, y: H * 0.11, w: W * 0.42, h: H * 0.76 }), col, {
           label: 'Reference hover',
           thrust: base.thrust,
           weight: base.weight,
@@ -2062,7 +2062,7 @@ const HLW = (function () {
           collective: null,
           showFlow: true,
         });
-        drawHoverStatePanel(ctx, { x: W * 0.53, y: H * 0.11, w: W * 0.42, h: H * 0.76 }, col, {
+        drawHoverStatePanel(ctx, (W < 560 ? {x:W*.05,y:H*.50,w:W*.90,h:H*.43} : { x: W * 0.53, y: H * 0.11, w: W * 0.42, h: H * 0.76 }), col, {
           label: scenarios[scenario].label,
           thrust: cur.thrust,
           weight: cur.weight,
@@ -2268,7 +2268,27 @@ const HLW = (function () {
         phase = Math.abs(v) < 0.15 ? 'HOVER' : (v > 0 ? 'CLIMB (manual)' : 'DESCENT (manual)'); draw(); } });
 
     const ro = new ResizeObserver(() => { if (!animating) draw(); }); ro.observe(stage);
+    (host._hlDisposers ||= []).push(() => { ro.disconnect(); animating=false; if(raf) cancelAnimationFrame(raf); });
     requestAnimationFrame(draw);
+  }
+
+  function wCBTGroundEffect(host) {
+    const ui = scaffold(host); const st = HL.defaultState(); let zR = 0.6;
+    slider(ui.controls,{label:'Rotor height / radius',min:0.3,max:2,step:0.05,val:zR,on:v=>{zR=v;draw();}});
+    function draw(){
+      const cmp=HL.groundEffectFixedThrustComparison(st,zR),a=cmp.oge.solution,b=cmp.ige.solution;
+      ui.readout.innerHTML=kv([
+        ['Required thrust (both)',(cmp.targetThrust/1000).toFixed(2)+' kN','var(--hl-lift)'],
+        ['OGE induced velocity',a.vi.toFixed(2)+' m/s','var(--hl-wind)'],
+        ['IGE induced velocity',b.vi.toFixed(2)+' m/s','var(--hl-wind)'],
+        ['OGE induced power',(a.Pi_induced/1000).toFixed(1)+' kW','var(--brand)'],
+        ['IGE induced power',(b.Pi_induced/1000).toFixed(1)+' kW','var(--brand)']
+      ])+'<p>Equal mass, density and rotor area. Collective is solved separately to maintain the same required thrust. Idealised induced-power comparison, not an aircraft performance chart.</p>';
+      const {ctx,W,H,col}=HLD.setup(ui.canvas);HLD.clear(ctx,W,H,col);
+      const max=Math.max(a.Pi_induced,b.Pi_induced),width=W*.22;
+      [a,b].forEach((x,i)=>{const h=x.Pi_induced/max*H*.50,cx=W*(i?.67:.33);ctx.fillStyle=i?col.good:col.accent;ctx.fillRect(cx-width/2,H*.76-h,width,h);HLD.text(ctx,i?'IGE':'OGE',cx,H*.84,col.ink,'bold 14px sans-serif','center');});
+      HLD.text(ctx,'Induced power at equal thrust',W/2,28,col.ink,'14px sans-serif','center');
+    } ui.onDraw(draw);
   }
 
   /* 6 — Ground effect */
@@ -2436,11 +2456,12 @@ const HLW = (function () {
     };
     slider(controls, { label: 'Forward speed', min: 0, max: 160, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; drawBet(); } });
     const ro = new ResizeObserver(() => drawBet()); ro.observe(betWrap);
+    (host._hlDisposers ||= []).push(() => ro.disconnect());
     requestAnimationFrame(drawBet);
   }
 
   /* Flapback & Inflow Roll: longitudinal flapback, lateral inflow roll, compare mode
-     Educational model — quasi-steady, prescribed first-harmonic (Pitt-Peters).
+     Educational model — quasi-steady, prescribed first-harmonic wake-skew approximation.
      NOT a free-wake or transient rotor-body coupling model. */
   function wFlappingRoll(host) {
     const ui = scaffold(host);
@@ -2681,7 +2702,7 @@ const HLW = (function () {
         const AMP   = 6;                   // visual amplification of UP for clarity
         // U_P goes UPWARD in the diagram (induced velocity downward through disc
         // = air approaches blade from above = perpendicular component points up)
-        const upPx  = Math.min(Math.max(0, lamVal) / UT * utPx * AMP, utPx * 0.85);
+        const upPx  = Math.max(-utPx * 0.85, Math.min(lamVal / UT * utPx * AMP, utPx * 0.85));
         const upConPx = Math.max(-22, Math.min(22, lamConing / UT * utPx * AMP));
 
         // Disc plane is the horizontal reference; triangle is above it
@@ -2709,19 +2730,19 @@ const HLW = (function () {
                  col.chord, '9px IBM Plex Sans', 'center', 'top');
 
         // U_P arrow (upward from T → C: air approaches from above due to induced velocity)
-        if (upPx > 2) {
+        if (Math.abs(upPx) > 2) {
           HLD.arrow(ctx, Tx, Ty, Cx, Cy, col.accent, 2, 6);
           HLD.text(ctx, 'U\u209a', Tx + 4, (Ty + Cy) / 2,
                    col.accent, '9px IBM Plex Sans', 'left', 'middle');
         } else if (lamVal < -0.002) {
           // First-harmonic model predicts near-zero/upwash at this station
-          HLD.text(ctx, '(\u03bb\u2248 0 at A)', Tx + 4, Ty - 8,
+          HLD.text(ctx, 'weak upwash', Tx + 4, Ty - 8,
                    col.dim, '8px IBM Plex Sans', 'left', 'middle');
         }
 
         // W resultant arrow (from O to C, diagonal upward-right)
         // W = resultant incoming relative wind = (U_T, U_P) direction
-        if (upPx > 0) {
+        if (Math.abs(upPx) > 0) {
           HLD.arrow(ctx, Ox, Oy, Cx, Cy, col.lift, 2, 6);
           HLD.text(ctx, 'W', Cx + 3, Cy - 2,
                    col.lift, '9px IBM Plex Sans', 'left', 'bottom');
@@ -2935,7 +2956,7 @@ const HLW = (function () {
          + '(\u03bb\u2090 &lt; \u03bb\u2071). This creates a fore-aft lift asymmetry \u2192 '
          + 'flapping with ~90\u00b0 phase lag \u2192 roll tendency (countered by lateral cyclic). '
          + 'Use "Show causal chain" for the step-by-step mechanism.</p>'
-         + (lamA < 0 ? '<p class="hl-note">\u26a0 \u03bb_A &lt; 0: the first-harmonic (Pitt-Peters) '
+         + (lamA < 0 ? '<p class="hl-note">\u26a0 \u03bb_A &lt; 0: the first-harmonic wake-skew approximation '
                      + 'model predicts upwash at the front disc at this speed. This is a limitation '
                      + 'of the linearised inflow model at high advance ratio \u2014 it still shows '
                      + 'the correct TFE trend (\u03b1_A &gt; \u03b1_B), but the absolute values '
@@ -2943,7 +2964,7 @@ const HLW = (function () {
          + '<p class="hl-note">Diagram: U\u209a amplitude amplified \u00d78 for visual '
          + 'clarity (not to scale). Station A = front (\u03c8=180\u00b0), B = aft (\u03c8=0\u00b0). '
          + 'At these azimuths sin\u03c8=0, so U\u1d40=r\u0305=0.75 with no advance-ratio contribution. '
-         + '<i>Prescribed first-harmonic (Pitt-Peters style) + quasi-steady BET \u2014 '
+         + '<i>Prescribed first-harmonic (prescribed wake-skew approximation) + quasi-steady BET \u2014 '
          + 'educational model, not free-wake.</i></p>';
     }
 
@@ -3092,7 +3113,7 @@ const HLW = (function () {
          + 'velocity triangle at 0.75R for each azimuth. '
          + `Coning at NOSE=${coningFwd.toFixed(4)}, TAIL=${coningTail.toFixed(4)} `
          + '(modifies local triangle, does NOT create wake asymmetry). '
-         + '<i>Prescribed first-harmonic Pitt-Peters + quasi-steady BET.</i></p>'
+         + '<i>Prescribed first-harmonic wake-skew approximation + quasi-steady BET.</i></p>'
          + decompTableHtml(rows);
     }
 
@@ -3146,7 +3167,7 @@ const HLW = (function () {
          + decompTableHtml(rows)
          + '<p class="hl-note">Sign convention used here: positive inflow points down through the disc; \u03c8 = 0\u00b0 tail, 90\u00b0 ADV, 180\u00b0 nose, 270\u00b0 RET.</p>'
          + '<p class="hl-note" style="margin-top:4px"><b>Model assumptions:</b> quasi-steady, '
-         + 'prescribed first-harmonic (Pitt-Peters). Not a free-wake or transient '
+         + 'prescribed first-harmonic wake-skew approximation. Not a free-wake or transient '
          + 'rotor\u2013body coupling model. Educational tool only.</p>';
     }
 
@@ -4815,14 +4836,12 @@ const HLW = (function () {
       HLD.chipLabel(ctx, 'bank ' + bankDeg.toFixed(0) + '°', 16, 18, diverging ? col.bad : col.ink, 'bold 13px IBM Plex Sans', 'left');
       ui.readout.innerHTML = kv([
         ['Bank about pivot', bankDeg.toFixed(0) + '°', diverging ? 'var(--hl-bad)' : 'var(--hl-ink)'],
-        ['Critical rollover angle', '≈ ' + critDeg.toFixed(1) + '°', 'var(--hl-warn)'],
+        ['Illustrative balance threshold', '≈ ' + critDeg.toFixed(1) + '°', 'var(--hl-warn)'],
         ['Collective (thrust)', collPct.toFixed(0) + '%  ·  T/W ' + tw.toFixed(2), tw >= 1 ? 'var(--hl-good)' : 'var(--hl-ink)'],
         ['Restoring moment (weight)', restoreMag.toFixed(1) + ' kN·m', restoreMag > 0 ? 'var(--hl-lift)' : 'var(--hl-bad)'],
         ['Rolling moment (tilted thrust)', driveMag.toFixed(1) + ' kN·m', diverging ? 'var(--hl-bad)' : 'var(--hl-warn)'],
-        ['State', diverging ? 'DIVERGENT — rolling over' : 'recoverable', diverging ? 'var(--hl-bad)' : 'var(--hl-good)'],
-      ]) + `<p class="hl-note">${diverging
-          ? '<b>Past the critical angle (≈' + critDeg.toFixed(1) + '°).</b> The tilted thrust\u2019s horizontal component now exceeds the weight\u2019s restoring moment — the roll is <b>self-amplifying</b>. Cyclic can no longer save it. <b>Smoothly LOWER the collective</b> to kill the thrust that powers the roll.'
-          : 'Below the critical angle (≈' + critDeg.toFixed(1) + '° at this power) the weight still restores the aircraft. Raise the bank past it — or add collective — and the tilted thrust vector takes over. The pivot is a skid/wheel still touching the ground, <b>not</b> the CofG.'}</p>`;
+        ['State', diverging ? 'Thrust term dominates' : 'Weight term dominates', diverging ? 'var(--hl-bad)' : 'var(--hl-good)'],
+      ]) + '<p class="hl-note">This simplified moment comparison uses assumed geometry and omits roll-rate dynamics and control limits. Its threshold is not a safe bank angle or a prediction of recoverability. Compare the thrust contribution at two collective settings; actual procedures require approved aircraft instruction.</p>';
     };
     slider(ui.controls, { label: 'Bank angle about pivot', min: 0, max: 20, step: 1, val: bankDeg, unit: '°', fmt: v => v.toFixed(0), on: v => { bankDeg = v; draw(); } });
     slider(ui.controls, { label: 'Collective (thrust)', min: 30, max: 100, step: 5, val: collPct, unit: '%', fmt: v => v.toFixed(0), on: v => { collPct = v; draw(); } });
@@ -5428,6 +5447,7 @@ const HLW = (function () {
     requestAnimationFrame(drawAll);
     const ro = new ResizeObserver(drawAll);
     figs.forEach(f => ro.observe(f.cv.parentElement));
+    (host._hlDisposers ||= []).push(() => ro.disconnect());
   }
 
   /* ===== GUIDED BET: 5-layer build-up =====
@@ -5959,11 +5979,11 @@ const HLW = (function () {
       drawReadout();
     };
     ui.onDraw(draw);
-    return { draw };
+    return { draw, dispose() { playing=false; clearInterval(sweepTimer); } };
   }
 
-  return {
-    wBigPicture, wBladeElement, wM104BladeElement, wSpanwise, wHover, wM2HoverWhy, wM2RotorFlowPower, wM2ChangeDemand, wVertical, wGroundEffect,
+  const registry = {
+    wCBTGroundEffect, wBigPicture, wBladeElement, wM104BladeElement, wSpanwise, wHover, wM2HoverWhy, wM2RotorFlowPower, wM2ChangeDemand, wVertical, wGroundEffect,
     wDissymmetry, wFlapping, wFlappingRoll, wEnvelope, wCoriolis, wDynamicRollover, wLTE,
     wAutorotation, wPerformance, wBetDiagram, wBetVelocity, wBetModel,
     wSandbox, wRotorTeaser, wGuidedRotorLab,
@@ -5978,4 +5998,14 @@ const HLW = (function () {
        ─────────────────────────────────────────────────────────────── */
     wGuidedBET,
   };
+  return Object.fromEntries(Object.entries(registry).map(([name, fn]) => [name, (host, ...args) => {
+    host._hlDisposers = [];
+    const handle = fn(host, ...args);
+    let disposed = false;
+    return { ...(handle && typeof handle === 'object' ? handle : {}), dispose() {
+      if (disposed) return; disposed = true;
+      if (typeof handle === 'function') handle(); else handle?.dispose?.();
+      host._hlDisposers.splice(0).forEach(fn => fn());
+    } };
+  }]));
 })();
