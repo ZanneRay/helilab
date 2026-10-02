@@ -1063,7 +1063,9 @@ body {
 .cbt-case-reference summary,.cbt-result-proof summary { cursor: pointer; color: var(--text2); line-height: 1.7; }
 .cbt-result-proof { margin: 12px 0; }
 @media(max-width:600px) {
+ .cbt-course-table thead { display: none; }
  .cbt-course-table tr { display: grid; grid-template-columns: 1fr 1fr; padding: 12px 0; border-bottom: 1px solid var(--border); }
  .cbt-course-table th { grid-column: 1 / -1; }
+ .cbt-course-table td:last-child { grid-column: 1 / -1; }
  .cbt-course-table th,.cbt-course-table td { border: 0; }
 }

@@ -308,9 +308,9 @@
     if(last&&MODULE_ACTIVITY_BY_LESSON[last]&&last!==next?.lessonId){const resume=el('p','cbt-status','Last visited: '+MODULE_ACTIVITY_BY_LESSON[last].title+' ');resume.appendChild(navAction('Return to last visited step',routeForLesson(last)));main.appendChild(resume);}
     for(const m of HL_V2_MODULES){
       const detail=el('details','cbt-path-module');detail.open=!!next&&m.activities.includes(next);const count=m.activities.filter(HLTraining.complete).length;
-      detail.appendChild(el('summary',null,`${m.number} · ${m.title}<span class="cbt-module-count">${count} / ${m.activities.length} complete</span>`));detail.appendChild(el('p',null,m.outcome));detail.appendChild(activityRows(m));detail.appendChild(navAction('Module overview',`#/module/${m.id}`),navAction('Module result',`#/module/${m.id}/result`));main.appendChild(detail);
+      detail.appendChild(el('summary',null,`${m.number} · ${m.title}<span class="cbt-module-count">${count} / ${m.activities.length} complete</span>`));detail.appendChild(el('p',null,m.outcome));detail.appendChild(activityRows(m));detail.append(navAction('Module overview',`#/module/${m.id}`),navAction('Module result',`#/module/${m.id}/result`));main.appendChild(detail);
     }
-    const optional=el('details','cbt-optional');optional.appendChild(el('summary',null,'Optional exploration and reference tools'));optional.appendChild(el('p',null,'These tools support exploration. They do not add steps to the numbered learning path.'));optional.appendChild(navAction('3D Rotor Lab','#/rotor-lab'),navAction('Reference tools','#/lab-tools'));main.appendChild(optional);
+    const optional=el('details','cbt-optional');optional.appendChild(el('summary',null,'Optional exploration and reference tools'));optional.appendChild(el('p',null,'These tools support exploration. They do not add steps to the numbered learning path.'));optional.append(navAction('3D Rotor Lab','#/rotor-lab'),navAction('Reference tools','#/lab-tools'));main.appendChild(optional);
     main.appendChild(el('p','cbt-status','Your work is stored in this browser. Export a backup from Learning record. Completion records practice; instructor observations are recorded separately.'));
     main.scrollTop=0;
   }
@@ -328,6 +328,7 @@
     const remaining=m.activities.filter(a=>!HLTraining.complete(a));
     main.appendChild(el('div','hl-lesson-head',`<div class="hl-lesson-stage">Module ${m.number} result</div><h1>${remaining.length?'Open work in':'Completed practice in'} ${m.title}</h1><p>${m.activities.length-remaining.length} / ${m.activities.length} activities complete</p>`));
     main.appendChild(el('p',null,m.outcome));
+    main.appendChild(el('p','cbt-status',HLTraining.observation(m).label));
     const following=HL_V2_MODULES[m.number];main.appendChild(navAction(remaining.length?'Finish first open step':following?'Continue to Module '+following.number:'View course summary',remaining.length?routeForLesson(remaining[0].lessonId):following?'#/module/'+following.id:'#/finish',true));
     for(const a of m.activities){const row=el('section','cbt-result-row');row.appendChild(el('h2',null,a.title));row.appendChild(el('p','cbt-status',HLTraining.status(a)));
       if(HLTraining.complete(a)){const requirements=HLTraining.evidence(a,HLProgress.get(a.lessonId).snapshots);const list=el('ul');requirements.filter(r=>r.passed).forEach(r=>list.appendChild(el('li',null,r.label)));const proof=el('details','cbt-result-proof');proof.appendChild(el('summary',null,'View saved model evidence'));proof.appendChild(list);row.appendChild(proof);
@@ -347,8 +348,9 @@
     main.appendChild(el('h1',null,open.length?'Course summary — open work remains':'Learning path complete'));
     main.appendChild(el('p',null,`${HLTraining.activities().length-open.length} / ${HLTraining.activities().length} activities complete. Review the evidence, supported attempts and human observations before deciding the next practice.`));
     if(open.length)main.appendChild(navAction('Continue first open activity',routeForLesson(open[0].lessonId),true));
-    const table=el('table','cbt-data-table cbt-course-table'),body=el('tbody');
-    for(const m of HL_V2_MODULES){const row=el('tr'),name=el('th');name.appendChild(navAction(`${m.number} · ${m.title}`,`#/module/${m.id}/result`));const completed=m.activities.filter(HLTraining.complete).length,transfers=m.activities.filter(a=>a.transfer&&HLTraining.complete(a)),review=HLProgress.all().reviews[m.id];row.appendChild(name,el('td',null,`${completed} / ${m.activities.length} complete`),el('td',null,`${transfers.filter(HLTraining.independent).length} / ${m.activities.filter(a=>a.transfer).length} current changed cases checked before feedback`),el('td',null,review?.version===HLTraining.VERSION?'Local observation saved':'No current observation'));body.appendChild(row);}table.appendChild(body);main.appendChild(table);
+    const table=el('table','cbt-data-table cbt-course-table'),body=el('tbody'),head=el('thead'),headRow=el('tr');
+    for(const label of ['Module','Completed practice','Checks before feedback','Human observation']){const th=el('th',null,label);th.scope='col';headRow.appendChild(th);}head.appendChild(headRow);table.appendChild(head);
+    for(const m of HL_V2_MODULES){const row=el('tr'),name=el('th');name.scope='row';name.appendChild(navAction(`${m.number} · ${m.title}`,`#/module/${m.id}/result`));const completed=m.activities.filter(HLTraining.complete).length,transfers=m.activities.filter(a=>a.transfer&&HLTraining.complete(a));row.append(name,el('td',null,`${completed} / ${m.activities.length} complete`),el('td',null,`${transfers.filter(HLTraining.independent).length} / ${m.activities.filter(a=>a.transfer).length} current changed cases checked before feedback`),el('td',null,HLTraining.observation(m).label));body.appendChild(row);}table.appendChild(body);main.appendChild(table);
     main.appendChild(navAction('Review evidence / export backup','#/record',true));main.appendChild(el('p','cbt-status','The app stores model evidence and decisions. Free explanations require human review; activity completion is practice, not pilot certification.'));
   }
 

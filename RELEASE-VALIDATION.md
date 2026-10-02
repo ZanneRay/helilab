@@ -1,5 +1,17 @@
 # Learning-path release validation — 2026-10-02
 
+## Case-specific instructor observations
+
+Local observations now select an activity and bind to the current case, task version, question IDs and saved reasoning/model evidence. Case or evidence changes invalidate the current-observation label while preserving the earlier note and ratings. Re-observation retains up to twelve earlier entries per module. Navigation and unsaved model exploration do not invalidate observed work. Imported earlier observations remain visible without being labelled current; schema 4 backups retain the new binding and history.
+
+The record exposes saved inputs/outputs and observable anchors for five criteria. Module and course results show the observed case and independent/supported/discussion/unobserved criterion counts. This is a locally entered case observation, not an authenticated assessor judgment or a module-wide competence verdict.
+
+Browser review also found that the course table and two groups of optional/result actions inserted only their first node. Correct multiple-node insertion restores the three result cells for every module, all module-result buttons and the optional reference-tools button. Desktop column headings distinguish practice, checks and observation; phone rows remain compact.
+
+The [user-validation protocol](USER-VALIDATION.md) is prepared for representative learners and instructors, including route tasks, calibration, delayed transfer and an observation sheet. Participant testing and confirmed syllabus coverage remain outstanding.
+
+Validation adds eight curriculum/backup checks and twelve browser acceptance checks for observation bindings, changed work, history, numbering, numerical evidence, restored result cells/actions and phone layouts. The final suite totals are **123 physics**, **37 curriculum**, **87 activity/viewport**, **126 browser acceptance** and **39 focused content checks**. Screenshot inspection covers the observation form and course evidence on desktop and phone. Core physics and task-completion rules are unchanged.
+
 ## Subsequent content review
 
 The [deep content review](CONTENT-REVIEW.md) revises all 19 references and the explanations used by the 29 activities. It corrects signed inflow, fixed-pitch versus equal-load reasoning, trimmed versus untrimmed rotor states, hover-demand conditions, rotor phase, yaw mechanisms, power-curve interpretation and the autorotation energy budget. Case datasets and distractors were improved. Native references unlock after commitments so they cannot reveal answers prematurely.
