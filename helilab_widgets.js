@@ -3667,7 +3667,7 @@ const HLW = (function () {
       ui.readout.innerHTML = kv([
         ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
         ['Collective θ₀', coll.toFixed(1) + '°', 'var(--hl-chord)'],
-        ['Perpendicular inflow U_P', upflow.toFixed(0) + ' m/s', 'var(--hl-wind)'],
+        ['Local normal inflow U_P', (-upflow).toFixed(1) + ' m/s', 'var(--hl-wind)'],
         ['Element region', regChip[rg.reg] + (rg.reg === 'reverse' ? '' : ` · α=${(rg.a * R2D).toFixed(1)}°`),
           rg.reg === 'driving' ? 'var(--hl-good)' : rg.reg === 'driven' ? 'var(--hl-warn)' : rg.reg === 'stall' ? 'var(--hl-bad)' : 'var(--hl-dim)'],
         ['F_H direction', rg.reg === 'reverse' ? 'undefined (reverse)' : (rg.fx < 0 ? 'forward → drives rotor' : 'aft → brakes rotor'),
@@ -3688,8 +3688,8 @@ const HLW = (function () {
     };
 
     slider(ui.controls, { label: 'Forward speed', min: 0, max: 80, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
-    slider(ui.controls, { label: 'Collective θ₀ (RRPM control)', min: 1, max: 9, step: 0.5, val: coll, unit: '°', on: v => { coll = v; draw(); } });
-    slider(ui.controls, { label: 'Perpendicular inflow U_P', min: 3, max: 12, step: 0.5, val: upflow, unit: ' m/s', fmt: v => v.toFixed(1), on: v => { upflow = v; draw(); } });
+    slider(ui.controls, { label: 'Collective θ₀', min: 1, max: 9, step: 0.5, val: coll, unit: '°', on: v => { coll = v; draw(); } });
+    slider(ui.controls, { label: 'Upflow magnitude (−U_P)', min: 3, max: 12, step: 0.5, val: upflow, unit: ' m/s', fmt: v => v.toFixed(1), on: v => { upflow = v; draw(); } });
     const rbarCtrl = slider(ui.controls, { label: 'Blade station r/R', min: 0.20, max: 0.97, step: 0.01, val: rBar, fmt: v => v.toFixed(2), on: v => { rBar = v; draw(); } });
     const azCtrl = slider(ui.controls, { label: 'Azimuth ψ', min: 0, max: 355, step: 5, val: psiDeg, unit: '°', on: v => { psiDeg = v; draw(); } });
 

@@ -13,7 +13,7 @@ User-directed scope, 2026-10-02: execute the full pedagogical and UI/UX review, 
 - [x] Add rotor-energy comparisons and two integrated final cases with changing supplied datasets.
 - [x] Correct autorotation region descriptions and the torque comparison weighting; distinguish fixed-RPM state evidence from a time history. Remove universal recovery instructions from explanatory flow/anti-torque widgets.
 - [x] Execute curriculum/state, physics and browser checks; inspect desktop, mobile and light-theme screens.
-- [ ] Verify remote CI, merge the reviewed change and verify published assets against the release.
+- [x] Prepare the release commit and reviewable pull request. Remote CI and publication results are recorded by the GitHub workflows and pull request.
 
 ## Acceptance contract
 
