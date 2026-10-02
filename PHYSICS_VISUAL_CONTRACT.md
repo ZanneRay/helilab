@@ -1,5 +1,52 @@
 # HeliLab — Physics & Visual Contract
 
+## Content audit clarification — 2026-10-02
+
+This clarification takes precedence over universal teaching claims below. The
+core aerodynamic equations and rotor/azimuth conventions are unchanged.
+
+- Positive **total** U_P reduces alpha at fixed pitch in normal chordwise flow.
+  Induced downflow alone does not establish total U_P; upflow can give negative phi.
+- The velocity-triangle widget must use the same trimmed state for pitch and
+  blade motion, retain signed throughflow, and include the existing induced,
+  flap-rate and coning terms from localVelocityDecomposition. Remove its old
+  absolute-throughflow/trimmed-pitch/natural-flap blend. This reuses the core
+  blade-element equations (Leishman, *Principles of Helicopter Aerodynamics*,
+  forward-flight BET, section 3.5.2); no core equation is changed. Check displayed
+  U_T/U_P, their sum and atan2 against the core for hover, opposite azimuts and
+  negative total U_P. Any optional Foundation map uses a prescribed phi based on
+  radius alone: label that different approximation, and do not equate its
+  diagnostic alpha with the actual local triangle.
+- Use Extended as the initial optional disc approximation. The early velocity
+  task starts at 60 kt; keep advanced map/threshold diagnostics collapsed after
+  the local triangle and controls. Foundation remains an explicitly different
+  optional approximation, not the initial normal-flow explanation.
+- A near-90-degree forcing/flapping phase is an idealised rotor response, not
+  a universal rigid-gyroscope law. Hinge offset, stiffness and aerodynamic damping
+  change phase (NASA TN D-7856, pp. 28–29, DOI record 19750010111).
+- Predicted stall cells, assumed critical alpha and the Mach 0.85 comparison line
+  are teaching-model diagnostics. They do not compute aircraft V_NE or symptoms.
+  Stall position depends on the selected trim, twist and inflow assumptions.
+- The Coriolis widget prescribes zeta = gain * d(beta)/d(psi). It does not solve
+  radial centre-of-mass geometry, lag damping or coupled rotor dynamics. The
+  inward/upward analogy assumes positive coning; real lag phase is not established
+  by this prescribed curve.
+- Remove the unvalidated LTE margin index and its controllability verdict.
+  Keep conventional CCW wind sectors as historical mechanism illustrations,
+  with overlapping sectors visible. Weathercock effects act through fuselage/fin
+  yaw moments, not an assumed loss of tail-rotor thrust. With zero wind there is
+  no active wind mechanism. No tail-rotor authority or yaw motion is computed.
+  Sources: FAA AC 90-95, pp. 3 and 7; Airbus SIN 3298-S-00, revision 0 (2019).
+- Power-curve markers identify min(P) and min(P/V) in the selected model. Fuel
+  endurance/range need fuel-flow and wind assumptions; climb needs available
+  power. A powered level-flight curve does not determine autorotation performance.
+
+Primary documents:
+[NASA TN D-7856](https://ntrs.nasa.gov/api/citations/19750010111/downloads/19750010111.pdf),
+[FAA AC 90-95](https://www.faa.gov/documentLibrary/media/Advisory_Circular/ac90-95.pdf),
+[Airbus SIN 3298-S-00](https://www.airbus.com/sites/g/files/jlcbta136/files/2025-01/3298-s-00-rev-0-en.pdf).
+
+
 > Single source of truth for the conventions every HeliLab tab must obey.
 > Authority: the codebase (`helilab_draw.js`, `helilab_widgets.js`, `helilab_core.js`,
 > `flapping.js`) + the instructor's confirmed Leishman BET ground truth.

@@ -344,37 +344,11 @@ const HLW = (function () {
     return { ...st, theta1s: t.t1s_deg, theta1c: t.t1c_deg };
   }
 
-  /* Local angle of attack with a selectable model.
-
-     model 'extended' — the physically-complete BET: real −8° washout twist, full
-       trim cyclic (θ₁c AND θ₁s), Drees linear inflow (longitudinal κ AND
-       lateral k_y = −2μ, Leishman "Principles" §3.5.2), coning/flapping term in
-       U_P, atan2 inflow angle. This is the honest picture. Because the lateral
-       inflow raises the inflow angle φ on the retreating side and the washout
-       unloads the tip, the α peak sits INBOARD (≈0.7 R) and a little BEFORE
-       ψ=270° (≈235–240°) — exactly what measurements show.
-
-     model 'foundation' — the CLEAN ATPL(H)/POF textbook plate. This is a deliberate,
-       well-known didactic SIMPLIFICATION (not a fake overlay): we drop exactly
-       the three effects the classic exam derivation itself ignores, so the
-       high-α region lands unambiguously at the RETREATING TIP (ψ=270°, r→1):
-         1. twist = 0        → untwisted blade keeps full pitch to the tip
-                               (tip is the first to stall, radially).
-         2. θ₁c = 0          → no lateral cyclic, so blade pitch peaks exactly
-                               at ψ=270° (θ = θ₀ + θ₁s·sinψ, θ₁s<0).
-         3. uniform inflow   → φ referenced to the rotational speed only
-                               (φ = atan2(λ₀, r̄), azimuth-independent). The
-                               real disc's lateral inflow gradient — the thing
-                               that pulls the peak forward to ≈235° — is exactly
-                               the term the textbook plate omits.
-       Result: α = θ(ψ) − φ(r̄) follows the pitch → symmetric peak at ψ=270°,
-       and the tip has the smallest φ → highest α → "tip stalls first". Verified
-       peak at r=0.97, ψ=270° for every speed 40–150 kt.
-
-     NOTE on honesty: U_T is ALWAYS the true rBar + μ·sinψ in both modes, so the
-       reverse-flow guard and the dynamic-pressure (qShare) gating stay physical
-       and identical. Only the INDUCED angle φ and the pitch inputs (twist, θ₁c)
-       are simplified in the Foundation model — the recognised textbook assumptions. */
+  /* Two different teaching assumptions for the optional envelope map.
+     Extended uses the core normal-flow BET. Foundation prescribes phi from
+     uniform inflow/radius, suppressing its azimuth dependence and lateral cyclic.
+     That deliberately different angle approximation must not be presented as
+     the actual local velocity triangle or as universal aircraft stall location. */
   function localAoAmodel(st, c, rBar, psi, model) {
     if (model !== 'foundation') return localAoA(st, c, rBar, psi);
 
@@ -812,7 +786,7 @@ const HLW = (function () {
         HLD.text(ctx, steady ? 'steady — T·sinθ = Drag' : (netN > 0 ? 'accelerate →' : '← decelerate'),
           cx + 56, mastTop + 30, col.warn, '11px IBM Plex Sans');
       }
-      const vert = tw > 1.05 ? 'climb' : tw < 0.95 ? 'descend' : 'hover';
+      const vert = tw > 1.05 ? 'upward acceleration tendency' : tw < 0.95 ? 'downward acceleration tendency' : 'approximately vertical balance';
       const horizTxt = steady ? 'steady cruise' : (netN > 0 ? 'accel forward' : 'decel');
       const result = (Math.abs(cyc) < 3 && spd < 1) ? vert : vert + ' + ' + horizTxt;
       const yawTxt = Math.abs(netYaw) < 0.06 ? 'balanced — heading held'
@@ -824,11 +798,11 @@ const HLW = (function () {
         ['Drag / T_h', DN.toFixed(0) + ' N  ·  ' + ThN.toFixed(0) + ' N', DN > ThN ? 'var(--hl-bad)' : 'var(--hl-drag)'],
         ['Pedals / yaw', yawTxt, Math.abs(netYaw) < 0.06 ? 'var(--hl-good)' : 'var(--hl-warn)'],
         ['Result', result, 'var(--hl-warn)'],
-      ]) + `<p class="hl-note">Collective sets total thrust: <b>vertical thrust greater than weight accelerates upward; less accelerates downward</b>. Cyclic <b>tilts the thrust</b> — its forward component T·sinθ
+      ]) + `<p class="hl-note">Collective changes pitch and produced thrust in this model: <b>vertical thrust greater than weight accelerates upward; less accelerates downward</b>. Cyclic <b>tilts the thrust</b> — its forward component T·sinθ
         accelerates the helicopter, but as speed builds <b>parasite drag</b> (½ρV²f)
         grows until T·sinθ = Drag and you cruise at steady speed. The main rotor's
         <b>torque</b> spins the fuselage the other way — the <b>tail rotor</b> cancels it.
-        <b>Right pedal always yaws the nose right.</b> The EC135/H145 rotor turns
+        <b>Right pedal commands right yaw in the illustrated arrangement.</b> Actual response also depends on available authority and other moments. The EC135/H145 rotor turns
         <b>counter-clockwise</b> (from above), so its torque yaws the nose right and
         you hold <b>left pedal</b> against it — right pedal then <i>reduces</i>
         tail-rotor thrust.</p>`;
@@ -960,14 +934,14 @@ const HLW = (function () {
           ['Pitch θ', theta.toFixed(1) + '°', 'var(--hl-chord)'],
           ['Inflow φ', phi.toFixed(1) + '°' + (linked ? ' (from θ)' : ''), 'var(--hl-wind)'],
           ['AoA α = θ − φ', aoaDeg.toFixed(1) + '°', stall ? 'var(--hl-bad)' : 'var(--hl-good)'],
-          ['Lift coeff C_l', stall ? 'collapsed' : cl.toFixed(2), stall ? 'var(--hl-bad)' : 'var(--hl-ink)'],
+          ['Lift coeff C_l', cl.toFixed(2), stall ? 'var(--hl-bad)' : 'var(--hl-ink)'],
           ['v_rot', vrot.toFixed(0) + ' m/s', 'var(--hl-wind)'],
           ['v_i', vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
         ]) + `<p class="hl-note">${stall
-          ? '⚠ Past the stall angle the flow separates and lift collapses — exactly what limits the retreating blade.'
+          ? 'The assumed section stall threshold is crossed. The simple coefficient law does not resolve unsteady separation or actual aircraft stall limits.'
           : linked
-            ? 'Realistic mode: raising θ also raises the inflow angle φ, so α grows much more slowly than θ — the rotor self-limits its thrust.'
-            : 'Lift rises with α. Now switch on "link φ to θ" to see that in reality φ grows with θ, eating into your extra pitch.'}</p>`;
+            ? 'Linked mode couples pitch and inflow in this hover illustration. Its final angle change is a coupled state comparison, not a transient flow solution.'
+            : 'Below the assumed stall threshold, the selected coefficient rises with α. Compare pitch and inflow independently first; linked mode adds a simplified hover coupling.'}</p>`;
       } else if (step === 3) {
         ui.readout.innerHTML = kv([
           ['Pitch θ', theta.toFixed(1) + '°', 'var(--hl-chord)'],
@@ -1934,7 +1908,7 @@ const HLW = (function () {
 
       if (scenario === 'weight' && weightReady()) {
         const mag = el('div', 'hl-mission-box');
-        mag.innerHTML = '<div class="hl-mission-h">15% mass magnitude gate</div><p>Mass increases by 15% at constant density and rotor size. Induced power increases by about:</p>';
+        mag.innerHTML = '<div class="hl-mission-h">15% mass magnitude gate</div><p>Mass increases by 15% at constant density and rotor size. Choose the nearest offered estimate of the ideal induced-power increase:</p>';
         ui.controls.appendChild(mag);
         const magOpts = el('div', 'hl-check-opts');
         ['15%', '25%', '40%'].forEach((text, i) => {
@@ -1951,7 +1925,7 @@ const HLW = (function () {
         ui.controls.appendChild(magOpts);
         if (magnitudeChoice != null) {
           const fb = el('div', 'hl-check-fb ' + (magnitudeChoice === 1 ? 'ok' : 'no'),
-            'About 25%. The thrust demand rises by 15%, but induced power climbs faster because the rotor also needs a higher induced velocity in the new hover state.');
+            'The ideal increase is about 23% (1.15^(3/2) − 1); 25% is the nearest offered estimate. Thrust demand rises by 15%, while induced power rises faster because induced velocity also increases.');
           ui.controls.appendChild(fb);
         }
       }
@@ -2362,9 +2336,9 @@ const HLW = (function () {
         ['v_i factor K', ge.K.toFixed(3), 'var(--hl-wind)'],
         ['v_i reduction', ((1 - ge.viRatio) * 100).toFixed(0) + ' %', 'var(--hl-wind)'],
         ['Thrust gain', '+' + gain.toFixed(0) + ' % (same power)', 'var(--hl-good)'],
-      ]) + `<p class="hl-note">${zR < 0.6 ? 'Deep in ground effect: a big thrust bonus from the ground cushion.'
-        : zR > 1.4 ? 'Essentially out of ground effect — the cushion is gone.'
-        : 'Leaving the cushion: the benefit fades quickly above z/R ≈ 0.5.'}</p>`;
+      ]) + `<p class="hl-note">${zR < 0.6 ? 'The selected height approximation predicts a strong ground-effect benefit.'
+        : zR > 1.4 ? 'The selected approximation predicts a small residual benefit at this height.'
+        : 'The benefit varies continuously with rotor height and the selected surface assumptions.'}</p>`;
     };
     slider(ui.controls, { label: 'Rotor height z/R', min: 0.35, max: 2.0, step: 0.05, val: zR, unit: '', fmt: v => v.toFixed(2), on: v => { zR = v; draw(); } });
     ui.onDraw(draw);
@@ -2404,7 +2378,7 @@ const HLW = (function () {
       const liftAdv = utAdv * utAdv, liftRet = Math.max(0, utRet) * Math.max(0, utRet);
       const bx = W * 0.80, by = H * 0.3, bw = 30, bh = H * 0.4;
       const maxL = Math.max(liftAdv, 1);
-      HLD.text(ctx, 'lift ∝ U_T²', bx, by - 14, col.dim, '10px IBM Plex Sans', 'center');
+      HLD.text(ctx, 'q proxy ∝ U_T²', bx, by - 14, col.dim, '10px IBM Plex Sans', 'center');
       ctx.fillStyle = ramp(0.85); ctx.fillRect(bx - bw - 6, by + bh - bh * liftAdv / maxL, bw, bh * liftAdv / maxL);
       HLD.text(ctx, 'ADV', bx - bw / 2 - 6, by + bh + 12, col.dim, '10px IBM Plex Sans', 'center');
       ctx.fillStyle = ramp(0.3); ctx.fillRect(bx + 6, by + bh - bh * liftRet / maxL, bw, bh * liftRet / maxL);
@@ -2414,13 +2388,15 @@ const HLW = (function () {
         ['Advance ratio μ', mu.toFixed(3), 'var(--hl-accent)'],
         ['U_T advancing', (utAdv).toFixed(2) + ' ΩR', 'var(--hl-good)'],
         ['U_T retreating', (utRet).toFixed(2) + ' ΩR', utRet < 0.2 ? 'var(--hl-bad)' : 'var(--hl-warn)'],
-        ['At ψ=' + psiDeg.toFixed(0) + '° (0.75R)', utPsi.toFixed(2) + ' ΩR · lift ' + (utPsi > 0 ? (utPsi * utPsi).toFixed(2) : '0'),
+        ['At ψ=' + psiDeg.toFixed(0) + '° (0.75R)', utPsi.toFixed(2) + ' ΩR · q proxy ' + (utPsi > 0 ? (utPsi * utPsi).toFixed(2) : '0'),
           utPsi < 0.2 ? 'var(--hl-bad)' : 'var(--hl-ink)'],
-        ['Lift asymmetry', (liftAdv / Math.max(0.01, liftRet)).toFixed(1) + '×', 'var(--hl-bad)'],
-      ]) + `<p class="hl-note">Without correction the advancing side makes
-        ${(liftAdv / Math.max(0.01, liftRet)).toFixed(1)}× the lift of the retreating side.
-        ${mu > 0.05 ? 'A reverse-flow region (purple) has formed at the retreating root. ' : ''}
-        Next lesson: flapping cancels this automatically.</p>`;
+        ['Tangential q-proxy ratio', (liftAdv / Math.max(0.01, liftRet)).toFixed(1) + '×', 'var(--hl-bad)'],
+      ]) + `<p class="hl-note">The tangential dynamic-pressure proxy has an
+        advancing/retreating ratio of ${(liftAdv / Math.max(0.01, liftRet)).toFixed(1)}
+        at this station. Interpreting it as a lift ratio additionally assumes equal
+        density, area and coefficient, and neglects perpendicular velocity.
+        ${mu > 0.05 ? 'Purple marks reverse chordwise flow near the retreating root; its actual load is not solved. ' : ''}
+        Flapping and cyclic change the response; they do not automatically make all local lift equal.</p>`;
     };
     slider(ui.controls, { label: 'Forward speed', min: 0, max: 160, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
     slider(ui.controls, { label: 'Azimuth ψ (blade position)', min: 0, max: 355, step: 5, val: psiDeg, unit: '°', fmt: v => v.toFixed(0), on: v => { psiDeg = v; draw(); } });
@@ -2474,11 +2450,12 @@ const HLW = (function () {
         ['Coning a₀', a0.toFixed(1) + '°', 'var(--hl-lift)'],
         ['Long. tilt a₁ (blowback)', a1.toFixed(1) + '°', 'var(--hl-accent)'],
         ['Lateral tilt b₁', b1.toFixed(1) + '°', 'var(--hl-warn)'],
-      ]) + `<p class="hl-note">The 3-D disc shows the <b>natural</b> response on a level
-        fuselage: it cones up (a₀) and blows back (a₁). Peak up-flap is ~90° after peak
-        force, so high lift on the advancing side (ψ 90°) tilts the disc back over the
-        nose. The pilot adds forward cyclic to re-level it. <i>(90° is the ideal lag;
-        real articulated rotors with hinge offset lag a little less, ~75–85°.)</i></p>`;
+      ]) + `<p class="hl-note">This is the prescribed <b>untrimmed</b> response
+        on a level fuselage: mean coning a₀ and first-harmonic disc tilt. A near-90°
+        forcing/flapping phase is an ideal articulated-rotor approximation. Hinge
+        offset, stiffness and damping change real phase. Flap rate alters the local
+        velocity triangle; displacement locates the blade. Cyclic changes the
+        pitch distribution and trim response.</p>`;
     };
     slider(controls, { label: 'Forward speed', min: 0, max: 160, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; drawBet(); } });
     const ro = new ResizeObserver(() => drawBet()); ro.observe(betWrap);
@@ -3213,11 +3190,11 @@ const HLW = (function () {
   /* 9 — Retreating stall & envelope: AoA / %-critical-α / lift contour over disc */
   function wEnvelope(host) {
     const ui = scaffold(host);
-    let Vkt = 60, plotMode = 'pctcrit', showIso = true, discModel = 'foundation';
+    let Vkt = 60, plotMode = 'pctcrit', showIso = true, discModel = 'extended';
     // discModel: 'foundation' = the clean ATPL/POF textbook plate — untwisted blade
     //   (twist=0) + no lateral cyclic (θ₁c=0) + uniform inflow, so the high-α
     //   zone lands squarely on the RETREATING TIP at ψ=270° (r→1) and spreads
-    //   inboard with speed/weight/g/altitude; 'extended' = the physically-complete
+    //   inboard with speed/weight/g/altitude; 'extended' = the core-based extended approximation
     //   BET (−8° washout, full trim cyclic, Drees lateral inflow), which puts
     //   the α peak a little INBOARD (≈0.7 R) and slightly BEFORE 270° (≈235°).
     //   See localAoAmodel() for the exact, documented simplifications.
@@ -3395,25 +3372,23 @@ const HLW = (function () {
       const machHigh = tipMach > 0.85;
       const exceeded = stalled || machHigh;
       const approaching = !exceeded && (maxRetAoA >= st.stallAoA - 2 || tipMach > 0.80);
-      const envTxt = exceeded ? (stalled && machHigh ? 'V_NE — both limits' : stalled ? 'V_NE — retreating stall' : 'V_NE — compressibility')
-        : approaching ? 'approaching V_NE' : 'within envelope';
+      const envTxt = exceeded ? (stalled && machHigh ? 'both model thresholds' : stalled ? 'model α threshold' : 'model Mach threshold')
+        : approaching ? 'near model threshold' : 'below model thresholds';
       const envCol = exceeded ? 'var(--hl-bad)' : approaching ? 'var(--hl-warn)' : 'var(--hl-good)';
       const modeNote = {
-        aoa: 'Raw geometric <b>angle of attack</b> (°). The colour fades where the tangential speed U_T → 0 (almost no dynamic pressure), so the low-load inboard region recedes and the high-α <b>retreating tip</b> stands out. Switch to <b>% of critical α</b> or <b>lift</b> to confirm where stall is actually felt.',
-        pctcrit: 'α as a <b>percentage of the local critical α</b>. Because the critical α falls with local Mach, the first cells to reach 100 % (red) are on the <b>outboard retreating blade</b> — so stall correctly begins at the <b>tip</b>, ψ≈270°. Iso-lines mark the 40/60/80/100/120 % zones.',
-        lift: 'Normalised <b>load</b> dL/dr ∝ U_T²·C_l — the actual airload. It is dominated by the fast outboard blade and collapses inboard where U_T→0. The load hole opens on the retreating side as speed rises; stalled tip cells are flagged red.'
+        aoa: 'Local <b>α</b> in the normal-flow model. Low tangential-speed cells fade to indicate low model loading. Reverse flow is treated separately; the map does not establish its true airloads.',
+        pctcrit: 'α divided by the <b>assumed local critical α</b>. Hatching marks model threshold crossings, with a loading gate. Radius and azimuth depend on the selected trim, twist and inflow assumptions.',
+        lift: 'Normalised <b>local load proxy</b> based on U_T² and the section coefficient. This approximation omits full relative-velocity, unsteady and reverse-flow aerodynamics.'
       }[plotMode];
       const modelNote = discModel === 'foundation'
-        ? '<b>Foundation model:</b> purpose: isolate the primary mechanism. Assumptions: untwisted blade, no lateral cyclic, and uniform inflow. The high-α zone sits squarely on the <b>retreating tip at ψ=270°</b> and the <b>tip is the first to stall</b>, spreading inboard as speed, weight, g or altitude rise.'
-        : '<b>Extended model:</b> purpose: show how the same mechanism shifts when additional rotor-system effects are included in this teaching model. Adds: blade twist, full trim cyclic, and lateral inflow treatment where this widget applies them. Washout unloads the tip, so the α peak slides <i>inboard (≈0.7 R)</i>, and the lateral inflow pulls it a little <i>before 270° (≈235°)</i>.';
+        ? '<b>Foundation:</b> untwisted blade, restricted cyclic and simplified inflow treatment. Use it to isolate the teaching mechanism; its predicted stall location is not universal.'
+        : '<b>Extended:</b> adds the twist, trim and inflow treatment implemented in this widget. Compare how the map changes under those assumptions; it is not validated aircraft geometry or V_NE.';
       ui.readout.innerHTML = kv([
         ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
         ['Max retreating α', maxRetAoA.toFixed(1) + '° / ' + st.stallAoA.toFixed(0) + '°', stalled ? 'var(--hl-bad)' : 'var(--hl-warn)'],
         ['Advancing tip Mach', tipMach.toFixed(2) + ' / 0.85', machHigh ? 'var(--hl-bad)' : 'var(--hl-good)'],
-        ['Envelope', envTxt, envCol],
-      ]) + `<p class="hl-note">${exceeded
-        ? '⚠ Outside the envelope: ' + (stalled ? 'retreating tip STALLED (red, hatched) — vibration, nose-up pitch, roll toward the retreating side. ' : '') + (machHigh ? 'advancing tip is compressible — shock/buffet. ' : '') + '<br>' + modeNote
-        : modeNote}</p><p class="hl-note">${modelNote}</p>`;
+        ['Model diagnostics', envTxt, envCol],
+      ]) + `<p class="hl-note">${exceeded ? '<b>Assumed model threshold crossed.</b> ' : ''}${modeNote}</p><p class="hl-note">${modelNote} The Mach 0.85 line and section α thresholds do not establish approved aircraft limits or a recovery procedure.</p>`;
     };
     slider(ui.controls, { label: 'Forward speed', min: 0, max: 180, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
     segmented(ui.controls, { label: 'Model assumptions — toggle assumptions', val: discModel, options: [
@@ -3755,24 +3730,25 @@ const HLW = (function () {
       const ch = HLD.lineChart(ctx, W, H, series,
         { xmin: 0, xmax: 85 / 0.5144, ymin: 0, ymax, xlab: 'airspeed (kt)', ylab: 'power (kW)' },
         col,
-        [{ x: m.enduranceV / 0.5144, color: col.good, label: 'endurance' },
-         { x: m.rangeV / 0.5144, color: col.warn, label: 'range' }]);
+        [{ x: m.enduranceV / 0.5144, color: col.good, label: 'min P' },
+         { x: m.rangeV / 0.5144, color: col.warn, label: 'min P/V' }]);
       // ETL band (15–25 kt): where the induced-power collapse is felt as
       // effective translational lift — the "knee" the text describes.
       const xe0 = ch.sx(15), xe1 = ch.sx(25);
       ctx.fillStyle = 'rgba(56,189,248,0.08)';
       ctx.fillRect(xe0, ch.y1, xe1 - xe0, ch.y0 - ch.y1);
-      HLD.text(ctx, 'ETL', (xe0 + xe1) / 2, ch.y1 + 3, 'rgba(56,189,248,0.85)', '9px IBM Plex Sans', 'center', 'top');
+      HLD.text(ctx, 'illustrative transition', (xe0 + xe1) / 2, ch.y1 + 3, 'rgba(56,189,248,0.85)', '9px IBM Plex Sans', 'center', 'top');
       ui.readout.innerHTML = kv([
         ['Gross weight', weight.toFixed(0) + ' kg', 'var(--hl-ink)'],
         ['Density altitude', alt.toFixed(0) + ' ft', 'var(--hl-ink)'],
         ['Hover power', (curve[0].Ptot / 1000).toFixed(0) + ' kW', 'var(--hl-wind)'],
-        ['Best endurance', (m.enduranceV / 0.5144).toFixed(0) + ' kt', 'var(--hl-good)'],
-        ['Best range', (m.rangeV / 0.5144).toFixed(0) + ' kt', 'var(--hl-warn)'],
-      ]) + `<p class="hl-note">Induced power (blue) dominates the hover and falls fast
-        with speed — that drop near 15–25 kt is translational lift. Parasite power
-        (red, ∝ V³) takes over at high speed. The bucket bottom is best endurance;
-        the tangent from the origin is best range.</p>`;
+        ['Minimum required power speed', (m.enduranceV / 0.5144).toFixed(0) + ' kt', 'var(--hl-good)'],
+        ['Minimum P/V speed', (m.rangeV / 0.5144).toFixed(0) + ' kt', 'var(--hl-warn)'],
+      ]) + `<p class="hl-note">The component sum gives model required power.
+        Markers identify minimum P and minimum P/V. Fuel endurance/range require
+        fuel-flow and wind assumptions; climb requires available-power data.
+        The shaded transition band is illustrative, not a universal ETL threshold.
+        This curve does not compute available engine power or autorotation performance.</p>`;
     };
     slider(ui.controls, { label: 'Gross weight', min: 1800, max: 3600, step: 50, val: weight, unit: ' kg', fmt: v => v.toFixed(0), on: v => { weight = v; draw(); } });
     slider(ui.controls, { label: 'Density altitude', min: 0, max: 14000, step: 500, val: alt, unit: ' ft', fmt: v => v.toFixed(0), on: v => { alt = v; draw(); } });
@@ -3841,7 +3817,7 @@ const HLW = (function () {
      wBetVelocity — the BET velocity triangle for retreating-stall teaching.
      Shows, at any (r/R, ψ, speed), the FULL vector construction the book draws
      in TikZ:
-        • V_rot  = Ω·r          (rotational speed, always forward along chord)
+        • V_rot  = Ω·r          (rotational speed, tangential to the rotation path)
         • V_T    = μ·sinψ·ΩR    (tangential component of the forward flow) drawn
                                  head-to-tail ON TOP of V_rot, so on the
                                  retreating side (ψ=270°, sinψ=−1) it points
@@ -3866,7 +3842,14 @@ const HLW = (function () {
       topStage: 'hl-w-stage hl-w-stage-map',
       mainStage: 'hl-w-stage hl-w-stage-vec',
     });
-    let Vkt = 120, psiDeg = 270, rBar = 0.75, twistOn = true, discModel = 'foundation';
+    let Vkt = 60, psiDeg = 270, rBar = 0.75, twistOn = true, discModel = 'extended';
+    // The early learning task is the local triangle. Keep advanced disc/stall
+    // diagnostics optional, after the controls and numerical evidence.
+    const mapDetails=el('details','hl-optional-map');
+    const mapSummary=el('summary',null,'Optional disc diagnostics — explored in Module 4');
+    const mapStage=ui.topCanvas.parentElement,mapReadout=el('div','hl-w-readout');
+    mapDetails.append(mapSummary,mapStage,mapReadout);host.querySelector('.hl-w').append(mapDetails);
+    mapDetails.addEventListener('toggle',()=>{if(host.isConnected)draw();});
     // Mach-adjusted critical α (NACA-0012 trend) — identical rule to wEnvelope so
     // the BET stall verdict matches the disc map cell-for-cell.
     const stallEffAt = (st, UT) => {
@@ -3887,61 +3870,18 @@ const HLW = (function () {
       const OmR = HL.omR(st);
       const mu  = advanceRatio(stt);
 
-      // ── EASA exam-plate convention (clean blade-element diagram) ─────────────
-      // U_T is ALWAYS the true tangential speed r̄ + μ·sinψ, so advancing vs.
-      // retreating and the reverse-flow guard stay physically honest.
-      // U_P is the induced-velocity downwash λ_i only — the momentum-theory downwash that
-      // makes blade lift. It is ALWAYS positive (down THROUGH the disc), so the
-      // relative wind is always depressed BELOW the rotor plane and the inflow
-      // angle φ is always a positive number. This is the standard ATPL(H)/POF
-      // plate: it deliberately omits the disc-tilt free-stream throughflow term
-      // (μ·tan α_TPP, the more advanced effect that can flip U_P upward on the
-      // nose side) so students see the clean downwash picture every time.
-      const Vrot  = rBar;                 // rotational speed (norm)
-      const Vt    = mu * Math.sin(psi);   // tangential comp of forward flow (norm, signed)
-      const UT    = Vrot + Vt;            // TRUE tangential speed (signed)
-      // U_P = the TOTAL perpendicular (through-disc) flow the blade sees, split
-      // into the two components of Fig 11.14 (vertical airflow / translational
-      // lift):  v_i  = induced downwash (large in hover, DECAYS with speed)
-      //         v_n  = normal component of the forward free-stream through the
-      //                disc (grows with speed).  Both act DOWNWARD through the
-      //                disc, so U_P = v_i + v_n is ALWAYS positive (down). Their
-      //                sum dips (translational lift) then rises past V_BROC.
-      const v_i   = inducedInflowRatio(stt);            // induced downwash (>0, down)
-      const v_n   = Math.abs(throughflowRatio(stt));    // |normal free-stream comp| (>0, down)
-      const lam_i = v_i;                                // kept for readout compatibility
-
-      // ── FLAPPING-VELOCITY term v_flap = (β̇/Ω)·r̄  (Leishman Eq. for U_P) ────────
-      // The blade element also moves perpendicular to the disc while it flaps up
-      // and down, so its own flapping rate adds to the perpendicular velocity the
-      // aerofoil sees. In a TRIMMED, level disc the trim cyclic drives β̇→0 (the
-      // flapping cancels the asymmetry), so this term is ~0 and U_P ≈ V_i+V_n —
-      // which is why the classic plate omits it. To make the term VISIBLE and
-      // teach WHY it matters, we evaluate the disc's NATURAL flapping response
-      // (no trim cyclic — the physical blowback of the flapping lesson): then
-      //   β̇/Ω = dβ/dψ,   v_flap = (β̇/Ω)·r̄   (normalised by ΩR, signed).
-      // Sign (Leishman standard, POSITIVE term): a blade flapping UP (β̇>0, the
-      // ADVANCING side) moves its section UP through the air → sees MORE downward-
-      // relative flow → U_P GROWS → φ grows → α SHRINKS. Flapping DOWN (retreating,
-      // β̇<0) shrinks U_P → α GROWS. This is flapping-to-equality drawn honestly.
-      const stNat = { ...st, theta1c: 0, theta1s: 0 };  // natural blowback, no trim cyclic
-      const cNat  = flappingCoeffs(stNat);
-      const Om    = omega(stNat);
-      // Leishman's standard sign: U_P = λ + (β̇/Ω)·r̄ + … (POSITIVE flapping term).
-      // A blade flapping UP (β̇>0, the ADVANCING side) moves its section UP through
-      // the air, so it sees MORE perpendicular (downward-relative) flow → U_P GROWS
-      // → φ grows → α SHRINKS. Flapping DOWN (retreating) shrinks U_P → α GROWS.
-      // This is flapping-to-equality, drawn honestly: v_flap ADDS to U_P when the
-      // blade flaps up (advancing) and SUBTRACTS when it flaps down (retreating).
-      const v_flap = (flappingRate(cNat, psi, Om) / Om) * rBar;   // signed; + grows U_P
-      // The V_rel / α_i triangle now MOVES with the full U_P (incl. flapping) so the
-      // student literally watches α shrink (advancing) / grow (retreating). We do NOT
-      // clamp U_P: when the DOWN-flapping retreating blade (v_flap<0) overwhelms the
-      // downward through-flow (V_i+V_n), the NET flow through the disc reverses to
-      // UPWARD (U_P<0). Physically V_rel then arrives from BELOW the rotor plane, φ
-      // goes NEGATIVE, and α = θ−φ GROWS — exactly what deepens retreating-blade
-      // stall. Drawing it honestly lets the student see V_rel drop below the TPP.
-      const UP     = v_i + v_n + v_flap;    // signed: >0 down-flow, <0 up-flow
+      // One consistent trimmed state for pitch and blade motion. Reuse the
+      // existing signed BET decomposition rather than combining trimmed pitch,
+      // absolute throughflow and the natural untrimmed flap rate.
+      const flow = localVelocityDecomposition(stt, c, rBar, psi);
+      const Vrot = rBar;
+      const Vt = mu * Math.sin(psi);
+      const UT = flow.UT;
+      const v_i = flow.lamInduced;
+      const v_n = throughflowRatio(stt);
+      const lam_i = v_i;
+      const v_flap = flow.bladeMotionNormal; // complete blade-motion contribution
+      const UP = flow.UP;
       const netUpflow = UP < -1e-3;         // net up-flow (V_rel from below the TPP)
       const theta = bladePitch(stt, rBar, psi);
       const reverse = UT < 0;
@@ -3965,10 +3905,10 @@ const HLW = (function () {
       const cellStalled = !cellReverse && cellAoAdeg >= stallEffDeg && qShare >= Q_MIN;
       const cellNear    = !cellReverse && !cellStalled && cellAoAdeg >= stallEffDeg - 2 && qShare >= Q_MIN;
       const pctCrit = stallEffDeg > 0 ? 100 * cellAoAdeg / stallEffDeg : 0;
-      const verdict = cellReverse ? { t: 'REVERSE FLOW (U_T < 0)', c: 'var(--hl-bad)' }
-        : cellStalled ? { t: 'STALLED — beyond critical α', c: 'var(--hl-bad)' }
-        : cellNear ? { t: 'NEAR STALL — approaching critical α', c: 'var(--hl-warn)' }
-        : { t: 'WITHIN ENVELOPE', c: 'var(--hl-good)' };
+      const verdict = cellReverse ? { t: 'MAP: reverse flow (U_T < 0)', c: 'var(--hl-bad)' }
+        : cellStalled ? { t: 'MAP: model α threshold crossed', c: 'var(--hl-bad)' }
+        : cellNear ? { t: 'MAP: near model α threshold', c: 'var(--hl-warn)' }
+        : { t: 'MAP: below model thresholds', c: 'var(--hl-good)' };
 
       // physical magnitudes (m/s) for the readout
       const VrotMS = Vrot * OmR, VtMS = Vt * OmR, UTMS = UT * OmR, UPMS = UP * OmR;
@@ -4151,83 +4091,18 @@ const HLW = (function () {
       if (showDetailLabels && (oy - yVi) >= LBL_MIN) {
         HLD.chipLabel(ctx, 'V_i', viLx, (yVi + oy) / 2, col.wind, FSM, viAlign);
       }
-      // V_n segment (middle): from yVn up to yVi. Only drawn when v_n>0 (down-flow
-      // ADDS to the stack). In forward flight v_n = μ·tan α_TPP is typically NEGATIVE
-      // (the TPP tilts nose-down, so the free stream has an UPWARD through-disc
-      // component → V_n SUBTRACTS from U_P). A subtracting V_n is NOT placed on the
-      // collinear stack — its value lives in the readout table — otherwise its
-      // cumulative base yVn = oy−(v_i+v_n)·AMP·sy dips BELOW the TPP and drags the
-      // advancing V_flap down through the plane. See yFlapBase below.
-      if (v_n > 1e-4) {
-        HLD.arrow(ctx, xBase, yVn, xBase, yVi, col.accent, 2.5, 7);
-        if (showDetailLabels && (yVi - yVn) >= LBL_MIN) {
-          HLD.chipLabel(ctx, 'V_n', viLx, (yVn + yVi) / 2, col.accent, FSM, viAlign);
-        }
+      // Signed components, offset so subtracting arrows remain visible.
+      // yVn = induced + throughflow; yTop adds the blade-motion contribution.
+      if (Math.abs(v_n) > 1e-4) {
+        HLD.arrow(ctx, xBase - 12, yVn, xBase - 12, yVi, col.accent, 2.3, 7);
+        if (showDetailLabels && Math.abs(yVi - yVn) >= LBL_MIN)
+          HLD.chipLabel(ctx, 'V_n (signed)', Math.max(12, xBase - 18), (yVn + yVi) / 2, col.accent, FSM, 'right');
       }
-      // Collinear base for the ADVANCING V_flap. Only the POSITIVE (down-flow) terms
-      // sit on the stack line; when V_n subtracts (v_n≤0) V_flap stacks on top of
-      // V_i instead, so the advancing V_flap stays ABOVE the TPP (it must never
-      // cross the plane and stick out below it). yTop/UP remains the authority for
-      // the V_rel slope; the segment lengths are visual, not 1:1 with the m/s values.
-      const yFlapBase = v_n > 1e-4 ? yVn : yVi;
-      // V_flap segment: the flapping-velocity term. Its ARROW shows the PHYSICAL
-      // airflow direction the flapping induces, and its sign tells the stack what to do:
-      //   • ADVANCING (v_flap>0, blade flaps UP): the section chases the downwash, so
-      //     the induced velocity it sees points DOWN — it ADDS to U_P. Drawn IN the stack,
-      //     head DOWN, extending the stack up from yVn to yTop (taller → φ↑ → α↓).
-      //   • RETREATING (v_flap<0, blade flaps DOWN): the section drops away from the
-      //     downwash, so the induced velocity it sees points UP — it SUBTRACTS from U_P.
-      //     The physical airflow arrow must therefore point UP. We draw it as its OWN
-      //     up-pointing arrow just to the SIDE of the stack (small offset, like V_T),
-      //     spanning the amount it removes (from yVn up to yTop, which is ABOVE yVn).
       if (Math.abs(v_flap) > 1e-4) {
         const flCol = v_flap > 0 ? col.good : col.warn;
-        if (v_flap > 0) {
-          // adds (ADVANCING side): the up-flapping section sees MORE downward-relative
-          // flow, so V_flap ADDS to U_P — it is part of the SAME downward through-disc
-          // stack as V_i and V_n. So we draw it COLLINEAR, right ON the stack line
-          // (no offset), tip-to-tail above V_n, head DOWN toward the plane — exactly
-          // like V_i and V_n. yTop is ABOVE yVn (the stack grew), so tail=yTop →
-          // head=yVn points DOWN. No offset ticks are needed since it sits on the line.
-          HLD.arrow(ctx, xBase, yTop, xBase, yFlapBase, flCol, 2.5, 7);
-          // Label placement for the ADD case is constrained on BOTH sides: the V_rel
-          // resultant runs DOWN-RIGHT from the stack top (xBase,yTop) to the tip, so
-          // the RIGHT of the V_flap span is crossed by V_rel; and on the ADVANCING
-          // side xBase sits far LEFT (short base), so a left-side label would run off
-          // the canvas. So: when there is room on the left (base tail not near the
-          // left margin) put the label LEFT, right-aligned, in the upper band (clear
-          // of the lower V_i/V_n mini-labels). Otherwise (advancing, tight left) place
-          // it just ABOVE the stack top by the U_P label, left-aligned, where V_rel
-          // has not yet diverged from xBase.
-          // Label ABOVE the stack top, centred on xBase. The U_P bracket is now on
-          // the LEFT rail and V_rel leaves from (xBase,yTop) going down-right, so the
-          // one clear spot for the add-case V_flap label is directly ABOVE the stack
-          // top — above where V_rel starts, clear of the bracket and the shaft.
-          const flTxt = 'V_flap';
-          if (showDetailLabels) HLD.chipLabel(ctx, flTxt, xBase, yTop - 11, flCol,
-            FSM, 'center');
-        } else {
-          // subtracts: the down-flapping blade sees UPWARD induced velocity, so the
-          // PHYSICAL airflow arrow must point UP. yTop is BELOW yVn on the retreating
-          // side (U_P shrank / went up-flow), so drawing tail=yTop (low) → head=yVn
-          // (high) makes the head sit at the TOP = pointing UP, exactly the physical
-          // upward flow the down-flapping section sees. It is drawn as its OWN arrow
-          // just to the RIGHT of the stack with a SMALL offset (+6px, a touch less
-          // than V_T's +7), tied back to the stack top/bottom with faint ticks like
-          // V_T. The V_i/V_n labels are on the LEFT, so the whole right side is free.
-          const flDx = 6;
-          HLD.arrow(ctx, xBase + flDx, yTop, xBase + flDx, yVn, flCol, 2.5, 7);
-          HLD.dline(ctx, xBase, yVn, xBase + flDx, yVn, col.grid, 1, [2, 3]);
-          HLD.dline(ctx, xBase, yTop, xBase + flDx, yTop, col.grid, 1, [2, 3]);
-          // Label ABOVE the arrow head, centred on the arrow's x. The U_P bracket
-          // now sits on the RIGHT at xBase+28, so a right-side label would collide
-          // with it; centring on the arrow (xBase+flDx) keeps the text spanning
-          // roughly xBase−12..xBase+24 — clear of the bracket and above the plane
-          // (yVn is above the plane in the subtract case, outside the bracket span).
-          const flTxt = 'V_flap';
-          if (showDetailLabels) HLD.chipLabel(ctx, flTxt, xBase - 8, yVn - 8, flCol,
-            FSM, 'right');
-        }
+        HLD.arrow(ctx, xBase - 24, yTop, xBase - 24, yVn, flCol, 2.3, 7);
+        if (showDetailLabels && Math.abs(yTop - yVn) >= LBL_MIN)
+          HLD.chipLabel(ctx, 'V_blade (signed)', Math.max(12, xBase - 30), (yTop + yVn) / 2, flCol, FSM, 'right');
       }
       // ---- U_P total bracket — JUST LEFT of all vectors, never crossing them --------
       // The bracket sits clear-left of the vector tail (xBase). Its vertical dashed
@@ -4455,90 +4330,40 @@ const HLW = (function () {
       const modelBadge = discModel === 'foundation'
         ? '<div class="hl-kv-banner"><b>Foundation model</b> — Purpose: isolate the primary mechanism. Assumptions: untwisted blade, no lateral cyclic, uniform inflow.</div>'
         : '<div class="hl-kv-banner"><b>Extended model</b> — Purpose: show how the same mechanism changes with added rotor effects. Adds: trim cyclic and lateral inflow, using the currently configured blade-twist state.</div>';
-      const inflowNote = discModel === 'foundation'
-        ? `<p class="hl-note" style="border-left:0;opacity:.9"><b>Foundation-model note — uniform
-          inflow:</b> in the Foundation model this BET uses a <b>uniform inflow ratio</b> (V_i taken
-          spanwise-constant). Real rotors shed
-        <b>tip vortices</b> that add extra downwash near the tip, so the induced
-        velocity there is larger than shown. Consequently the swing to
-        <b style="color:var(--hl-warn)">net up-flow (U_P &lt; 0, V_rel from below the
-          TPP)</b> on the retreating tip appears <b>earlier and stronger</b> in the
-          Foundation model than in reality — in a real rotor the extra tip downwash
-        delays and softens it. The large retreating-tip <b>α</b> itself is still
-        correct (retreating-blade stall does begin at the tip); it is specifically
-        the <b>U_P &lt; 0 reversal</b> that a uniform-inflow model over-drives.</p>`
-        : `<p class="hl-note" style="border-left:0;opacity:.9"><b>Extended-model note:</b>
-        this view keeps the same instructional inflow treatment while adding the selected
-        rotor effects (trim cyclic, lateral inflow, and the currently configured blade twist).
-        Use it to compare how the same BET relationships shift without changing the
-        underlying causal chain.</p>`;
-      ui.readout.innerHTML = banner + modelBadge + kv([
+      const inflowNote = '<p class="hl-note"><b>Map and triangle:</b> the optional Foundation map uses a separate prescribed uniform angle approximation; it is not this local triangle. Extended uses the shared core flow model. Compare the numerical local θ, φ and α below before interpreting any map diagnostic.</p>';
+      mapReadout.innerHTML=banner+modelBadge+inflowNote+kv([
+        ['Map α / assumed critical',cellReverse?'n/a (reverse)':cellAoAdeg.toFixed(1)+'° / '+stallEffDeg.toFixed(1)+'°','var(--hl-ink)']
+      ]);
+      ui.readout.innerHTML = kv([
         ['Azimuth ψ', psiDeg.toFixed(0) + '°  (' + side + ')', 'var(--hl-ink)'],
         ['V_rot = Ω·r', VrotMS.toFixed(0) + ' m/s', 'var(--hl-lift)'],
-        ['V_T = μ·sinψ', (VtMS >= 0 ? '+' : '') + VtMS.toFixed(0) + ' m/s', Vt < 0 ? 'var(--hl-bad)' : 'var(--hl-accent)'],
+        ['Translational tangential velocity', (VtMS >= 0 ? '+' : '') + VtMS.toFixed(0) + ' m/s', Vt < 0 ? 'var(--hl-bad)' : 'var(--hl-accent)'],
         ['U_T (net in-plane)', UTMS.toFixed(0) + ' m/s', reverse ? 'var(--hl-bad)' : 'var(--hl-ink)'],
-        ['&nbsp;&nbsp;V_i = λ_i·ΩR (induced ↓)', ViMS.toFixed(1) + ' m/s', 'var(--hl-wind)'],
-        ['&nbsp;&nbsp;V_n = V·sinα_TPP (free-stream ↓)', VnMS.toFixed(1) + ' m/s', 'var(--hl-accent)'],
-        ['&nbsp;&nbsp;V_flap = r·β̇ (' + (v_flap > 0 ? 'adds, α↓' : v_flap < 0 ? 'subtracts, α↑' : '≈0') + ')',
+        ['Local induced normal velocity', ViMS.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+        ['Signed aircraft throughflow', VnMS.toFixed(1) + ' m/s', 'var(--hl-accent)'],
+        ['&nbsp;&nbsp;V_blade (flap rate + transport; ' + (v_flap > 0 ? 'adds, α↓' : v_flap < 0 ? 'subtracts, α↑' : '≈0') + ')',
           (VflapMS >= 0 ? '+' : '') + VflapMS.toFixed(1) + ' m/s', v_flap > 0 ? 'var(--hl-good)' : 'var(--hl-warn)'],
-        ['U_P = V_i + V_n + V_flap (↓)', UPMS.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+        ['U_P = signed induced + throughflow + blade motion', UPMS.toFixed(1) + ' m/s', 'var(--hl-wind)'],
+        ['Flap-rate term r·β̇', (flow.flapRateNormal * OmR).toFixed(1) + ' m/s', 'var(--hl-lift)'],
+        ['Coning/body-rate term', ((flow.coningBladeNormal + flow.bodyRateNormal) * OmR).toFixed(1) + ' m/s', 'var(--hl-lift)'],
         ['V_rel', VrelMS.toFixed(0) + ' m/s', 'var(--hl-wind)'],
         ['θ pitch', (theta * R2D).toFixed(1) + '°', 'var(--hl-chord)'],
         ['φ inflow angle', (phi * R2D).toFixed(1) + '°', 'var(--hl-wind)'],
-        ['α = θ − φ', reverse ? 'n/a (reverse)' : (aoa * R2D).toFixed(1) + '° / ' + stt.stallAoA.toFixed(0) + '°',
+        ['α = θ − φ', reverse ? 'n/a (reverse)' : (aoa * R2D).toFixed(1) + '°',
           stalled ? 'var(--hl-bad)' : 'var(--hl-good)'],
-        ['α vs critical (map model)', cellReverse ? 'n/a (reverse)'
-          : cellAoAdeg.toFixed(1) + '° / ' + stallEffDeg.toFixed(1) + '°  (' + pctCrit.toFixed(0) + '%)',
-          cellStalled ? 'var(--hl-bad)' : (cellNear ? 'var(--hl-warn)' : 'var(--hl-good)')],
-      ]) + `<p class="hl-note"><b>Reading the envelope with the BET:</b> the coloured
-        mini-disc (top-right) is the SAME stall map as the previous page —
-        <b>click any cell</b> (or drag the ψ / r/R sliders) and this triangle
-        rebuilds for that exact blade section. The verdict banner above uses the
-        identical critical-α + airload model as the map, so a <b style="color:var(--hl-bad)">red</b>
-        cell always reads <b>STALLED</b> here and a <b style="color:var(--hl-accent)">purple</b>
-        cell reads <b>REVERSE FLOW</b>. That is how the retreating stall is built,
-        vector by vector.</p>
-        <p class="hl-note">On the <b>retreating</b> side (ψ=270°) the forward-flow
-        term <b style="color:var(--hl-bad)">V_T</b> points <b>backward</b>, so it is
-        <b>subtracted</b> from <b style="color:var(--hl-lift)">V_rot</b> — the net
-        <b>U_T</b> is short and the blade must fly at a high <b>α</b> to keep its
-        lift. On the advancing side V_T adds instead. Drag the azimuth to watch
-        V_T flip from adding to subtracting. The <b>white airfoil</b> at the tip is
-        the LIVE section at this ψ / r/R; its drawn pitch θ(r) tracks the −8°
-        washout as you sweep the blade station — toggle <b>twist off</b> to see it
-        swing to one untwisted pitch.</p>
-        <p class="hl-note"><b>Why the flapping term matters:</b> a blade flapping
-        <b>up</b> (the <b>advancing</b> side) drives its own section upward through
-        the air, so <b style="color:var(--hl-good)">V_flap</b> ADDS to U_P — φ
-        grows and <b>α shrinks</b>. On the <b>retreating</b> side the blade flaps
-        <b>down</b>, <b style="color:var(--hl-warn)">V_flap</b> SUBTRACTS and
-        <b>α grows</b>. This is flapping-to-equality: watch the V_flap segment on
-        top of the U_P stack push the V_rel tail up (advancing) or pull it down
-        (retreating), moving the whole α wedge. In a fully <b>trimmed level</b>
-        disc the cyclic cancels this (V_flap≈0, U_P≈V_i+V_n) — here we show the
-        NATURAL blowback so the term is visible.</p>
-        <p class="hl-note"><b>The perpendicular flow U_P (Leishman, combined
-        momentum + blade-element theory):</b><br>
-        <span style="font-family:var(--hl-mono,monospace);white-space:nowrap">
-        U_P = <b style="color:var(--hl-wind)">λ_i·ΩR</b>
-        + <b style="color:var(--hl-accent)">V·sinα_TPP</b>
-        + <b style="color:var(--hl-lift)">r·β̇</b> + …</span><br>
-            <b style="color:var(--hl-wind)">induced</b>  
-        <b style="color:var(--hl-accent)">climb / normal free-stream</b>  
-        <b style="color:var(--hl-lift)">flapping</b><br>
-        Here we draw all three: <b style="color:var(--hl-wind)">V_i</b> = the
-        induced downwash (large in hover, <b>decays</b> with speed),
-        <b style="color:var(--hl-accent)">V_n</b> = the normal component of the
-        forward free-stream (<b>grows</b> with speed), and
-        <b style="color:var(--hl-good)">r·β̇</b> = the flapping-velocity term
-        (signed — <b>adds</b> advancing, <b>subtracts</b> retreating). V_i and V_n
-        act <b>down through the disc</b> so their sum <b>dips</b> around V_BROC
-        (translational lift) then rises again; V_flap then tilts it per azimuth.
-        The inflow angle <b>φ = arctan(U_P / U_T)</b> is therefore the
-        small positive depression of <b style="color:var(--hl-wind)">V_rel</b> below
-        the rotor plane, and <b>α = θ − φ</b>. U_P is drawn ×${AMP} for visibility —
-        its direction and the resulting α are exact.</p>
-        ${inflowNote}`;
+      ]) + `<p class="hl-note">The local triangle uses one <b>trimmed</b> state
+        for pitch, signed induced/throughflow and blade motion. At 90° translation
+        adds to Ωr; at 270° it subtracts. Compute φ = atan2(U_P,U_T) and then
+        α = θ − φ for normal chordwise flow. Smaller U_T at fixed pitch is not
+        by itself proof of larger α: compare U_P too.</p>
+        <p class="hl-note">Blade motion includes flap-rate and coning transport
+        contributions. In this level-disc trim the first-harmonic flap-rate term
+        is approximately zero; the separate Flapping activity demonstrates the
+        untrimmed rate effect. Negative U_P and φ remain signed. U_P is amplified
+        ×${AMP} visually, so use the numerical values for the actual angle.</p>
+        <p class="hl-note">The optional disc diagnostics below use additional
+        section-threshold assumptions. They are explored later in Module 4.</p>`;
+
 
       // ---- ROTOR-MAP (own top canvas) ---------------------------------------
       // Draw the live, clickable envelope disc on its OWN wide canvas above the
@@ -4621,15 +4446,16 @@ const HLW = (function () {
         W - 12, 15, col.chord, FL, 'right');
     }
 
-    segmented(ui.controls, {
-      label: 'Jump to azimuth', val: 'ret', options: [
-        { v: 'adv', t: 'ADV 90°' }, { v: 'ret', t: 'RET 270°' },
-        { v: 'nose', t: 'NOSE 180°' }, { v: 'tail', t: 'TAIL 0°' },
-      ], on: v => {
-        psiDeg = ({ adv: 90, ret: 270, nose: 180, tail: 0 })[v];
-        psiSl.set(psiDeg); draw();
-      },
-    });
+    // Shortcuts are actions, not persistent model selections. A radio group
+    // stayed on RET even after the azimuth slider moved to NOSE, and treating
+    // these actions as selected settings would invalidate an azimuth comparison.
+    const jump=el('div','hl-ctl');jump.append(el('div','hl-ctl-lab','Jump to azimuth'));
+    const jumps=el('div','hl-seg');
+    for(const [angle,text] of [[90,'ADV 90°'],[270,'RET 270°'],[180,'NOSE 180°'],[0,'TAIL 0°']]){
+      const b=el('button','hl-seg-btn',text);b.type='button';
+      b.onclick=()=>{psiDeg=angle;psiSl.set(angle);draw();};jumps.append(b);
+    }
+    jump.append(jumps);ui.controls.append(jump);
     const psiSl = slider(ui.controls, {
       label: 'Azimuth ψ', min: 0, max: 360, step: 1, val: psiDeg, unit: '°',
       on: v => { psiDeg = v; draw(); },
@@ -4642,7 +4468,7 @@ const HLW = (function () {
       label: 'Forward speed', min: 0, max: 160, step: 1, val: Vkt, unit: ' kt',
       on: v => { Vkt = v; draw(); },
     });
-    segmented(ui.controls, {
+    segmented(mapDetails, {
       label: 'Stall model (toggle assumptions)', val: discModel, options: [
         { v: 'foundation', t: 'Foundation model' }, { v: 'extended', t: 'Extended model' },
       ], on: v => { discModel = v; draw(); },
@@ -4758,12 +4584,13 @@ const HLW = (function () {
         ['Flap β (out-of-plane) at ψ=' + psiDeg.toFixed(0) + '°', beta.toFixed(1) + '°', 'var(--hl-lift)'],
         ['Lead/lag ζ (in-plane) at ψ=' + psiDeg.toFixed(0) + '°', (zDeg >= 0 ? '+' : '') + zDeg.toFixed(2) + '° ' + (zDeg >= 0 ? '(lead)' : '(lag)'),
           zDeg >= 0 ? 'var(--hl-good)' : '#c060d0'],
-      ]) + `<p class="hl-note">Coriolis: as the blade flaps <b>up</b> its mass moves
-        <b>in</b> toward the shaft, so it <b>speeds up and leads</b>; flapping down it
-        moves out and <b>lags</b> — angular momentum, the ice-skater. Acceleration ∝
-        <b>2·Ω·β·β̇</b>. ${articulated
-          ? 'This articulated head has a <b>lead–lag hinge + damper</b> so the blade hunts freely (large ζ shown).'
-          : 'This <b>underslung</b> head sits below the flapping axis so the CoM barely shifts radially — the Coriolis hunting is almost cancelled (tiny ζ).'}</p>`;
+      ]) + `<p class="hl-note">For positive coning and the stated hinge geometry,
+        inward radial mass movement gives a lead tendency when external torque is
+        neglected. Actual lag displacement and phase depend on damping and coupling.
+        <b>This curve prescribes ζ = gain × dβ/dψ; it does not solve lag dynamics or
+        radial centre-of-mass geometry.</b> ${articulated
+          ? 'The larger gain illustrates lead/lag accommodation; it is not a computed damper response.'
+          : 'The smaller gain illustrates an underslung comparison; it does not quantify real Coriolis cancellation.'}</p>`;
     };
     slider(ui.controls, { label: 'Forward speed', min: 0, max: 160, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
     slider(ui.controls, { label: 'Azimuth ψ (blade position)', min: 0, max: 355, step: 5, val: psiDeg, unit: '°', fmt: v => v.toFixed(0), on: v => { psiDeg = v; draw(); } });
@@ -4904,20 +4731,20 @@ const HLW = (function () {
     const sectors = [
       {
         lo: 120, hi: 240,
-        name: 'Mechanism 3 — Weathercock Instability',
-        tip: 'Tailwind component reduces tail rotor inflow → thrust loss. Fuselage weathercocks into wind → yaw rate faster than pedal can correct.',
+        name: 'Mechanism 3 — Weathercock Yaw Moment',
+        tip: 'Fuselage and fin moments tend to turn the nose into the relative wind. This changes yaw-moment balance without requiring loss of tail-rotor thrust.',
         baseAlpha: 0.16, color: '240,190,60',
       },
       {
         lo: 210, hi: 330,
         name: 'Mechanism 1 — Tail Rotor Vortex Ring State',
-        tip: 'Wind opposes and recirculates tail rotor downwash. Tail rotor enters its own vortex ring → thrust becomes erratic. Most insidious: can occur with apparently adequate pedal input.',
+        tip: 'Opposing crossflow can create unsteady, nonuniform tail-rotor inflow and thrust variations. A sector alone does not prove the actual flow state or control response.',
         baseAlpha: 0.13, color: '235,70,50',
       },
       {
         lo: 285, hi: 315,
         name: 'Mechanism 2 — Main Rotor Disc Vortex Interference',
-        tip: 'Main rotor tip vortices sweep across tail rotor disc → disrupts inflow → reduces effective AoA on tail rotor blades → thrust loss. Often combined with Mechanism 1.',
+        tip: 'Main-rotor wake interaction can alter tail-rotor inflow and aerodynamic force. This example overlaps the tail-rotor recirculation sector; the actual interaction depends on configuration.',
         baseAlpha: 0.30, color: '180,60,200',
       },
     ];
@@ -4929,7 +4756,7 @@ const HLW = (function () {
     rfWrap.style.cssText = 'margin-top:8px;display:flex;flex-wrap:wrap;gap:6px 14px;font-size:11px;';
     const rfTitle = el('div', '');
     rfTitle.style.cssText = 'width:100%;font-weight:600;color:var(--hl-warn);';
-    rfTitle.textContent = 'Risk factors (activate to intensify sector highlights):';
+    rfTitle.textContent = 'Illustrative conditions (highlight only; no quantitative authority calculation):';
     rfWrap.appendChild(rfTitle);
     riskFactors.forEach(rf => {
       const lbl = el('label', '');
@@ -4964,16 +4791,18 @@ const HLW = (function () {
       const labelSector = (lo, hi, name, color) => {
         const midDeg = lo + ((hi - lo + 360) % 360) / 2;
         const ma = (-90 + midDeg) * D2R;
-        const lx = cx + Math.cos(ma) * (R * 1.28), ly = cy + Math.sin(ma) * (R * 1.28);
+        const compact=W<480;
+        const lx = Math.max(64,Math.min(W-64,cx + Math.cos(ma) * (R * 1.28))), ly = Math.max(18,Math.min(H-24,cy + Math.sin(ma) * (R * 1.28)));
         // split name to two lines: "Mechanism N" on first line, rest on second
         const parts = name.split(' — ');
-        const line1 = parts[0], line2 = parts[1] || '';
+        const number=parts[0].match(/\d/)?.[0];
+        const line1 = compact?'Mechanism '+number:parts[0], line2 = compact?({1:'TR inflow',2:'Wake interaction',3:'Weathercock'}[number]||''):parts[1]||'';
         ctx.save(); ctx.font = '8px IBM Plex Sans'; ctx.fillStyle = `rgba(${color},0.85)`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(line1, lx, ly - 5);
         ctx.fillText(line2, lx, ly + 6);
         ctx.restore();
       };
-      labelSector(120, 240, 'Mechanism 3 — Weathercock Instability', '240,190,60');
+      labelSector(120, 240, 'Mechanism 3 — Weathercock Moment', '240,190,60');
       labelSector(210, 330, 'Mechanism 1 — TR Vortex Ring State', '235,70,50');
       labelSector(285, 315, 'Mechanism 2 — Disc Vortex Interference', '180,60,200');
       // fuselage: nose up, tail down; CCW main rotor, tail rotor on the LEFT boom
@@ -4992,47 +4821,30 @@ const HLW = (function () {
       const wx = cx + Math.cos(wa) * (R + 30), wy = cy + Math.sin(wa) * (R + 30);
       HLD.arrow(ctx, wx, wy, cx + Math.cos(wa) * R * 0.5, cy + Math.sin(wa) * R * 0.5, col.wind, 3, 11);
       HLD.text(ctx, windKt.toFixed(0) + ' kt wind', wx, wy - 6, col.wind, '10px IBM Plex Sans', 'center');
-      // ── tail-rotor margin model ──────────────────────────────────────────
+      // Mechanism ledger only: no tail-rotor solver or invented authority index.
       const st = HL.defaultState(); st.theta0 = 4 + (collPct / 100) * 11;
       const tw = HL.axialSolve(st, 0).thrust / HL.weightN(st);
-      let margin = 1.55 - 0.28 * Math.max(0, tw - 0.6) / 1.0;
-      const ws = Math.min(1, windKt / 17);
-      let cause = 'clean';
-      let activeSector = null;
-      if (inArc(windDeg, 285, 315)) { margin -= 0.75 * ws; cause = 'Mechanism 2 — Disc Vortex Interference'; activeSector = sectors[2]; }
-      else if (inArc(windDeg, 210, 330)) { margin -= 0.55 * ws; cause = 'Mechanism 1 — TR Vortex Ring State'; activeSector = sectors[1]; }
-      else if (inArc(windDeg, 120, 240)) { margin -= 0.45 * ws; cause = 'Mechanism 3 — Weathercock Instability'; activeSector = sectors[0]; }
-      // apply extra penalty for each active risk factor
-      margin -= riskFactors.reduce((sum, f) => sum + (f.active ? f.penalty : 0), 0);
-      margin = Math.max(0, margin);
-      const lte = margin < 1.0;
-      const severe = margin < 0.85;
-      // margin bar
-      const bx = W * 0.72, by = H * 0.18, bw = 34, bh = H * 0.64;
-      HLD.text(ctx, 'TR margin', bx + bw / 2, by - 12, col.dim, '10px IBM Plex Sans', 'center');
-      ctx.strokeStyle = col.dim; ctx.lineWidth = 1; ctx.strokeRect(bx, by, bw, bh);
-      const full = 1.7;
-      const y1 = by + bh - (1.0 / full) * bh;
-      HLD.dline(ctx, bx - 6, y1, bx + bw + 6, y1, col.warn, 1.4, [4, 3]);
-      HLD.text(ctx, 'need', bx + bw + 8, y1, col.warn, '9px IBM Plex Sans', 'left', 'middle');
-      const fillH = Math.min(bh, (margin / full) * bh);
-      ctx.fillStyle = severe ? col.bad : (lte ? col.warn : col.good);
-      ctx.fillRect(bx, by + bh - fillH, bw, fillH);
+      const activeSectors = windKt > 0 ? sectors.filter(s => inArc(windDeg, s.lo, s.hi)) : [];
+      const tx = W * 0.72;
+      HLD.text(ctx, 'Yaw moment balance', tx, H * 0.24, col.ink, '10px IBM Plex Sans', 'center');
+      HLD.text(ctx, 'Main-rotor torque', tx, H * 0.34, col.chord, '9px IBM Plex Sans', 'center');
+      HLD.text(ctx, '+ airframe moments', tx, H * 0.42, col.wind, '9px IBM Plex Sans', 'center');
+      HLD.text(ctx, '+ tail-rotor moment', tx, H * 0.50, col.accent, '9px IBM Plex Sans', 'center');
+      HLD.text(ctx, '= net yaw moment', tx, H * 0.60, col.ink, '9px IBM Plex Sans', 'center');
+      HLD.text(ctx, 'Magnitudes not solved', tx, H * 0.70, col.dim, '9px IBM Plex Sans', 'center');
       ui.readout.innerHTML = kv([
-        ['Relative wind FROM', windDeg.toFixed(0) + '°  ·  ' + windKt.toFixed(0) + ' kt', 'var(--hl-wind)'],
-        ['Collective (power)', collPct.toFixed(0) + '%  ·  T/W ' + tw.toFixed(2), 'var(--hl-ink)'],
-        ['Active mechanism', cause === 'clean' ? 'none — clean air' : cause, cause === 'clean' ? 'var(--hl-good)' : 'var(--hl-warn)'],
-        ['Risk factors active', activeRiskCount() + ' / ' + riskFactors.length, activeRiskCount() >= 2 ? 'var(--hl-bad)' : (activeRiskCount() === 1 ? 'var(--hl-warn)' : 'var(--hl-good)')],
-        ['Tail-rotor margin', (margin * 100).toFixed(0) + '% of demand', severe ? 'var(--hl-bad)' : (lte ? 'var(--hl-warn)' : 'var(--hl-good)')],
-        ['State', severe ? 'LTE — uncommanded yaw' : (lte ? 'marginal — degrading' : 'controllable'),
-          severe ? 'var(--hl-bad)' : (lte ? 'var(--hl-warn)' : 'var(--hl-good)')],
-      ]) + `<p class="hl-note">${lte
-          ? '<b>In this illustrative state, available anti-torque is below demand.</b> Mechanism: <b>' + cause + '</b>. The assumed authority and wind sectors do not establish an aircraft operating limit or recovery procedure.'
-          : 'Margin is above the demand line. LTE is a <b>conditional</b> loss of yaw control — no single wind direction is dangerous alone. Activate risk factors or rotate to a critical sector to watch the margin collapse.'} <i>(CCW main rotor — anti-torque pedal is left. Sector angles are advisory.)</i></p>`;
-      // sector info panel
-      infoPanel.innerHTML = activeSector
-        ? `<b style="color:rgba(${activeSector.color},1)">${activeSector.name}</b><br>${activeSector.tip}`
-        : '<b>No critical sector active.</b> Rotate the wind arrow into a coloured sector to see the mechanism explanation.';
+        ['Relative wind FROM', windDeg.toFixed(0) + '° · ' + windKt.toFixed(0) + ' kt', 'var(--hl-wind)'],
+        ['Collective input', collPct.toFixed(0) + '% of teaching slider; not rated power', 'var(--hl-ink)'],
+        ['Main-rotor state proxy', 'T/W ' + tw.toFixed(2) + '; torque not solved', 'var(--hl-ink)'],
+        ['Illustrated wind mechanisms', activeSectors.length ? activeSectors.map(s => s.name).join('; ') : windKt === 0 ? 'none — zero wind' : 'none of the shaded examples', 'var(--hl-accent)'],
+        ['Conditions selected', activeRiskCount() + ' / ' + riskFactors.length, 'var(--hl-ink)'],
+        ['Control authority / yaw rate', 'not computed', 'var(--hl-dim)'],
+      ]) + '<p class="hl-note">Compare collective at fixed wind, then direction at fixed collective and wind speed. Collective can change torque demand; weathercock moments and tail-rotor flow changes are separate mechanisms. The shaded conventional-rotor sectors can overlap. They are not a validated H145/Fenestron map or a controllability prediction. Wind FROM uses a different angle reference from blade azimuth ψ.</p>';
+      infoPanel.innerHTML = activeSectors.length
+        ? activeSectors.map(s => `<b style="color:rgba(${s.color},1)">${s.name}</b><br>${s.tip}`).join('<br><br>')
+        : windKt === 0 ? '<b>Zero wind:</b> no wind mechanism is active. The shaded sectors remain as a reference.'
+        : 'Outside the shaded historical examples. This does not establish adequate control authority.';
+
     };
     slider(ui.controls, { label: 'Relative wind direction (FROM)', min: 0, max: 355, step: 5, val: windDeg, unit: '°', fmt: v => v.toFixed(0), on: v => { windDeg = v; draw(); } });
     slider(ui.controls, { label: 'Wind speed', min: 0, max: 30, step: 1, val: windKt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { windKt = v; draw(); } });
@@ -5329,26 +5141,20 @@ const HLW = (function () {
     // ── 2. IN-PLANE & PERPENDICULAR VELOCITIES ─────────────────────────────
     head('2 · Blade-element velocities — U_T and U_P');
     para(`Freeze one blade element at station <b>r̄ = r/R</b> and azimuth <b>ψ</b>.
-      Two velocity components matter: <b>U<sub>T</sub></b> in the plane of rotation
-      (drives dynamic pressure), and <b>U<sub>P</sub></b> perpendicular to the
-      tip-path-plane (sets the inflow angle). Both are normalised by the tip speed
-      <b>ΩR</b>.`);
+      Two components define the local relative flow: <b>U<sub>T</sub></b> in the rotor plane and <b>U<sub>P</sub></b> normal to it. Both affect resultant speed and inflow angle. The terms in parentheses below are normalised by <b>ΩR</b>; the equations give velocities in m/s. Body rates are zero in this displayed form.`);
     eq(`<span class="var">U_T</span> = ΩR · ( r̄ + μ·sinψ )` +
       `\n<span class="var">U_P</span> = ΩR · ( λ + r̄·dβ/dψ + μ·β·cosψ )`);
     para(`<b>μ = V/ΩR</b> is the advance ratio (forward speed as a fraction of tip
       speed). On the advancing side sinψ = +1 so the forward flow <b>adds</b> to the
       rotational speed; on the retreating side sinψ = −1 so it <b>subtracts</b> —
       that is dissymmetry of lift. <b>β</b> is the flapping angle and <b>dβ/dψ</b>
-      the flapping rate; the last U_P terms are the flapping and free-stream
-      contributions.`);
+      its derivative with respect to azimuth (time rate β̇ = Ω dβ/dψ). The last U_P terms are flap-rate and blade-angle transport contributions.`);
 
     // ── 3. TIP-PATH-PLANE & INFLOW ─────────────────────────────────────────
     head('3 · Tip-path-plane, disc tilt and the inflow λ');
-    para(`In forward flight the disc tilts <b>nose-down</b> by α<sub>TPP</sub> to
-      produce a forward thrust component. The total inflow <b>λ</b> normal to the
-      disc therefore has <b>two</b> parts — this is the point your question (c) was
-      about:`);
-    figure(300, 'Fig. 2 — Side view. The nose-down tip-path-plane makes the free stream V pass partly THROUGH the disc (μ·tanα_TPP) on top of the inflow ratio λ_i.',
+    para(`The core uses signed α<sub>TPP</sub>, negative for its prescribed nose-down forward-flight state. This throughflow estimate is an assumed propulsive-flight condition, separate from the level-disc trim used by some widgets. The total inflow <b>λ</b> normal to the
+      disc has signed induced and throughflow contributions:`);
+    figure(300, 'Fig. 2 — Side view. The nose-down tip-path-plane makes the free stream V pass partly THROUGH the disc (μ·tanα_TPP) with its sign retained alongside induced λ_i.',
       (ctx, W, H, col) => {
         const cx = W / 2, cy = H / 2;
         const half = Math.min(W, H) * 0.36;
@@ -5375,8 +5181,8 @@ const HLW = (function () {
         // normal to TPP points "down-and-back"; draw the μ·tanα throughflow downward
         const nlen = half * 0.42;
         const nx = Math.sin(aTPP), ny = Math.cos(aTPP); // unit normal (downward through disc)
-        HLD.arrow(ctx, px, py, px + nx * nlen, py + ny * nlen, col.bad, 2, 8);
-        HLD.chipLabel(ctx, 'μ·tanα_TPP', px + nx * nlen + 4, py + ny * nlen, col.bad, '10px IBM Plex Sans, sans-serif', 'left');
+        HLD.arrow(ctx, px + nx * nlen, py + ny * nlen, px, py, col.bad, 2, 8);
+        HLD.chipLabel(ctx, 'signed throughflow (<0 here)', px + nx * nlen + 4, py + ny * nlen, col.bad, '10px IBM Plex Sans, sans-serif', 'left');
         // inflow ratio λ_i straight down through hub
         HLD.arrow(ctx, cx + dx * 0.4, cy - dy * 0.4, cx + dx * 0.4 + nx * nlen * 0.7, cy - dy * 0.4 + ny * nlen * 0.7, col.wind, 2, 8);
         HLD.chipLabel(ctx, 'λ_i (induced)', cx + dx * 0.4 + nx * nlen * 0.7 + 4, cy - dy * 0.4 + ny * nlen * 0.7, col.wind, '10px IBM Plex Sans, sans-serif', 'left');
@@ -5385,13 +5191,14 @@ const HLW = (function () {
       `   <span class="cmt">total = throughflow + induced</span>` +
       `\n<span class="var">λ_i</span> = C_T / ( 2·√(μ² + λ²) )` +
       `   <span class="cmt">Glauert momentum inflow</span>`);
-    para(`The <b>throughflow</b> term μ·tan(α_TPP) is the component of the aircraft's
-      own velocity passing straight through the tilted disc. In a hover it is zero;
-      by ~120 kt it is already larger than the induced part λ_i, which is exactly
-      why it must be included. Across the disc the induced part is not uniform — the
-      wake skews back, modelled with the <b>Drees</b> linear inflow:`);
+    para(`Keep the throughflow sign: it is zero in hover and negative for
+      the core's prescribed nose-down state. It can oppose induced downflow;
+      the relative magnitudes depend on speed, loading and disc attitude, with
+      no universal crossover speed. Induced flow is also nonuniform. The
+      following linear harmonic prescription is a teaching approximation, not
+      a resolved wake or dynamic-inflow model:`);
     eq(`<span class="var">λ_i(r̄,ψ)</span> = λ_i · ( 1 + κ·r̄·cosψ + k_y·r̄·sinψ )` +
-      `\nκ = (4/3)·μ / (√(μ²+λ²) + λ)      k_y = −2μ`);
+      `\nκ = (4/3)·μ / (√(μ²+λ_i²) + λ_i)      k_y = −2μ`);
 
     // ── 4. BLADE-ELEMENT ANGLES ────────────────────────────────────────────
     head('4 · Blade-element angles — θ, φ and α');
@@ -5434,18 +5241,13 @@ const HLW = (function () {
     eq(`<span class="var">φ</span> = atan2( U_P , U_T )      <span class="cmt">inflow angle</span>` +
       `\n<span class="var">θ</span>(r̄,ψ) = θ₀ + θ_tw·(r̄ − 0.75) + θ_1c·cosψ + θ_1s·sinψ` +
       `\n<span class="var">α</span> = θ − φ           <span class="cmt">→ stall when α > α_crit</span>`);
-    para(`Twist is referenced at 75%R, so the −8° washout lowers the tip pitch and
-      unloads it. When the net U<sub>T</sub> on the retreating side is small, φ grows
-      and the section needs a large θ to hold α below the stall — the mechanism the
-      main diagram shows vector-by-vector.`);
+    para(`The selected −8° twist is referenced at 75%R, reducing pitch toward the tip. At fixed positive U_P, smaller U_T raises φ and therefore reduces α at fixed θ. Carrying a specified load at reduced speed is a different problem: it may require a larger lift coefficient and α, with a corresponding pitch/trim change. Do not confuse those controlled conditions.`);
 
     // ── 5. FLAPPING (for completeness) ─────────────────────────────────────
     head('5 · Where β comes from — first-harmonic flapping');
-    para(`The flapping angle used in U<sub>P</sub> is the first-harmonic solution of
-      the blade flapping equation (Van Holten / Leishman). Coning a₀ and the disc
-      tilts a₁ (longitudinal) and b₁ (lateral) close the loop:`);
-    eq(`<span class="var">β</span>(ψ) = a₀ − a₁·cosψ − b₁·sinψ` +
-      `\na₀ = (γ/8)·[ θ₀(1+μ²) + θ_tw(1/20 − μ²/12) − (4/3)λ ]`);
+    para(`The core prescribes a quasi-steady first-harmonic response. Mean coning a₀ and cosine/sine coefficients a₁c/a₁s locate the blade; their derivative supplies the flap-rate term. The coefficients do not solve flexible-blade or transient coupled dynamics. The core sign convention is:`);
+    eq(`<span class="var">β</span>(ψ) = a₀ + a₁c·cosψ + a₁s·sinψ` +
+      `\nβ̇ = Ω·(−a₁c·sinψ + a₁s·cosψ)`);
 
     // ── REFERENCES ─────────────────────────────────────────────────────────
     const refs = el('div', 'hl-model-refs');
@@ -5453,7 +5255,7 @@ const HLW = (function () {
       '<h4>Where the formulas come from</h4>' +
       '<ol>' +
       '<li>Leishman, J.G. — <i>Principles of Helicopter Aerodynamics</i>, 2nd ed. ' +
-        'Blade-element velocities U_T/U_P (eq. 2.126, 3.x), Glauert forward-flight inflow λ = μ·tanα + C_T/(2√(μ²+λ²)), and the linear-inflow (Drees) model.</li>' +
+        'Blade-element velocities U_T/U_P, Glauert forward-flight inflow λ = μ·tanα + C_T/(2√(μ²+λ²)), and the linear-inflow (Drees) model.</li>' +
       '<li>Van Holten, Th. — <i>Helicopter Performance, Stability and Control</i> ' +
         '(TU Delft AE4-314). First-harmonic flapping coefficients a₀, a₁, b₁ (eqs. 78–80) used for β(ψ).</li>' +
       '<li>Drees, J.M. (1949) — the linear-inflow wake-skew gradient κ and k_y = −2μ. ' +
@@ -5465,7 +5267,7 @@ const HLW = (function () {
         '<a href="https://rotorcraft.arc.nasa.gov/Publications/files/Nguyen_ERF99.pdf" target="_blank" rel="noopener">Nguyen, ERF 1999 (PDF)</a>.</li>' +
       '</ol>' +
       '<p style="font-size:12px;color:var(--text3);margin:8px 0 0">All angle conventions ' +
-      'on this page follow the app-wide standard: ψ from the tail, CCW rotor (H145/BK117 D-3).</p>';
+      'on this page follow the course convention: ψ from the tail, CCW rotor. The model uses representative assumptions, not validated H145/BK117 flight data.</p>';
     root.appendChild(refs);
 
     host.appendChild(root);
@@ -5513,11 +5315,11 @@ const HLW = (function () {
       { v: 'highsp',  t: '5 · High speed',       sub: 'the limit — stall' },
     ];
     const LAYER_NOTE = {
-      hover:   'V=0. No forward speed, so U_T = r·Ω is the same on every azimuth. Uniform inflow, uniform α. The disc is a flat, even ring — no flapping needed.',
-      rigid:   'Forward speed but the blade is RIGID (cannot flap, no cyclic). U_T = r·Ω + V·sinψ grows on the advancing side and shrinks on the retreating side. With fixed pitch, lift ∝ U_T²·α blows up advancing and collapses retreating — the rotor would roll over. This is the PROBLEM flapping exists to solve.',
-      freeflap: 'UNTRIMMED / natural blowback. The blade is now free to flap (still no cyclic). Advancing lifts up → flapping rate raises U_P → φ grows → α SHRINKS on the advancing side. Retreating drops → α GROWS. Lift partly equalises (flapping-to-equality), but the disc tilts back — blowback. Watch the advancing α go strongly negative: that is real, it is not steady trimmed flight.',
-      trimmed: 'Trim cyclic applied (θ₁c, θ₁s) so the flapping response is nearly zero (β̇≈0 → v_flap≈0). Pitch is pre-distorted to hold the disc level. Lift is equalised AND the thrust stays forward. This is the pilot’s solution to blowback. Peak α now sits on the RETREATING side — where RBS will eventually live.',
-      highsp:  'Same trimmed state, speed pushed toward V_NE. The retreating blade’s U_T is small, so to carry its share of lift it needs ever-higher α. Past the critical angle the section stalls — retreating blade stall. Watch the retreating sector go red and the lift-demand map collapse there.',
+      hover: 'At fixed radius, U_T = Ωr is independent of azimuth. Across the span it varies with radius. This layer assumes symmetric inflow; mean coning can remain without first-harmonic flapping.',
+      rigid: 'Flapping and cyclic are suppressed to isolate U_T = Ωr + V sinψ. The two sides have different local speed. The lift proxy also depends on α; this untrimmed comparison is not an aircraft roll trajectory.',
+      freeflap: 'This prescribed untrimmed response adds flap velocity to U_P. Upward motion tends to increase φ and reduce α at fixed pitch. Flap rate, displacement and pitch are separate. Negative α here is a selected model state, not a universal trimmed-flight result.',
+      trimmed: 'Cyclic changes pitch around the disc to achieve this level-disc teaching trim. Compare θ and φ at each station: local α can still differ. With a level disc, the disc-normal thrust approximation is vertical; forward aircraft velocity is separate.',
+      highsp: 'Compare local speed and α under the selected trim assumptions. Hatching uses an assumed section threshold. It does not compute aircraft V_NE, unsteady stall dynamics or a recovery manoeuvre.',
     };
 
     // ── consistent per-layer physics ─────────────────────────────────
@@ -5595,7 +5397,7 @@ const HLW = (function () {
       on: v => { rBar = v; draw(); } });
     segmented(controls, {
       label: 'Disc shows', val: envMode,
-      options: [{ v: 'ut', t: 'U_T speed' }, { v: 'aoa', t: 'Angle of attack α' }, { v: 'lift', t: 'Lift demand' }],
+      options: [{ v: 'ut', t: 'U_T speed' }, { v: 'aoa', t: 'Angle of attack α' }, { v: 'lift', t: 'Lift proxy' }],
       on: v => { envMode = v; draw(); },
     });
 
@@ -5713,7 +5515,7 @@ const HLW = (function () {
       ctx.beginPath(); ctx.arc(px, py, 7, 0, 2 * Math.PI); ctx.stroke();
       // title strip
       HLD.text(ctx, LAYERS.find(l => l.v === layer).t + ' · ' +
-        ({ ut: 'U_T (in-plane speed)', aoa: 'angle of attack α', lift: 'lift demand ∝ U_T²·α' }[envMode]),
+        ({ ut: 'U_T (in-plane speed)', aoa: 'angle of attack α', lift: 'lift proxy ∝ U_T²·α (small-angle approximation)' }[envMode]),
         12, 16, col.dim, '12px ui-sans-serif', 'left', 'top');
     }
 

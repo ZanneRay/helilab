@@ -1,5 +1,17 @@
 # Learning-path release validation — 2026-10-02
 
+## Subsequent content review
+
+The [deep content review](CONTENT-REVIEW.md) revises all 19 references and the explanations used by the 29 activities. It corrects signed inflow, fixed-pitch versus equal-load reasoning, trimmed versus untrimmed rotor states, hover-demand conditions, rotor phase, yaw mechanisms, power-curve interpretation and the autorotation energy budget. Case datasets and distractors were improved. Native references unlock after commitments so they cannot reveal answers prematurely.
+
+The velocity-triangle widget now uses the existing shared localVelocityDecomposition for a single trimmed state, including signed throughflow and blade-motion terms. No core equation is changed. Its previous task evidence is archived as version 2; current evidence uses version 3. Other task versions remain unchanged, while changed question IDs require updated decisions without discarding saved comparisons. Its advanced disc map is optional after the local triangle and numerical evidence.
+
+The LTE widget's unvalidated numerical authority index and controllability verdict were removed. Overlapping historical conventional-rotor sectors now remain visible together, zero wind activates none, and weathercock effects are described as airframe yaw moments. The widget does not solve tail-rotor authority or yaw motion.
+
+Additional browser validation: **39 passed**, including signed triangle outputs at hover, advancing, retreating and negative-normal-flow states; optional map access; overlapping/zero-wind yaw; mobile overflow; native reveal gating; revised question notices; immutable retained comparisons; task-version archive; maths and all 19 reference routes. The existing physics, curriculum, viewport and full completion suites remain part of release validation and GitHub CI.
+
+Screen inspection covered the revised local triangle, final-case data and phone yaw explanations. The advanced map was moved out of the initial foundational view and mobile sector labels were shortened after inspection. Tests do not establish a measured learning effect or aircraft model validation.
+
 This revision addresses the subsequent review of PR #85. The previous release's passing technical checks did not establish that its task-specific assessment or learner navigation was adequate. This document describes the revised implementation and the limits of its verification.
 
 ## Implemented behavior

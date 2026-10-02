@@ -14,960 +14,546 @@
 const HL_LESSONS = [
   /* ───────────────────────────── STAGE 1 — BASICS ─────────────────────── */
   {
-    id: 'bigpicture', stage: 'Basics', title: 'How a Helicopter Flies',
-    subtitle: 'The rotor is a spinning wing',
+    id: 'bigpicture', stage: 'Basics', title: "How a Helicopter Flies",
+    subtitle: "Controls, rotor thrust and aircraft motion",
     widget: 'wBigPicture',
     body: `
-      <p>A helicopter flies for exactly the same reason an aeroplane does:
-      a <b>wing moving through air makes lift</b>. The difference is that the
-      helicopter's wings are <b>blades that spin</b>, so they keep making lift
-      even when the aircraft is standing still in the air.</p>
-      <p>Three ideas carry you through this whole course:</p>
-      <ul>
-        <li><b>Collective</b> changes the pitch of <i>all</i> blades together →
-            changes total <b>thrust</b> (up/down).</li>
-        <li><b>Cyclic</b> changes blade pitch <i>once per revolution</i> → <b>tilts
-            the rotor disc</b>, pointing thrust where you want to go.</li>
-        <li><b>Pedals</b> change tail-rotor thrust → <b>yaw</b>.</li>
-      </ul>
-      <p>Try the controls beside the diagram. Watch how raising the collective grows
-      the thrust arrow, and how cyclic tilts the disc so the thrust leans — that lean
-      is what accelerates the helicopter forward, back or sideways.</p>`,
-    takeaways: [
-      'Lift comes from blades moving through air — spinning lets it work in the hover.',
-      'Collective = total thrust. Cyclic = where the thrust points. Pedals = yaw.',
-      'Tilting the thrust vector is how a helicopter translates.',
-    ],
+<p>Rotor blades move through air even when the aircraft is stationary. Their distributed aerodynamic forces combine into rotor thrust and in-plane forces. In this introductory picture, the main thrust vector is approximated as normal to the rotor disc.</p>
+<p><b>Collective</b> changes blade pitch together; its thrust effect also depends on RPM and flow. <b>Cyclic</b> varies pitch around the revolution and changes rotor response. <b>Pedals</b> change the anti-torque system's balancing moment. These are coupled controls in an aircraft; this model separates them for learning.</p>
+<p><b>Velocity is not force.</b> A helicopter can move forward with no forward acceleration. Acceleration depends on the sum of rotor force, weight, drag and other forces. A forward thrust component can balance drag rather than increase speed.</p>
+<p>Compare collective alone at fixed airspeed, then airspeed alone at fixed controls. The arrows are a state illustration; they do not solve aircraft trim or a flight trajectory.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Separate geometric pitch, produced thrust and required thrust.", "Rotor orientation, aircraft velocity and net acceleration are different quantities.", "State which controls and flight conditions are held constant."],
     check: {
-      q: 'You push the cyclic forward. What happens to the rotor disc and the thrust vector?',
-      options: [
-        'The disc tilts forward and thrust leans forward, accelerating the helicopter ahead',
-        'The whole rotor produces more total thrust',
-        'Only the tail rotor changes',
-        'The blades all increase pitch equally',
-      ], answer: 0,
-      explain: 'Cyclic tilts the disc (here, forward). Total thrust is roughly unchanged, but it now leans forward, so its horizontal component accelerates the aircraft. Collective is what changes total thrust.',
-    },
+  "q": "A helicopter moves forward at constant speed and altitude. What must be true?",
+  "options": [
+    "The total force is approximately balanced; forward rotor force can balance drag.",
+    "The total force must point forward because velocity points forward.",
+    "The main rotor must provide zero horizontal force."
+  ],
+  "answer": 0,
+  "explain": "At constant velocity, net acceleration and net force are approximately zero. Individual forces can remain nonzero."
+},
   },
   {
-    id: 'bladeelement', stage: 'Basics', title: 'The Blade Element',
-    subtitle: 'Where lift is actually born — pitch angle θ, inflow angle φ, and angle of attack α',
+    id: 'bladeelement', stage: 'Basics', title: "The Blade Element",
+    subtitle: "Pitch, signed inflow and local angle of attack",
     widget: 'wBladeElement',
     body: `
-      <p><b>Blade Element Theory (BET)</b> says: to understand the whole rotor,
-      look at one thin slice of one blade and add up all the slices. This single
-      slice is the heart of everything you will draw on your exam.</p>
-
-      <p>Build the picture one step at a time:</p>
-      <ol>
-        <li><b>Step 1 — tangential velocity v<sub>rot</sub>:</b> the blade sweeps
-            through the air. The dominant velocity at the element is tangential —
-            perpendicular to the blade span, parallel to the rotor plane.</li>
-        <li><b>Step 2 — induced inflow v<sub>i</sub>:</b> the rotor is pulling air
-            downward. This adds a perpendicular (axial) component to the velocity
-            seen by the blade.</li>
-        <li><b>Step 3 — resultant relative airflow:</b> combine v<sub>rot</sub> and
-            v<sub>i</sub> vectorially. The blade does not see purely tangential flow;
-            it sees a resultant that is angled slightly downward from the rotor
-            plane.</li>
-        <li><b>Step 4 — three distinct angles:</b> now you can place θ, φ, and α
-            precisely on the diagram.</li>
-      </ol>
-
-      <p>The three angles, each defined once:</p>
-      <ul>
-        <li><b>Pitch angle θ</b> — the angle between the blade chord and the rotor
-            plane. You set this with the collective (or cyclic). It is a
-            <em>mechanical</em> setting, independent of airflow.</li>
-        <li><b>Inflow angle φ</b> (phi) — the angle between the resultant relative
-            airflow and the rotor plane. It exists because v<sub>i</sub> tilts the
-            flow downward. φ = arctan(v<sub>i</sub> / v<sub>rot</sub>).</li>
-        <li><b>Angle of attack α</b> — the angle between the chord and the
-            resultant relative airflow. This is the angle the blade
-            <em>aerodynamically feels</em>: <b>α = θ − φ</b>. Lift and drag depend
-            on α, not on θ.</li>
-      </ul>
-
-      <p class="hl-note"><b>Common student confusion — read this carefully:</b><br>
-      <b>Pitch angle θ is NOT angle of attack α.</b> They are equal only in the
-      unrealistic case of zero inflow (v<sub>i</sub> = 0). In every real rotor
-      there is induced inflow, so φ &gt; 0, and therefore α &lt; θ.<br>
-      <b>Inflow increases φ, which reduces α even when θ is held constant.</b>
-      You set θ with your controls; the airflow environment determines φ; the
-      blade responds to α.</p>
-
-      <p>Drag the sliders to raise θ and watch α and lift grow — until α reaches
-      the stall angle and lift collapses. Notice that increasing the inflow
-      (raising v<sub>i</sub>) reduces α for the same θ, demonstrating why induced
-      velocity limits how much thrust a given pitch setting can produce.</p>`,
-    takeaways: [
-      'α = θ − φ: you command pitch angle θ, the induced inflow sets inflow angle φ, and the blade feels angle of attack α — these are three separate quantities.',
-      'Lift depends on α, not θ. More inflow (larger φ) reduces α and therefore reduces lift, even if you have not touched the collective.',
-      'One blade element, repeated spanwise and azimuthally around the disc, is the whole rotor — mastering this slice means mastering everything.',
-    ],
+<p>Take one small section at radius r. Measure <b>pitch θ</b> from the rotor-plane reference to its chord. Measure <b>inflow angle φ</b> from that reference to the local relative-flow direction. In the normal-flow convention used here, <b>α = θ − φ</b>.</p>
+<p><b>Worked example:</b> θ = 10° and φ = 4° give α = 6°. Raising θ alone by 2° raises α by 2°. Raising φ alone by 2° lowers α by 2°. In a coupled hover model, changing collective also changes induced flow, so the final α change need not equal the pitch change.</p>
+<p>Positive total perpendicular velocity U_P gives positive φ when U_T is positive. Upflow can give negative φ: θ = 4°, φ = −3° then gives α = 7°. Downwash is one contribution to U_P; aircraft motion and flapping also contribute. Do not assume φ is positive in every flight state.</p>
+<p>Local lift is normal to relative airflow; drag opposes relative motion through the air. Their magnitudes depend on <b>½ρU², section area and aerodynamic coefficients</b>. α influences those coefficients, alongside Mach, Reynolds number and unsteady effects. Resolving one section's force is a building block; whole-rotor thrust requires integration.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["α is an aerodynamic angle; θ is a geometric angle.", "Use signed total inflow, including upflow when present.", "Lift magnitude depends on dynamic pressure, area and coefficient."],
     check: {
-      q: 'You raise collective (θ) but the induced velocity also increases. Why does lift rise less than you might expect?',
-      options: [
-        'Because more inflow means a larger φ, so α = θ − φ rises less than θ did',
-        'Because the blade slows down',
-        'Because drag becomes lift',
-        'Because θ has no effect on α',
-      ], answer: 0,
-      explain: 'More thrust pulls more air down → bigger induced velocity → bigger φ. Since α = θ − φ, part of your extra pitch is offset by the extra inflow. This self-limiting behaviour is why rotors are stable in thrust.',
-    },
-    bridge: 'Next — <b>Hover &amp; Induced Flow</b> shows how induced velocity v<sub>i</sub> and inflow ratio λ are calculated from first principles, putting numbers on φ and completing the hover picture.',
+  "q": "Normal-flow convention: θ = 4° and φ = −3°. What is α?",
+  "options": [
+    "7°, because subtracting negative inflow adds 3°.",
+    "1°, because inflow magnitude is always subtracted.",
+    "4°, because pitch defines angle of attack."
+  ],
+  "answer": 0,
+  "explain": "α = θ − φ uses a signed inflow angle. This calculation assumes normal chordwise flow, not reverse flow."
+},
   },
   {
-    id: 'm1-04', stage: 'Basics', title: 'M1-04 — Build a Blade Element',
-    subtitle: 'Guided construction — fixed scenario, predict first, then reveal',
+    id: 'm1-04', stage: 'Basics', title: "Build a Blade Element",
+    subtitle: "Construct, commit and reveal the local force picture",
     widget: 'wM104BladeElement',
     wide: true,
     body: `
-      <p>This mission is a <b>guided construction</b> exercise built around one fixed
-      blade-element scenario. You will unlock the picture in order: reference frame,
-      velocity triangle, blade geometry, local forces, and finally the resolved local components.</p>
-
-      <p>Build the diagram from the geometry. Each gate asks you to construct or commit a
-      prediction before the app reveals the next state, so you use <b>V<sub>rel</sub></b>,
-      <b>φ</b>, <b>α = θ − φ</b>, and the force directions as one causal chain.</p>
-
-      <ol>
-        <li><b>Reference state:</b> start from the rotor plane and one blade station with known Ω, r, v<sub>i</sub>, and θ.</li>
-        <li><b>Gate 1:</b> construct V<sub>rel</sub> directly in the diagram, then reveal V<sub>rel</sub> and φ.</li>
-        <li><b>Gate 2:</b> determine α from the geometry first, then reveal the shortcut relation.</li>
-        <li><b>Gate 3:</b> resolve the local force into its thrust-producing normal component and F<sub>H</sub>, then decide what that blade element does to the rotor.</li>
-      </ol>
-
-      <p class="hl-note">What does this blade element do to the rotor? First solve the local force. Then connect it to the rotor.</p>`,
-    takeaways: [
-      'This mission uses one fixed canonical blade-element case, so progress depends on prediction and construction rather than slider searching.',
-      'V_rel, φ, α, F_L, F_D, TAF, the local normal component, and F_H are revealed in a strict causal order.',
-      'The local normal component contributes to rotor thrust, while F_H remains a local in-plane braking force — do not confuse either with the whole-rotor result.',
-    ],
+<p>Build the resultant of the tangential and perpendicular velocity components before placing the chord. Use the resultant direction to construct α, then place lift normal to relative airflow and drag opposite relative motion.</p>
+<p>The final construction resolves the total aerodynamic force into a component normal to the rotor plane and a tangential component. <b>Normal to the rotor plane is not necessarily vertical in the earth frame.</b> The tangential component contributes torque about the shaft.</p>
+<p>Commit each gate before the reveal, then compare your construction with it. A correction after feedback is useful learning evidence; the committed attempt remains part of the record. One section cannot establish the entire rotor's thrust or torque.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Construct the local velocity before the aerodynamic angles.", "Resolve force in the stated rotor frame.", "Separate the committed construction from the revealed explanation."],
     check: {
-      q: 'Why does M1-04 make you commit each prediction before it reveals the next layer?',
-      options: [
-        'To force geometric reasoning from the reference frame rather than letting you search for the answer',
-        'Because the blade element has no induced flow in hover',
-        'Because φ and α are always identical',
-        'Because TAF always points straight up',
-      ], answer: 0,
-      explain: 'The mission is deliberately construct → commit → reveal. It is there to make you build the geometry and force chain step by step, instead of hunting for the answer by trial and error.',
-    },
-    bridge: 'Next — <b>Speed Along the Blade</b> takes the same blade-element picture and shows why the outboard stations do most of the lifting.',
+  "q": "The rotor plane tilts relative to the horizon. A local rotor-normal force component is…",
+  "options": [
+    "Normal to that tilted plane; it is not automatically earth-vertical.",
+    "Always earth-vertical.",
+    "Always parallel to the blade chord."
+  ],
+  "answer": 0,
+  "explain": "The force-component reference is the rotor plane. Its direction changes in earth axes when that plane tilts."
+},
   },
   {
-    id: 'spanwise', stage: 'Basics', title: 'Speed Along the Blade',
-    subtitle: 'Why the outer blade does the work',
+    id: 'spanwise', stage: 'Basics', title: "Speed Along the Blade",
+    subtitle: "Radius, dynamic pressure and blade twist",
     widget: 'wSpanwise',
     body: `
-      <p>Every slice spins at the same RPM, but a slice near the tip travels much
-      faster than one near the root, because it covers a bigger circle:
-      <b>U<sub>T</sub> = Ω·r</b>. The tip of a typical rotor moves at over
-      <b>200 m/s</b> while the root barely moves.</p>
-      <p>Lift depends on speed <b>squared</b> (dynamic pressure ∝ ½ρV²), so the
-      outer third of the blade makes the great majority of the thrust. That is why:
-      </p>
-      <ul>
-        <li>Blades are often <b>twisted</b> (washout) — less pitch at the fast tip,
-            more at the slow root — to even out the loading.</li>
-        <li>The very tip loses a little to <b>tip losses</b> (air escaping around
-            the end), so useful lift peaks just inboard of the tip.</li>
-      </ul>
-      <p>Slide the station marker from root to tip and watch the local speed and
-      the lift-per-metre climb steeply outboard.</p>`,
-    takeaways: [
-      'Local speed U_T = Ω·r — grows linearly from root to tip.',
-      'Lift ∝ speed², so the outer blade carries most of the load.',
-      'Twist (washout) and tip loss shape the real spanwise lift distribution.',
-    ],
+<p>All stations share angular speed Ω, but their tangential speed is <b>Ωr</b>. At unchanged RPM, a station at 0.8R has twice the rotational speed of a station at 0.4R. If density and other velocity contributions are unchanged or neglected, its dynamic pressure is four times as large.</p>
+<p>That does not guarantee four times the lift. Section lift also depends on chord, α and the lift coefficient. Inflow angle changes with the local velocity triangle. <b>Washout</b> decreases geometric pitch toward the tip and changes the distribution of loading.</p>
+<p>For this activity set twist to zero and compare two radii with RPM fixed. Explain the observed speed change first. Treat any displayed load distribution as a result of the selected assumptions, not a statement that every rotor has the same loading or stall location.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["RPM is shared; tangential speed increases with radius.", "Dynamic pressure scales with local speed squared.", "Actual loading also depends on geometry and aerodynamic coefficients."],
     check: {
-      q: 'A slice at 0.9R versus one at 0.45R — roughly how much more dynamic pressure (∝ speed²) does the outer slice see?',
-      options: ['About 4× more', 'About the same', 'About 2× more', 'About 1.5× more'],
-      answer: 0,
-      explain: 'Speed doubles from 0.45R to 0.9R (U_T = Ω·r). Dynamic pressure goes as speed², so 2² = 4× more. That square law is why the outer blade dominates lift.',
-    },
+  "q": "At the same RPM, density and section area, radius doubles and other flow contributions are neglected. What is established?",
+  "options": [
+    "Tangential speed doubles and dynamic pressure quadruples; lift still depends on the coefficient.",
+    "Tangential speed doubles and lift must double.",
+    "Tangential speed stays fixed because RPM is shared."
+  ],
+  "answer": 0,
+  "explain": "Ωr determines rotational speed. The force relation includes q, area and coefficient."
+},
   },
 
   /* ──────────────────────── STAGE 2 — HOVER & VERTICAL ─────────────────── */
   {
-    id: 'hover', stage: 'Hover & Vertical', title: 'Hover & Induced Flow',
-    subtitle: 'Why hover costs power — the causal chain from thrust to induced velocity',
+    id: 'hover', stage: 'Hover & Vertical', title: "Hover & Induced Flow",
+    subtitle: "Required thrust, produced thrust and ideal induced power",
     widget: 'wHover',
     body: `
-      <p><b>Start with the physics:</b> to hover, the rotor must push a column of
-      air downward. By Newton's third law that downward push gives an upward
-      <b>thrust</b> on the helicopter. The speed of that downward airflow at the
-      disc is the <b>induced velocity v<sub>i</sub></b> — the faster the air moves,
-      the more momentum (and therefore thrust) the rotor can produce.</p>
-      <p><b>Causal chain — thrust → v<sub>i</sub> → λ → φ → power:</b></p>
-      <ol>
-        <li>More thrust needed (heavier aircraft, thinner air) → rotor must
-            accelerate air faster → <b>v<sub>i</sub> rises</b>.</li>
-        <li>Higher v<sub>i</sub> increases the <b>inflow ratio λ = v<sub>i</sub>/ΩR</b>
-            — the normalised measure of how much downwash tilts the local
-            airflow at each blade section.</li>
-        <li>Larger λ raises the <b>inflow angle φ</b>, which reduces the blade's
-            angle of attack α = θ − φ and wastes energy as induced drag.</li>
-        <li>Power to push that air: <b>P<sub>i</sub> = T·v<sub>i</sub></b>.
-            Because v<sub>i</sub> grows with T, induced power climbs faster than
-            thrust — a non-linear penalty.</li>
-      </ol>
-      <p>Two theories must give the same answer:</p>
-      <ul>
-        <li><b>Momentum theory</b> (the air column):
-            v<sub>i</sub> = √(T / 2ρA). Heavier (T↑) or higher (ρ↓) ⇒
-            more induced velocity, more induced power.</li>
-        <li><b>Blade Element Theory</b> (the blades):
-            C<sub>T</sub> = (σ·c<sub>lα</sub>/6)(θ₀ − 3λ/2).
-            The solver finds the λ that satisfies both simultaneously.</li>
-      </ul>
-      <p class="hl-note">This compact <b>1/6</b> form is just the hover case of the
-      general forward-flight thrust equation the simulator solves,
-      C<sub>T</sub> = (σ·c<sub>lα</sub>/4)[θ₀(2/3 + μ²) − (λ + μ·θ<sub>1s</sub>)] —
-      set the advance ratio μ = 0 and (σ·c<sub>lα</sub>/4)·(2/3) becomes
-      (σ·c<sub>lα</sub>/6), giving exactly (σ·c<sub>lα</sub>/6)(θ₀ − 3λ/2). Same
-      physics, two forms; the numbers you see come from the full equation.</p>
-      <p><b>Try it:</b> raise collective → θ₀ up → thrust up → but v<sub>i</sub>
-      also rises, increasing λ and φ, trimming α back. Watch thrust, v<sub>i</sub>
-      and <b>power</b> all climb together — and notice power climbs faster than
-      thrust.</p>
-      <p class="hl-note"><b>Why hover is expensive:</b> unlike a fixed-wing aircraft
-      that can glide, a helicopter in hover must continuously pay the induced power
-      bill P<sub>i</sub> = T·v<sub>i</sub> just to stay airborne. Because
-      v<sub>i</sub> = √(T/2ρA) grows with both weight and altitude, hovering
-      high, hot, or heavy multiplies the penalty steeply — the main reason
-      helicopter performance margins shrink so fast in those conditions.</p>`,
-    takeaways: [
-      'Thrust → v_i: to generate more thrust the rotor accelerates air faster, raising induced velocity v_i = √(T/2ρA). High, hot, heavy all increase v_i.',
-      'v_i → λ → φ → α: higher induced velocity raises inflow ratio λ = v_i/ΩR, which increases inflow angle φ and reduces blade angle of attack α — the rotor self-limits its own thrust response.',
-      'Induced power P_i = T·v_i grows non-linearly: doubling thrust more than doubles the induced power bill, making hover the most power-intensive regime for a helicopter.',
-    ],
+<p>In a steady, level hover, rotor thrust approximately balances aircraft weight: <b>T ≈ W</b>. The aircraft can be stationary while air flows through the rotor. The rotor transfers momentum and energy to that air.</p>
+<p>For an ideal actuator disc in out-of-ground-effect hover, <b>v_i = √(T / 2ρA)</b> and <b>P_i = Tv_i</b>. These assume steady, uniform flow and neglect rotor swirl and losses. Installed power additionally includes profile, tail-rotor and transmission requirements.</p>
+<p><b>Mass comparison:</b> at fixed density and disc area, 15% more weight requires approximately 15% more hover thrust and <b>1.15^(3/2) ≈ 1.23</b> times ideal induced power. The 23% increase applies to the induced term, not necessarily total engine power.</p>
+<p><b>Density comparison:</b> at the same weight and area, density falling to 81% raises ideal induced velocity and power by <b>1/√0.81 ≈ 1.11</b>. Required thrust has not risen. A trimmed model changes pitch to meet the same demand; a fixed-collective model instead compares produced thrust.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Steady hover demand is approximately weight; collective does not set weight.", "At equal demand, lower density raises ideal induced-flow cost.", "Distinguish ideal induced power from total installed power."],
     check: {
-      q: 'High, hot and heavy: the air is thin and the aircraft is heavy. What happens to the induced velocity and power required to hover?',
-      options: [
-        'Both increase — thinner air and more weight raise v_i, so P_i = T·v_i climbs',
-        'Both decrease',
-        'v_i drops but power rises',
-        'Nothing changes — hover power is fixed',
-      ], answer: 0,
-      explain: 'v_i = √(T/2ρA): more weight (T↑) and thinner air (ρ↓) both raise v_i. Induced power P_i = T·v_i then climbs steeply — the classic "high/hot/heavy" hover-performance trap.',
-    },
-    bridge: 'Next — <b>Climb, Descent &amp; VRS</b>: in axial flight the helicopter\'s vertical velocity adds to (or opposes) v<sub>i</sub>, changing the inflow through the disc. That is where the causal chain gets interesting — and where the Vortex Ring State danger lurks.',
+  "q": "At the same weight and rotor area, density falls to 81% in trimmed OGE hover. What changes?",
+  "options": [
+    "Required thrust is unchanged; ideal induced power rises by about 11%.",
+    "Required thrust rises by 19%.",
+    "Ideal induced power falls by 19%."
+  ],
+  "answer": 0,
+  "explain": "The ideal induced term scales with 1/√ρ at fixed thrust and area. The model must still trim to the same thrust demand."
+},
   },
   {
-    id: 'verticalflight', stage: 'Hover & Vertical', title: 'Climb, Descent & VRS',
-    subtitle: 'Axial inflow and the vortex ring danger',
+    id: 'verticalflight', stage: 'Hover & Vertical', title: "Vertical Flow & Model Validity",
+    subtitle: "Climb, descent and the limits of simple momentum theory",
     widget: 'wVertical',
     body: `
-      <p>In a vertical <b>climb</b>, the airframe's upward motion adds to the air
-      already coming down through the disc. The total inflow rises, φ grows, and
-      α at each blade element <b>drops</b> — so you must pull more collective to
-      hold thrust. Climbing costs power.</p>
-      <p>In a <b>descent</b>, the upward-moving air opposes the rotor's downwash.
-      A fast, clean descent (or autorotation) lets the air drive the rotor. But in
-      a narrow band of <b>slow vertical descent</b> — descent rate near the hover
-      induced velocity (V<sub>c</sub>/v<sub>h</sub> ≈ −0.25 to −1.8) — the rotor
-      sinks into its own turbulent wake. This is the <b>Vortex Ring State (VRS)</b>:
-      </p>
-      <ul>
-        <li>The downwash recirculates around the blade tips instead of leaving.</li>
-        <li>Thrust becomes erratic; momentum theory <b>fails</b> here.</li>
-        <li>Adding collective makes it <b>worse</b> — recovery is to fly forward
-            (or lower the collective) to escape the recirculation.</li>
-      </ul>
-      <p>Press <b>▶ Climb entry</b> to watch the whole transient: raising the
-      collective makes T &gt; W, the helicopter accelerates up, but the building
-      climb raises the inflow and trims α back down until <b>T = W again</b> at a
-      steady rate of climb. <b>▶ Descent entry</b> shows the reverse — and how a
-      gentle vertical descent settles toward the VRS band. Or drag the manual
-      slider to scrub it yourself.</p>`,
-    takeaways: [
-      'Climb adds to inflow → α drops → more collective needed.',
-      'VRS occurs in slow vertical descent near V_c ≈ v_h; thrust goes erratic.',
-      'Recover from VRS by gaining forward speed, not by pulling collective.',
-    ],
+<p>The course uses positive vertical aircraft velocity V_c for climb and negative V_c for descent. In the simple axial rotor-relative picture, <b>U_P includes V_c + v_i</b>. Induced velocity also changes with the condition; it is not a constant added to every state.</p>
+<p>Compare fixed collective with equal-thrust trim carefully. They answer different questions. A snapshot with produced thrust greater than weight establishes an upward acceleration tendency; it does not prove that a steady climb has already developed.</p>
+<p>Descending through a recirculating wake can produce vortex ring state: the flow is unsteady and the simple clean-streamtube assumptions are inadequate. The coloured descent bands in this widget are <b>illustrative regime labels</b>. Their endpoints are not aircraft entry limits, and animation through a band does not validate computed thrust there.</p>
+<p>Use the manual slider to compare hover and descent and explain where the model loses credibility. This exercise does not determine a recovery manoeuvre; that requires the applicable rotorcraft flight manual and aircraft-specific instruction.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["State the sign convention before interpreting axial flow.", "A thrust imbalance establishes acceleration tendency, not a trajectory.", "Recirculation limits the simple flow model; coloured bands are illustrative."],
     check: {
-      q: 'You are in a slow vertical descent and feel the onset of vortex ring state. What is the correct recovery?',
-      options: [
-        'Lower collective and/or fly forward to get into clean air',
-        'Pull maximum collective to arrest the descent',
-        'Hold everything steady and wait',
-        'Increase RPM only',
-      ], answer: 0,
-      explain: 'In VRS the rotor is recirculating its own wake. Pulling collective feeds the vortex and worsens it. Flying forward (or lowering collective) moves the rotor into undisturbed air and restores normal thrust.',
-    },
+  "q": "A simple axial model enters a labelled recirculating-wake region. What is the sound interpretation?",
+  "options": [
+    "Its clean-flow assumptions become unreliable; a computed state is not a validated trajectory.",
+    "All computed thrust values remain exact because the diagram still animates.",
+    "The label fixes the recovery control sequence for every helicopter."
+  ],
+  "answer": 0,
+  "explain": "The label illustrates a mechanism and a validity boundary. It is not an aircraft-specific operational simulation."
+},
   },
   {
-    id: 'groundeffect', stage: 'Hover & Vertical', title: 'Ground Effect',
-    subtitle: 'The cushion that makes the hover cheaper',
+    id: 'groundeffect', stage: 'Hover & Vertical', title: "Ground Effect",
+    subtitle: "Compare induced power at equal required thrust",
     widget: 'wGroundEffect',
     body: `
-      <p>Near the ground (within about one rotor diameter), the downwash can't
-      accelerate freely — the ground gets in the way. The induced velocity
-      <b>v<sub>i</sub> falls</b>, the inflow angle φ shrinks, α rises, and the
-      rotor makes <b>more thrust for the same power</b> (or the same thrust for
-      less power). This is the <b>ground cushion</b>.</p>
-      <p>A simple model (Cheeseman–Bennett) captures it:</p>
-      <p style="text-align:center"><b>v<sub>i,IGE</sub> / v<sub>i,OGE</sub> =
-      √(1 − 1/(16·(z/R)²))</b></p>
-      <p>where z/R is the rotor height above ground in radii. The benefit is large
-      below z/R ≈ 0.5 and has essentially vanished by z/R ≈ 1.5 — that is why a
-      heavily loaded helicopter can hover in ground effect (IGE) but not out of
-      ground effect (OGE). Slide the height down and watch the thrust gain build.</p>`,
-    takeaways: [
-      'Near the ground v_i drops → thrust rises for the same power.',
-      'Benefit is strong below z/R ≈ 0.5, gone by z/R ≈ 1.5.',
-      'IGE hover may be possible when OGE hover is not — a key performance limit.',
-    ],
+<p>A nearby surface changes the rotor wake and generally reduces the induced power needed for a given hover thrust. In a steady hover at unchanged weight, <b>required thrust remains approximately the same</b>; the induced-flow cost changes.</p>
+<p>That equal-thrust comparison differs from holding collective or total power fixed. With pitch fixed, reduced induced flow can change α and produced thrust. With power fixed, thrust may increase. Do not mix those experiments into one causal chain.</p>
+<p>The height correction shown here is a simplified ground-effect approximation with a restricted low-height domain. Surface shape, slope, wind, rotor geometry and recirculation affect a real aircraft. There is no sharp universal height at which ground effect switches off.</p>
+<p>Use <b>rotor height divided by radius (h/R)</b>, not skid height. Save an equal-thrust low/high-height comparison and identify the changed induced velocity and power. Whether a particular aircraft can hover IGE or OGE requires its approved performance data.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["At equal weight in steady hover, compare the power cost at equal thrust.", "Fixed collective, fixed power and trimmed equal thrust are different conditions.", "Ground-effect strength varies continuously and depends on the environment."],
     check: {
-      q: 'Why does a helicopter need less power to hover in ground effect?',
-      options: [
-        'The ground restricts the downwash, lowering v_i and induced power',
-        'The ground reflects extra lift up to the rotor',
-        'The blades spin faster near the ground',
-        'Air is always denser near the ground by enough to matter',
-      ], answer: 0,
-      explain: 'The ground blocks the wake from accelerating, so the induced velocity v_i is lower. Since induced power P_i = T·v_i, lower v_i means less power for the same thrust — the ground cushion.',
-    },
+  "q": "The same helicopter hovers at two rotor heights with unchanged weight. Which comparison isolates ground-effect power benefit?",
+  "options": [
+    "Hold required thrust equal and compare induced power.",
+    "Hold collective equal and assume thrust must remain equal.",
+    "Change mass and rotor height together and attribute all change to height."
+  ],
+  "answer": 0,
+  "explain": "Equal-thrust trim separates the wake/induced-power effect from a change in required lift."
+},
   },
 
   /* ──────────────────────── STAGE 3 — FORWARD FLIGHT ───────────────────── */
   {
-    id: 'dissymmetry', stage: 'Forward Flight', title: 'Dissymmetry of Lift',
-    subtitle: 'Advancing vs retreating — the asymmetry problem',
+    id: 'dissymmetry', stage: 'Forward Flight', title: "Dissymmetry of Lift",
+    subtitle: "Local speed before rotor compensation",
     widget: 'wDissymmetry',
     body: `
-      <p>The moment the helicopter moves forward, the two sides of the disc stop
-      being equal. On the <b>advancing side</b> (ψ ≈ 90°) the blade's rotational
-      speed and the forward speed <b>add</b>; on the <b>retreating side</b>
-      (ψ ≈ 270°) they <b>subtract</b>:</p>
-      <p style="text-align:center"><b>U<sub>T</sub> = Ω·r + V·sinψ</b></p>
-      <p>Lift goes as speed², so without any correction the advancing blade would
-      make far more lift than the retreating blade. That rolling imbalance is the
-      <b>dissymmetry of lift</b>. Push fast enough and the retreating blade runs
-      out of speed entirely — a <b>reverse-flow</b> region grows at its root, where
-      air hits the trailing edge first.</p>
-      <p>Spin the azimuth scrubber and push the speed up. Watch the lift bars on
-      the two sides diverge — then in the next lesson see how the rotor fixes it
-      all by itself.</p>`,
-    takeaways: [
-      'U_T = Ω·r + V·sinψ: advancing side fast, retreating side slow.',
-      'Lift ∝ speed², so forward flight creates a left–right lift imbalance.',
-      'At high speed a reverse-flow region grows at the retreating root.',
-    ],
+<p>For the course CCW rotor viewed from above, ψ = 0° is the tail, 90° the advancing/right side, 180° the nose and 270° the retreating/left side. With radial and other corrections neglected, <b>U_T = Ωr + V sinψ</b>.</p>
+<p>At the same radius, translation therefore adds to rotational speed at 90° and subtracts at 270°. With the same density, area and coefficient, higher total relative speed gives higher lift through <b>q = ½ρU²</b>. Those equal-coefficient conditions do not generally hold in a trimmed rotor.</p>
+<p>The uncorrected comparison exposes unequal local aerodynamic forcing. Flapping, cyclic pitch and inflow redistribution change the response; they do not make every element's speed or force equal. Rotor trim concerns integrated forces and moments.</p>
+<p>Reverse flow is a local change in chordwise flow direction, usually first evident inboard on the retreating side. It is different from a loaded section reaching stall at excessive α.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Separate the rotational and translational speed contributions.", "Lift ∝ speed² assumes unchanged density, area and coefficient.", "Local asymmetry, rotor trim and reverse flow are distinct concepts."],
     check: {
-      q: 'In forward flight, where on the disc is the blade tangential speed lowest?',
-      options: [
-        'The retreating side (ψ ≈ 270°), where rotation and forward speed subtract',
-        'The advancing side (ψ ≈ 90°)',
-        'Over the nose (ψ ≈ 180°)',
-        'It is the same everywhere',
-      ], answer: 0,
-      explain: 'U_T = Ω·r + V·sinψ. At ψ = 270° (retreating), sinψ = −1, so forward speed subtracts from rotational speed — the slowest, lowest-lift side, and where stall appears first.',
-    },
+  "q": "At a fixed station, Ωr = 150 m/s and forward speed is 30 m/s. What are the simplified 90° and 270° tangential speeds?",
+  "options": [
+    "180 and 120 m/s respectively.",
+    "180 m/s at both positions.",
+    "150 m/s at both positions."
+  ],
+  "answer": 0,
+  "explain": "The translational term is +V on the advancing side and −V on the retreating side."
+},
   },
   {
-    id: 'flapping', stage: 'Forward Flight', title: 'Flapping — the Automatic Fix',
-    subtitle: 'How the rotor equalises lift by itself',
+    id: 'flapping', stage: 'Forward Flight', title: "Flapping & Rotor Response",
+    subtitle: "Local flap rate and phased disc response",
     widget: 'wFlapping',
     body: `
-      <p>The rotor solves dissymmetry of lift <b>mechanically, without any pilot
-      input</b>. Blades are hinged (or flexible) so they can <b>flap</b> up and
-      down. Where lift is high (advancing side), the blade flaps <b>up</b>; flapping
-      up reduces its angle of attack, shedding the excess lift. Where lift is low
-      (retreating side), the blade flaps <b>down</b>, raising α and recovering lift.
-      The rotor balances itself.</p>
-      <p>Two subtleties every ATPL student must know:</p>
-      <ul>
-        <li><b>Coning (a₀)</b>: in the hover the blades already rise into a shallow
-            cone, balancing lift against centrifugal force.</li>
-        <li><b>Phase lag ≈ 90°</b>: a rotor responds to an input a quarter-turn
-            later (gyroscopic precession). Maximum <i>upward force</i> on the
-            advancing side (ψ 90°) produces maximum <i>up-flap displacement</i>
-            90° later, over the nose (ψ 180°) — so the disc tilts <b>back</b>, not
-            sideways. This is why cyclic is rigged ahead of where you want the disc
-            to go.</li>
-      </ul>
-      <p>Increase forward speed and watch β(ψ) — the flapping angle around the
-      azimuth — grow, and the disc blow back.</p>`,
-    takeaways: [
-      'Blades flap up where lift is high, down where it is low — auto-equalising.',
-      'Coning a₀ balances lift vs centrifugal force; it grows with thrust.',
-      'Phase lag ≈ 90°: peak force leads peak displacement by a quarter turn.',
-    ],
+<p>Blade flapping is out-of-plane motion. <b>Flapping displacement β and flapping rate are different.</b> At an extremum of displacement the rate can be zero. Upward blade motion adds a positive perpendicular relative-velocity contribution; with pitch fixed and normal chordwise flow, φ tends to rise and α tends to fall. Downward motion gives the opposite tendency.</p>
+<p>A blade responds dynamically to periodic aerodynamic forcing. A near-quarter-revolution phase relation is useful for the ideal articulated model shown here. Hinge offset, stiffness, damping and aerodynamic coupling change the response. A universal 90° rigid-gyroscope rule is not a complete rotor explanation.</p>
+<p>The widget shows an <b>untrimmed, prescribed response</b> on a level fuselage. Natural flapback changes disc orientation; cyclic changes the pitch distribution and the trimmed response. Compensation reduces imbalance but does not guarantee identical lift at every azimuth.</p>
+<p>Coning is the mean upward blade deflection associated with aerodynamic loading and centrifugal restoring effects. A rotor can cone in symmetric hover even when first-harmonic flapping is absent.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://ntrs.nasa.gov/api/citations/19750010111/downloads/19750010111.pdf" target="_blank" rel="noopener noreferrer">NASA TN D-7856 — rotor dynamics and phase</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Flap rate changes the local velocity triangle; flap displacement locates the blade.", "The phase relation depends on rotor dynamics and configuration.", "Coning can be present in symmetric hover."],
     check: {
-      q: 'Maximum upward aerodynamic force occurs on the advancing side (ψ 90°). Because of ~90° phase lag, where is the maximum up-flap displacement?',
-      options: [
-        'Over the nose (ψ ≈ 180°), tilting the disc rearward — "blowback"',
-        'Still on the advancing side (ψ 90°)',
-        'On the retreating side (ψ 270°)',
-        'Over the tail (ψ 0°)',
-      ], answer: 0,
-      explain: 'A rotor disc behaves gyroscopically: the response peaks ~90° of rotation after the input. Peak force at ψ 90° → peak displacement at ψ 180°, so the disc flaps back (blowback). Pilots counter it with forward cyclic.',
-    },
+  "q": "A blade is at its maximum upward flapping displacement. What can you infer about its instantaneous flap rate?",
+  "options": [
+    "It can be zero at that extremum; maximum displacement is not maximum upward velocity.",
+    "It must be at its maximum upward rate.",
+    "Its geometric pitch must equal its flap angle."
+  ],
+  "answer": 0,
+  "explain": "Displacement and its time derivative are distinct. Local aerodynamic effects involve the velocity contribution."
+},
   },
   {
-    id: 'envelope', stage: 'Forward Flight', title: 'Retreating Stall & the Speed Envelope',
-    subtitle: 'The two walls of the speed envelope',
+    id: 'envelope', stage: 'Forward Flight', title: "Aerodynamic Speed Constraints",
+    subtitle: "Local stall and compressibility diagnostics",
     widget: 'wEnvelope',
     body: `
-      <p>The disc map below is the <b>overview</b>: the whole rotor at a glance,
-      coloured so you can see <i>where</i> the retreating side stalls (red) and
-      where the flow reverses (purple) as speed, weight, g and density altitude
-      climb. Two opposite problems close in as speed rises, and together they set
-      the never-exceed speed V<sub>NE</sub>:</p>
-      <ul>
-        <li><b>Retreating blade stall (the low-speed wall of the fast side):</b>
-            the retreating blade is slow, so to make its share of lift it needs a
-            high α. Flapping-down adds even more α. Past a critical speed the
-            retreating tip <b>stalls</b> — felt as vibration, a nose-up pitch and a
-            roll towards the retreating side.</li>
-        <li><b>Advancing-tip compressibility:</b> the advancing tip is the fastest
-            point on the aircraft and approaches the speed of sound. <b>Shock waves
-            </b> bring drag rise, noise and buffet.</li>
-      </ul>
-      <p>So the rotor is squeezed from both ends: the retreating side runs out of
-      α, the advancing side runs out of Mach margin.</p>
-      <p><b>Model note — the blade-twist toggle:</b> the disc map is a steady,
-      rigid-blade beam-element model with the full Drees inflow. The <b>Blade
-      twist</b> switch changes just one input:</p>
-      <ul>
-        <li><b>Foundation model (no twist)</b> — the default.
-            <br><b>Purpose:</b> isolate the primary stall-onset mechanism.
-            <br><b>Assumptions:</b> untwisted blade with full pitch to the tip, so the high-α zone sits <b>outboard on the
-            retreating side and the tip stalls first</b> (≈0.9–1.0 R, ψ≈270°),
-            spreading inboard as speed, weight, g or density altitude rise.</li>
-        <li><b>Extended model (with twist)</b> —
-            <br><b>Purpose:</b> show how the same mechanism shifts with added rotor effects.
-            <br><b>Adds:</b> the aircraft's real −8° washout while keeping the same core model.
-            This washout unloads
-            the tip and loads the mid-span, so the α peak slides a little
-            <b>inboard (≈0.7 R)</b> and the tip is no longer strictly the first to
-            go. Nothing is faked — only the twist input changes.</li>
-      </ul>
-      <p>Use the <b>Foundation model</b> to learn the no-twist tip-first picture,
-      then switch to the <b>Extended model</b> to inspect how blade twist shifts
-      the onset inboard.</p>`,
-    takeaways: [
-      'Retreating blade stall sets the upper speed limit — slow blade, high α.',
-      'Advancing-tip compressibility (shock waves) limits from the other side.',
-      'Together they define V_NE; both worsen with weight, altitude and g.',
-    ],
+<p>With forward speed increasing at fixed RPM, the advancing side encounters higher local speed and Mach. On the retreating side, reduced local speed can require higher lift coefficient and α to sustain loading. These are different aerodynamic constraints.</p>
+<p>Stall depends on section aerodynamics, local Mach, loading and unsteady effects. Compressibility can increase drag and alter forces before the local speed reaches Mach 1. Weight, manoeuvre load, density, RPM, blade twist and trim all matter. Neither constraint alone defines an aircraft's approved <b>V_NE</b>.</p>
+<p>The disc colours and hatching are <b>model diagnostics</b>, using assumed critical α and a Mach comparison line. Reverse-flow cells are shown separately because the normal-flow section model does not establish their true airloads.</p>
+<p>The Foundation and Extended settings change modelling assumptions, including twist and trim treatment. Compare locations within each model; do not memorise a universal tip-first stall azimuth or radius. The map does not predict aircraft vibration, roll, recoverability or an approved speed limit.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Distinguish high advancing Mach from retreating loading/α demand.", "Stall location depends on the selected rotor and flow assumptions.", "A teaching diagnostic is not an approved operating envelope."],
     check: {
-      q: 'Classic retreating blade stall is first felt as…',
-      options: [
-        'Vibration with a nose-up pitch and roll toward the retreating side',
-        'A smooth loss of all lift and immediate descent',
-        'An uncommanded yaw only',
-        'Nothing — it is purely a structural limit',
-      ], answer: 0,
-      explain: 'The retreating blade stalls near its tip at ψ≈270°. With ~90° phase lag the disc response shows up behind, giving a nose-up pitch and a roll toward the retreating side, preceded by vibration. Reduce collective, speed and g to recover.',
-    },
+  "q": "An advancing station crosses the model Mach comparison line while the retreating map shows high α. What follows?",
+  "options": [
+    "Two local aerodynamic concerns are indicated; aircraft V_NE still requires approved data.",
+    "The map has calculated a certified V_NE.",
+    "Positive engine power margin removes both aerodynamic concerns."
+  ],
+  "answer": 0,
+  "explain": "The model uses assumed thresholds and simplified loads. Certification limits also reflect other aircraft constraints."
+},
   },
 
   {
-    id: 'bet-guided', stage: 'Forward Flight', title: 'Guided BET — How a Rotor Really Works',
-    subtitle: 'Build the velocity triangle layer by layer, watch flapping happen',
+    id: 'bet-guided', stage: 'Forward Flight', title: "Guided BET \u2014 Rotor Layers",
+    subtitle: "Separate speed, flapping and cyclic pitch",
     widget: 'wGuidedBET',
     body: `
-      <p>Most students meet the BET velocity triangle as one frozen diagram with
-      five labels and memorise "advancing flaps up" as a fact. This page builds
-      it <b>one layer at a time</b>, so you see the cause-and-effect chain that
-      makes a rotor work — and that ends in retreating blade stall.</p>
-      <p>Work top to bottom through the five layers. Each layer switches on one
-      physics effect, and the disc + velocity triangle rebuild live:</p>
-      <ul>
-        <li><b>1 · Hover</b> — the symmetric baseline. U_T = r·Ω is the same
-            everywhere; no flapping is needed.</li>
-        <li><b>2 · Forward, rigid blade</b> — add speed but LOCK the blade. U_T
-            grows on the advancing side and shrinks on the retreating side, so
-            with fixed pitch the lift demand (≈ U_T²·α) explodes asymmetrically.
-            This is <i>the problem</i> flapping exists to solve.</li>
-        <li><b>3 · Flapping on</b> — free the blade (still no cyclic). It flaps up
-            on the advancing side → flapping rate raises U_P → φ grows →
-            <b>α shrinks</b> there. Retreating: α grows. Lift partly equalises
-            (flapping-to-equality) but the disc tilts back — blowback.</li>
-        <li><b>4 · Cyclic (trim)</b> — the pilot pre-distorts the pitch (θ₁c, θ₁s)
-            so flapping nearly vanishes and the disc stays level. Lift is
-            equalised <i>and</i> thrust stays forward. Peak α now sits on the
-            retreating side.</li>
-        <li><b>5 · High speed</b> — push toward V_NE. The retreating blade's U_T
-            is small, so it needs ever-higher α to carry its share — until it
-            exceeds the critical angle and stalls. That is retreating blade
-            stall.</li>
-      </ul>
-      <p><b>Play with it.</b> Hit <b>Play azimuth sweep</b> and watch the blade go
-      round; the pointer on the disc and the triangle below move in lockstep.
-      <b>Click any cell</b> on the disc to load that station and azimuth into the
-      triangle. Switch the disc between <b>U_T</b>, <b>α</b> and <b>Lift demand</b>
-      — seeing all three makes the lesson click: lift ∝ U_T²·α, so where U_T is
-      small the blade must fly at high α, and that is exactly where it stalls.</p>`,
-    takeaways: [
-      'Flapping is not decoration — it is the mechanism that restores lift symmetry.',
-      'Advancing flaps up → U_P grows → α shrinks; retreating drops → α grows.',
-      'Retreating blade stall happens where U_T is small, forcing high α.',
-      'Cyclic (trim) holds the disc level against blowback; speed sets the stall limit.',
-    ],
+<p>Read each layer as a different controlled model, not a complete simulated flight transition. At <b>Hover</b>, rotational speed is independent of azimuth at a fixed radius but still varies with radius. Uniform inflow is an assumption; mean coning can remain.</p>
+<p><b>Rigid forward flight</b> suppresses flapping and cyclic to expose the local speed asymmetry. <b>Flapping</b> introduces a prescribed untrimmed response; its rate changes U_P and therefore α. Negative α in this layer is a result of the selected untrimmed state, not proof of a typical trimmed aircraft state.</p>
+<p><b>Cyclic</b> changes the pitch distribution to achieve the selected level-disc teaching trim. Level disc does not mean forward thrust: under the disc-normal approximation, thrust is then rotor-normal. Aircraft velocity is separate. Compare θ, φ and α at 90° and 270° rather than assuming pitch equals α.</p>
+<p>The <b>Lift proxy</b> map uses a simplified local loading measure; it is not required thrust or a full integrated load solution. High-speed hatching uses model thresholds, and reverse flow is outside the normal section interpretation.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Compare layers at the same speed, station and azimuth.", "Separate imposed pitch from local inflow and flap velocity.", "Level-disc trim does not establish a forward thrust component."],
   },
 
   {
-    id: 'bet-velocity', stage: 'Forward Flight', title: 'The BET Velocity Triangle',
-    subtitle: 'Why the retreating blade runs slow — vector by vector',
+    id: 'bet-velocity', stage: 'Forward Flight', title: "The BET Velocity Triangle",
+    subtitle: "Tangential flow, perpendicular flow and signed angles",
     widget: 'wBetVelocity',
     body: `
-      <p>This page shows you <i>why</i> the retreating blade runs slow, with the
-      exact velocity triangle you draw on the exam. Pick any point on the blade —
-      a blade station <b>r/R</b>, an <b>azimuth ψ</b> and a <b>forward speed</b>
-      — and read off every velocity the blade element sees.</p>
-      <p><b>Two maps, two jobs.</b> You meet the retreating-stall disc map on two
-      pages, and each time it does something different:</p>
-      <ul>
-        <li><b>On the Envelope page</b> it is the <i>overview</i> — the whole disc
-            at a glance, so you can see <i>where</i> stall lives (red) and where
-            the flow reverses (purple) as speed, weight and altitude climb.</li>
-        <li><b>Here, above the triangle</b> it is a <i>cell-picker</i> — a smaller
-            live copy of the same map. <b>Click any cell</b> (or drag across it) to
-            load that cross-section into the triangle below; the crosshair jumps
-            there and the triangle rebuilds for that exact <b>ψ</b> and <b>r/R</b>.</li>
-      </ul>
-      <p>The banner over the read-out then gives the verdict using the
-      <i>identical</i> critical-α and airload model as the map, so a <b>red</b> cell
-      always reads <b>STALLED</b> and a <b>purple</b> cell reads <b>REVERSE FLOW</b>
-      here too. Use the <b>stall-model toggle</b> (Foundation / Extended) to keep
-      the BET and the map in step. This is how you learn the envelope — cell by
-      cell, vector by vector: click a red patch, watch V<sub>T</sub> subtract and
-      α climb past critical.</p>
-      <p>Build the in-plane speed head-to-tail, exactly as in the book:</p>
-      <ul>
-        <li><b>V<sub>rot</sub> = Ω·r</b> — the rotational speed. It always points
-            forward along the chord and grows from root to tip.</li>
-        <li><b>V<sub>T</sub> = μ·sinψ·ΩR</b> — the tangential component of the
-            aircraft's forward flow. It is drawn <b>on the tip of V<sub>rot</sub></b>.
-            On the <b>advancing</b> side (ψ=90°, sinψ=+1) it points forward and
-            <b>adds</b>. On the <b>retreating</b> side (ψ=270°, sinψ=−1) it points
-            <b>backward</b> and is <b>subtracted</b> — you can see it pull the tip
-            of the vector back toward the hub.</li>
-        <li><b>U<sub>T</sub> = V<sub>rot</sub> + V<sub>T</sub></b> — the net
-            in-plane speed. On the retreating side it is short, so the blade must
-            fly at a high <b>α</b> to make its share of lift.</li>
-      </ul>
-      <p>The perpendicular flow <b>U<sub>P</sub></b> (inflow λ plus the flapping
-      velocity) is drawn vertically at the tip of U<sub>T</sub>. The resultant
-      <b>V<sub>rel</sub></b> closes the triangle, and the angles fall straight out:
-      <b>θ</b> is the blade pitch, <b>φ</b> the inflow angle, and
-      <b>α = θ − φ</b> the angle of attack that decides whether the section
-      stalls.</p>
-      <p><b>Blade twist:</b> the two faint airfoils show the pitch span from the
-      root (most pitch) to the tip (least — the −8° washout unloads the tip). The
-      sharp section is your current blade station, sitting between them. Toggle
-      <b>twist off</b> and watch the whole section swing up to the full untwisted
-      pitch — the reason the untwisted Foundation-model blade stalls at the tip first.</p>`,
-    takeaways: [
-      'V_T (μ·sinψ) adds on the advancing side and subtracts on the retreating side.',
-      'On the retreating blade the net U_T is small, forcing a high α to hold lift.',
-      'α = θ − φ; when α exceeds the critical angle the section stalls.',
-      'Blade washout lowers tip pitch — turn it off and the tip goes to full pitch.',
-      'Click a cell on the disc map to see the exact BET triangle and stall verdict for that section — same model as the envelope overview.',
-    ],
+<p><b>U_T</b> is the local tangential relative-velocity component in the rotor-plane reference. Its rotational part is Ωr, tangent to the rotation path. It is <b>not defined along the chord</b>: the chord rotates with geometric pitch θ.</p>
+<p><b>U_P</b> combines induced flow, aircraft throughflow and flapping velocity in the course sign convention. For positive U_T, <b>φ = atan2(U_P, U_T)</b> and <b>α = θ − φ</b>. Keep the signed components; if total U_P becomes negative, φ can be negative.</p>
+<p>At the same radius and RPM, forward speed adds to U_T on the advancing side and subtracts on the retreating side. A smaller U_T does not automatically mean higher α at fixed pitch: the accompanying U_P and φ determine the result. Higher α <i>demand</i> to carry a specified load is a separate trim argument.</p>
+<p>Save opposite azimuts and one controlled speed comparison. If U_T reverses, recognise the change of chordwise flow direction. The usual small-angle, attached-flow lift interpretation cannot establish reverse-flow airloads.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Tangential velocity follows the rotation path, not the pitched chord.", "Use total signed U_P and the resultant flow direction.", "Distinguish actual local α from the α needed to carry a specified load."],
     check: {
-      q: 'At ψ = 270° (retreating), the forward-flow term V_T = μ·sinψ…',
-      options: [
-        'Points backward and is subtracted from V_rot, so the net U_T is small',
-        'Points forward and adds to V_rot, giving the highest U_T',
-        'Is zero because the blade is over the nose',
-        'Only changes the perpendicular flow U_P, not U_T',
-      ], answer: 0,
-      explain: 'sin(270°) = −1, so V_T = μ·sinψ·ΩR is negative — it points backward and is subtracted from the rotational speed V_rot. The net in-plane speed U_T is therefore small, and the blade must fly at a high α to keep making lift. Push the speed up and that α reaches the stall angle at the retreating tip first.',
-    },
+  "q": "At fixed positive pitch, U_T decreases while U_P remains positive and unchanged. What happens locally?",
+  "options": [
+    "φ increases and α decreases; this alone says nothing about the α needed to retain the previous lift.",
+    "φ decreases and α increases automatically.",
+    "Pitch changes by the same amount as U_T."
+  ],
+  "answer": 0,
+  "explain": "For positive components, atan2(U_P,U_T) increases as U_T decreases. A fixed-pitch state and an equal-load trim are different comparisons."
+},
   },
 
   {
-    id: 'coriolis', stage: 'Forward Flight', title: 'Coriolis Effect — Lead & Lag',
-    subtitle: 'Why blades hunt fore-and-aft as they flap',
+    id: 'coriolis', stage: 'Forward Flight', title: "Coriolis Effect \u2014 Lead & Lag",
+    subtitle: "Radial mass position and the limits of a prescribed curve",
     widget: 'wCoriolis',
     body: `
-      <p>Lead/lag is the blade's in-plane freedom to speed up and slow down as it
-      flaps. Without it, Coriolis forces would create enormous root stresses every
-      revolution. The drag hinge (or equivalent elastomeric bearing) absorbs this —
-      but its behaviour directly affects rotor smoothness, ground resonance
-      susceptibility, and the feel of the controls.</p>
-      <p>Flapping solves the lift problem, but it creates a second one. When a
-      blade flaps <b>up</b>, its centre of mass moves <b>closer to the shaft</b>.
-      Conservation of angular momentum then demands it speed up — exactly like a
-      spinning skater pulling their arms in. Flap <b>down</b> and the mass moves
-      out, so the blade slows down. This fore-and-aft "hunting" is the
-      <b>Coriolis effect</b>.</p>
-      <p>The change in rotational energy shows up as an in-plane acceleration:</p>
-      <p style="text-align:center"><b>2·Ω·β·β̇</b> — the Coriolis acceleration,
-      proportional to spin rate Ω, coning β and flap rate β̇.</p>
-      <ul>
-        <li><b>Blade flaps up</b> (advancing→nose) → mass moves in → blade
-            <b>leads</b> (accelerates ahead).</li>
-        <li><b>Blade flaps down</b> (nose→retreating) → mass moves out → blade
-            <b>lags</b> (decelerates behind).</li>
-      </ul>
-      <p>If the blade root were rigid these forces would be enormous, so
-      <b>fully-articulated</b> rotors add a <b>drag (lead–lag) hinge</b> with a
-      damper to let the blade hunt freely. Two-bladed <b>teetering</b> and
-      <b>rigid</b> rotors instead use <b>underslinging</b> (the hub sits below the
-      flapping axis) so the mass barely moves radially, cancelling most of the
-      Coriolis force. Drag the flap slider and watch the blade lead and lag around
-      the azimuth.</p>
-      <p class="hl-note"><b>What students usually confuse</b><br>
-      • <b>Lead/lag ≠ flapping</b>: flapping is out-of-plane (up/down), lead/lag is
-        in-plane (fore/aft rotation). They are coupled but distinct.<br>
-      • <b>Lead/lag ≠ blade tracking</b>: tracking is a maintenance/rigging concept,
-        not a dynamic response.<br>
-      • <b>Coriolis effect here is not the weather Coriolis</b>: it is the
-        conservation-of-angular-momentum effect as blade CoM moves closer/farther
-        from the hub during flapping.</p>`,
-    takeaways: [
-      'Coriolis: flap up → mass moves in → blade leads; flap down → mass out → lags.',
-      'It is conservation of angular momentum (the ice-skater), accel ∝ 2·Ω·β·β̇.',
-      'Articulated rotors use a lead–lag hinge + damper; teetering rotors use underslinging.',
-      'Lead/lag dampers prevent ground resonance by absorbing in-plane oscillation energy — a fully articulated rotor without functioning dampers is a ground-resonance risk.',
-      'Semi-rigid and hingeless rotors handle lead/lag through blade flexibility — the physics is the same, the hardware is different.',
-      'In the cockpit: lead/lag is invisible during normal flight but becomes relevant during run-up checks and any abnormal vibration diagnosis.',
-    ],
+<p>When a blade's mass distribution moves radially, its angular momentum changes unless the blade's angular speed or external torque accommodates that motion. For an isolated mass with negligible external torque, inward motion reduces moment of inertia and produces a tendency to lead; outward motion produces a tendency to lag.</p>
+<p>The familiar upward-flap → inward-motion analogy assumes <b>positive coning and the stated hinge geometry</b>. It is not valid for every flap angle and head design. Actual lag displacement and phase depend on inertia, hinge stiffness, damping and aerodynamic/structural coupling.</p>
+<p>This widget uses <b>ζ = gain × dβ/dψ</b> as an exaggerated teaching curve. It does not calculate radial centre-of-mass motion or solve a lead/lag equation. The two gain settings illustrate a configuration difference; their numerical amplitudes do not quantify real articulated or underslung rotor behaviour.</p>
+<p>Compare opposite azimuts and separate β, its rate and the prescribed ζ. Use angular momentum to explain an inward/outward tendency under explicit assumptions, rather than treating the plotted curve as a measured lag response.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://ntrs.nasa.gov/api/citations/19750010111/downloads/19750010111.pdf" target="_blank" rel="noopener noreferrer">NASA TN D-7856 — rotor dynamics and phase</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Radial mass movement and external torque govern the angular-momentum argument.", "The upward/inward analogy assumes positive coning and geometry.", "The plotted ζ is prescribed; real damping and lag phase are not solved."],
     check: {
-      q: 'A rotor blade flaps upward as it moves toward the nose. What does the Coriolis effect do to it in the plane of rotation?',
-      options: [
-        'It speeds up (leads) — its mass has moved closer to the shaft',
-        'It slows down (lags) — its mass has moved outward',
-        'Nothing — flapping and rotation are independent',
-        'It stalls because the angle of attack changes',
-      ], answer: 0,
-      explain: 'Flapping up pulls the blade\u2019s centre of mass inward. Conservation of angular momentum (skater pulling arms in) makes it accelerate ahead — it leads. Flapping down does the reverse (lag). Articulated rotors add a lead\u2013lag hinge to absorb this hunting.',
-    },
+  "q": "An isolated blade mass moves inward while external torque is negligible. What tendency follows?",
+  "options": [
+    "Angular speed tends to increase to conserve angular momentum.",
+    "Angular speed tends to decrease because the mass is closer to the shaft.",
+    "Angular momentum must increase without a torque."
+  ],
+  "answer": 0,
+  "explain": "With angular momentum conserved, a smaller moment of inertia requires a higher angular speed."
+},
   },
 
   {
-    id: 'flaproll', stage: 'Forward Flight', title: 'Flapback & Inflow Roll',
-    subtitle: 'Longitudinal flapback and the fore-aft inflow-roll (transverse-flow effect) in forward flight',
+    id: 'flaproll', stage: 'Forward Flight', title: "Flapback & Inflow Roll",
+    subtitle: "Distinguish two sources of rotor response",
     widget: 'wFlappingRoll',
     body: `
-      <p>Three related phenomena shape how the rotor behaves in forward flight —
-      but they are <em>different mechanisms</em> that are easy to confuse:</p>
-
-      <h3 style="margin:0.7em 0 0.2em">1. Dissymmetry of lift</h3>
-      <p>The advancing blade moves through the air faster than the retreating blade
-      (Lesson 7). Left uncorrected this would roll the helicopter. Flapping solves it
-      automatically (Lesson 8).</p>
-
-      <h3 style="margin:0.7em 0 0.2em">2. Flapback — the 90° phase lag</h3>
-      <p>In forward flight the advancing blade (ψ = 90°) sees the highest relative
-      velocity and wants to produce the most lift. But the flapping response of an
-      articulated rotor <strong>lags the forcing by ~90°</strong> (conservation of
-      angular momentum — the same mechanism as a gyroscope precessing). So the peak
-      up-flap occurs at ψ ≈ 180° (the nose), not at ψ = 90°. The disc tilts
-      <strong>backward</strong> (nose up) — this is <em>flapback</em>, or the
-      longitudinal flapping coefficient a₁.</p>
-      <p>The pilot (or AFCS) counters it with forward cyclic (B₁/θ₁ₛ). The interactive
-      shows the disc coloured by aerodynamic forcing and a line chart with L(ψ) and
-      β(ψ) on the same axis — the orange peak (max force) and the cyan peak (max flap)
-      are ~90° apart.</p>
-      <p><em>Real articulated rotors with hinge offset lag a little less (~75–85°).
-      Hingeless/bearingless rotors can be quite different. This widget uses a
-      quasi-steady BET model.</em></p>
-
-      <h3 style="margin:0.7em 0 0.2em">3. Inflow Roll — the Transverse Flow Effect</h3>
-      <p>During the hover-to-forward-flight transition the rotor's own induced velocity
-      (downwash) becomes <strong>fore-aft asymmetric</strong>. The mechanism is
-      straightforward:</p>
-      <ul>
-        <li><b>Front disc (near ψ = 180°, nose):</b> as the helicopter accelerates,
-        this part of the disc progressively encounters <em>cleaner, less-downwashed
-        air</em> — the wake is being swept backward and has not yet re-entered the front.
-        Local induced velocity is <strong>smaller</strong>.</li>
-        <li><b>Aft disc (near ψ = 0°, tail):</b> this part of the disc remains more
-        immersed in the rotor's own downwash. Local induced velocity is
-        <strong>larger</strong>.</li>
-      </ul>
-      <p>The causal chain that leads to a roll follows from the velocity triangle at each
-      station:</p>
-      <ol>
-        <li><b>Different induced velocity</b> at front vs aft → <b>different normal velocity
-        U_P</b> in the blade's local velocity triangle.</li>
-        <li>Different U_P → <b>different inflow angle φ</b> (φ = arctan U_P / U_T).</li>
-        <li>Different φ, same collective pitch θ → <b>different effective angle of
-        attack α</b> (α = θ − φ).</li>
-        <li>Different α → <b>different lift</b>: more lift over the front half, less
-        over the rear half.</li>
-        <li>Blade flapping responds to this azimuthal lift asymmetry with the same ~90°
-        phase lag as flapback. For a CCW rotor (H145 convention: ψ = 90° advancing),
-        peak forcing near the front (ψ ≈ 180°) produces peak up-flap ~90° later, near
-        the <strong>retreating side (ψ ≈ 270°)</strong>.</li>
-        <li>This tilts the disc toward the retreating side → <strong>roll tendency</strong>
-        that the pilot counters with <em>lateral cyclic</em>.</li>
-      </ol>
-      <p>In this course the pedagogical label <em>Transverse Flow Effect</em> refers to
-      this <strong>fore-aft induced-flow asymmetry</strong> and the roll it produces.
-      It is <strong>not</strong> an alias for flapback (which is longitudinal).</p>
-      <p>The <em>Velocity Triangles</em> section of the widget shows stations A (front)
-      and B (aft) side-by-side, with sliders to vary forward speed and transition
-      strength, so you can watch how the inflow difference grows and trace its effect
-      on φ, α, and lift at each station.</p>
-
-      <h4 style="margin:0.6em 0 0.2em">Advanced: additional lateral inflow asymmetry</h4>
-      <p>A separate, optional scenario: a lateral wind, sideslip, or yaw rate introduces
-      a <em>lateral</em> inflow gradient (λ_s in the prescribed first-harmonic illustration)
-      — more inflow on one side of the disc (ADV or RET) than the other. This creates an
-      <strong>additional roll moment</strong> that is trimmed by lateral cyclic, but it
-      is a <em>different</em> input from the fore-aft asymmetry described above.
-      The Inflow Roll and Compare modes let you explore both, clearly labelled.</p>
-      <p><em>Model limitation: this widget uses a prescribed first-harmonic inflow
-      (prescribed wake-skew approximation) + quasi-steady flapping. It is a pedagogical tool, not a
-      free-wake or fully transient rotor–body-coupled simulation.</em></p>`,
-    takeaways: [
-      'Flapback: the rotor disc tilts backward in forward flight because peak flapping lags peak aerodynamic forcing by ~90° (gyroscopic / angular-momentum effect).',
-      'Transverse Flow Effect (inflow roll): during the hover-to-forward-flight transition the front disc encounters cleaner air (less induced velocity) while the rear disc remains in downwash (more induced velocity).',
-      'Causal chain: asymmetric induced velocity → different U_P → different φ → different α → different lift → flapping with ~90° phase lag → roll tendency → countered with lateral cyclic.',
-      'Lateral wind, sideslip, or yaw rate add a separate lateral inflow gradient (λ_s) that can also produce a roll, but this is an additional, optional scenario — not the core definition of the Transverse Flow Effect.',
-      'Dissymmetry of lift (U_T asymmetry), flapback (phase lag), and inflow roll (fore-aft λ asymmetry) are distinct mechanisms that are trimmed separately.',
-    ],
+<p><b>Flapback</b> is a longitudinal disc response to forward-flight aerodynamic asymmetry in the untrimmed model. Advancing/retreating speed differences produce periodic forcing; the phased flapping response changes disc orientation. Cyclic modifies the resulting trim.</p>
+<p><b>Inflow roll (transverse-flow effect)</b> starts with a fore-aft induced-flow difference. For the illustrated condition, the front encounters less induced downflow than the rear. At equal pitch and station, smaller front φ gives larger front α. This fore-aft forcing can produce a roll response through rotor dynamics.</p>
+<p>Use the course CCW/azimuth convention and distinguish the location of forcing from the location of peak flap displacement. A near-90° phase is an idealisation; configuration and dynamics change the real response.</p>
+<p>The widget prescribes a first-harmonic wake-skew approximation. Its <b>normalised skew</b> can grow while mean induced velocity falls; the absolute front/rear difference need not grow monotonically with speed. Coning changes local total U_P but does not itself establish an induced-wake gradient. Velocity-diagram U_P is amplified visually; read the numerical values for comparison.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://ntrs.nasa.gov/api/citations/19750010111/downloads/19750010111.pdf" target="_blank" rel="noopener noreferrer">NASA TN D-7856 — rotor dynamics and phase</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Flapback and fore-aft inflow roll start from different asymmetries.", "Trace local φ and α before discussing the phased rotor response.", "Mean inflow, normalised skew and absolute gradient are different measures."],
     check: {
-      q: 'In forward flight the advancing blade produces maximum aerodynamic lift at ψ = 90°. Where does the blade reach its maximum up-flap angle?',
-      options: [
-        'At ψ ≈ 180° (nose) — ~90° after the peak force (phase lag)',
-        'At ψ ≈ 90° (advancing side) — same azimuth as peak force',
-        'At ψ ≈ 270° (retreating side) — opposite the peak force',
-        'At ψ ≈ 0° (tail) — 180° after the peak force',
-      ], answer: 0,
-      explain: 'The flapping response of an articulated rotor lags the aerodynamic forcing by approximately 90° — a gyroscopic effect. Peak force at ψ = 90° (ADV) produces peak up-flap at ψ ≈ 180° (FWD/nose). This tilts the disc backward (flapback a₁). The pilot corrects with forward cyclic.',
-    },
+  "q": "At equal pitch and tangential speed, the front has less positive perpendicular inflow than the rear. What local chain follows?",
+  "options": [
+    "Smaller front φ gives larger front α; the phased response must then be considered.",
+    "Smaller front φ gives smaller front α.",
+    "The induced-flow gradient directly changes geometric pitch."
+  ],
+  "answer": 0,
+  "explain": "Apply α = θ − φ first. The location of aerodynamic forcing is not automatically the location of peak displacement."
+},
   },
 
   /* ──────────────────────── STAGE 4 — SAFETY & LIMITS ──────────────────── */
   {
-    id: 'dynamicrollover', stage: 'Safety & Limits', title: 'Dynamic Rollover',
-    subtitle: 'The pivot-point trap on the ground',
+    id: 'dynamicrollover', stage: 'Safety & Limits', title: "Dynamic Rollover",
+    subtitle: "A ground contact changes the moment balance",
     widget: 'wDynamicRollover',
     body: `
-      <p>A ground contact can become a pivot. Rotor thrust and the other forces then create moments about that contact, rather than only about the centre of gravity.</p>
-      <p>Once a roll develops, opposite cyclic alone may be unable to stop it. Reducing collective reduces the thrust that drives the rolling moment. The appropriate response and its timing must follow approved aircraft instruction.</p>
-      <p>There is no universal safe bank angle. Aircraft geometry, control range, roll rate, loading and surface conditions all affect the situation. The widget's threshold is an illustrative model parameter, not an aircraft limit.</p>
-      <p>Compare thrust settings at the same bank angle. Explain why a trapped skid changes the moment balance and why adding thrust can worsen the roll.</p>
-      <p class="hl-note">Reference: FAA Helicopter Flying Handbook, chapter 11, Dynamic Rollover. Use the current rotorcraft flight manual for operating procedures.</p>`,
-    takeaways: [
-      'A ground pivot changes the moment balance.',
-      'Opposite cyclic alone may be insufficient once dynamic rollover develops.',
-      'Reducing rotor thrust removes a source of the rolling moment.',
-      'A model threshold is not a universal safe angle or an approved operating limit.',
-    ],
+<p>A skid or wheel constrained by ground contact can become a pivot. Moments about that contact differ from the unconstrained aircraft balance. Rotor thrust, weight, geometry and external forces contribute; roll rate and the ability to change those forces affect the subsequent motion.</p>
+<p>In the particular pivot geometry shown here, increasing thrust increases its rolling-moment contribution. Compare two collective settings at the same bank angle and pivot. Identify the moment arms and signs rather than assuming thrust is always restoring.</p>
+<p>The displayed balance threshold uses assumed geometry and omits roll-rate dynamics and control limits. It is <b>not a safe bank angle</b> and does not establish recoverability. Static tip-over and dynamic rollover are different questions. Aircraft procedures and limits require approved instruction.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Identify the contact pivot before calculating moments.", "Compare moment contributions with geometry held fixed.", "Static balance alone does not determine dynamic recoverability."],
     check: {
-      q: 'Which change reduces the rotor-thrust contribution to a rolling moment about a trapped skid?',
-      options: [
-        'Reduce collective and thus rotor thrust',
-        'Apply full opposite lateral cyclic and hold collective',
-        'Increase collective to lift clear of the pivot',
-        'Apply opposite pedal',
-      ], answer: 0,
-      explain: 'Reducing collective reduces the rotor-thrust contribution to the moment. This mechanism does not establish a universal recovery angle or replace approved procedures.',
-    },
+  "q": "At a fixed ground pivot, what additional information is needed beyond a static moment balance to assess motion?",
+  "options": [
+    "Roll rate, inertia, changing forces and control constraints.",
+    "Only the current bank angle.",
+    "Only whether the aircraft is within a generic safe angle."
+  ],
+  "answer": 0,
+  "explain": "Dynamic motion depends on the moment history and inertia; a single static threshold is insufficient."
+},
   },
   {
-    id: 'lte', stage: 'Safety & Limits', title: 'Loss of Tail-Rotor Effectiveness',
-    subtitle: 'When the tail rotor can no longer hold the yaw',
+    id: 'lte', stage: 'Safety & Limits', title: "Unanticipated Yaw & Anti-Torque",
+    subtitle: "Torque demand, aerodynamic moments and control authority",
     widget: 'wLTE',
     body: `
-      <p>LTE (Loss of Tail Rotor Effectiveness) is not a specific wind direction —
-      it is a condition where the tail rotor can no longer produce enough thrust to
-      maintain yaw control. Three distinct aerodynamic mechanisms can trigger it,
-      each associated with a different relative wind sector. Understanding
-      <em>why</em> each mechanism reduces tail rotor thrust is more important than
-      memorising the sectors.</p>
-
-      <h4>Mechanism 1 — Tail Rotor Vortex Ring State (wind from ≈210°–330°)</h4>
-      <p>Wind from the left-rear quadrant opposes and then recirculates tail rotor
-      downwash. The tail rotor enters its own vortex ring — thrust becomes erratic
-      and reduced. This is the most insidious form: it can occur even with
-      apparently adequate pedal input already applied.</p>
-
-      <h4>Mechanism 2 — Main Rotor Disc Vortex Interference (wind from ≈285°–315°)</h4>
-      <p>Main rotor tip vortices are swept directly across the tail rotor disc.
-      This disrupts inflow and reduces the effective angle of attack on tail rotor
-      blades, causing a thrust loss. This sector overlaps mechanism 1, making the
-      worst-case combination particularly dangerous.</p>
-
-      <h4>Mechanism 3 — Weathercock Instability (wind from ≈120°–240°)</h4>
-      <p>A tailwind component reduces tail rotor inflow velocity, which reduces
-      thrust. Simultaneously the fuselage weathercocks into the wind, generating a
-      yaw rate that develops faster than pedal input can correct. This is more of a
-      handling quality degradation than a sudden thrust loss, but it can escalate
-      rapidly at high power.</p>
-
-      <p class="hl-note">LTE risk increases with: <b>low airspeed</b> (below ETL),
-      <b>high power setting</b> (high torque = high tail rotor demand), <b>high
-      density altitude</b> (reduced tail rotor thrust available), and <b>right yaw
-      inputs</b> (for CCW main rotor systems) that increase load on the tail rotor.
-      No single wind direction is dangerous — it is the combination of conditions.</p>
-
-      <p><b>Recovery:</b> increase airspeed — translational lift restores tail rotor
-      inflow effectiveness. Apply full anti-torque pedal and lower collective to
-      reduce torque demand. Rotate the wind arrow in the widget and observe how
-      each sector degrades the tail-rotor margin.</p>`,
-    takeaways: [
-      'LTE has three distinct mechanisms — vortex ring state, disc vortex interference, and weathercock instability — each in a different wind sector.',
-      'The dangerous combination is low IAS + high power + critical wind sector + high DA. Any one factor alone is manageable; together they are not.',
-      'Recovery: increase airspeed (pedal to the stop is secondary) — translational lift restores tail rotor inflow effectiveness.',
-      'LTE is preventable: avoid slow, high-power, low-altitude manoeuvres in wind conditions that put you in a critical sector.',
-    ],
+<p>Unanticipated yaw concerns an unexpected yaw response. It should not automatically be interpreted as mechanical tail-rotor failure or a proven loss of tail-rotor efficiency. Analyse the <b>whole yaw-moment balance</b>: main-rotor torque, tail-rotor/control response and airframe aerodynamic moments.</p>
+<p>The historical conventional-rotor CCW wind-sector picture illustrates different mechanisms. Main-rotor wake interference and tail-rotor recirculating inflow can change tail-rotor forces. <b>Weathercock effects instead arise from fuselage/fin moments tending to turn the nose into the wind.</b> These mechanisms can overlap; they do not all mean reduced tail-rotor thrust.</p>
+<p>Collective can change main-rotor torque demand. Wind, power/RPM limits and control response also affect the balance. The degree sectors are examples for the stated conventional arrangement; they are not a validated H145/Fenestron map or universal danger boundaries. Wind direction here is <b>FROM the nose/right/tail/left at 0°/90°/180°/270°</b>, separate from blade azimuth ψ.</p>
+<p>The widget identifies possible mechanisms and controlled input changes. It does not compute tail-rotor authority, yaw rate, controllability or a recovery sequence. Use aircraft-specific approved guidance for operational interpretation.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.airbus.com/sites/g/files/jlcbta136/files/2025-01/3298-s-00-rev-0-en.pdf" target="_blank" rel="noopener noreferrer">Airbus SIN 3298-S-00 — unanticipated yaw</a>. The activity uses the simplified model and conditions described above. See also <a href="https://www.faa.gov/documentLibrary/media/Advisory_Circular/ac90-95.pdf" target="_blank" rel="noopener noreferrer">FAA AC 90-95</a> for the historical conventional-rotor sector diagram.</p></details>
+    `,
+    takeaways: ["Distinguish yaw-moment demand, available authority and actual control response.", "Weathercock moments are not an assumed tail-rotor thrust loss.", "Generic wind sectors do not establish type-specific limits or procedures."],
     check: {
-      q: 'LTE is most likely to occur in which regime?',
-      options: [
-        'Low airspeed, high power, out of ground effect, with wind from a critical sector',
-        'High-speed cruise in level flight',
-        'A steep descent at high forward speed',
-        'Idle on the ground with rotors stopped',
-      ], answer: 0,
-      explain: 'LTE strikes at low airspeed and high power (large torque to react) out of ground effect, when a relative wind from a critical azimuth disturbs the tail rotor. At speed the vertical fin provides directional stability, so LTE is a low-speed phenomenon.',
-    },
+  "q": "A tailwind produces a weathercock yaw moment. Which explanation separates the mechanisms correctly?",
+  "options": [
+    "The fuselage/fin moment changes the yaw balance; tail-rotor thrust need not have deteriorated.",
+    "Every weathercock moment proves tail-rotor vortex ring state.",
+    "The tail rotor must have mechanically failed."
+  ],
+  "answer": 0,
+  "explain": "An external yaw moment and a change in tail-rotor force are different contributions to the balance."
+},
   },
 
   /* ─────────────────────────── STAGE 5 — ADVANCED ──────────────────────── */
   {
-    id: 'autorotation', stage: 'Advanced', title: 'Autorotation',
-    subtitle: 'Flying with the engine off',
+    id: 'autorotation', stage: 'Advanced', title: "Autorotation",
+    subtitle: "Local aerodynamic torque and the aircraft energy budget",
     widget: 'wAutorotation',
     body: `
-      <p>With the engine gone, the rotor is kept spinning by air flowing <b>up</b>
-      through the disc as the helicopter descends. Energy stored in the spinning
-      rotor — and the descent itself — keeps the blades turning. The blade divides
-      into three spanwise regions:</p>
-
-      <h4>Stall region — inboard root <em>(Stall region — RPM decay risk)</em></h4>
-      <p>At the root, rotational velocity U<sub>T</sub> is very low, so angle of
-      attack α climbs above the stall angle. Lift collapses and drag spikes — the
-      root contributes almost pure drag and, at low Nr or excessive collective, the
-      stall region expands outward, threatening rotor RPM recovery.</p>
-
-      <h4>Driving region — mid-span <em>(Driving region — sustains rotation)</em></h4>
-      <p>At mid-span the upward airflow tilts the total aerodynamic force
-      <i>forward</i> of the shaft. The in-plane component F_H points <b>with
-      rotation</b> — this is the sole energy source in autorotation, replacing lost
-      engine torque and keeping the rotor spinning.</p>
-
-      <h4>Driven region — outboard tip <em>(Drag region — consumes energy)</em></h4>
-      <p>Near the tip, high rotational velocity means the inflow angle φ is small
-      and α is positive but moderate. The total aerodynamic force tilts <i>aft</i>
-      of the shaft — the blade behaves like a normal lifting wing braking the rotor,
-      consuming the energy the driving region produces.</p>
-
-      <p class="hl-note">
-        <b>Exam trap 1:</b> The driven region is NOT stalled — it produces lift, but
-        the total force vector tilts aft, so it takes energy <em>from</em> the rotor.<br>
-        <b>Exam trap 2:</b> Lowering collective in autorotation reduces θ, shifts α
-        into a better range, and moves the stall region inward — this is why entry
-        technique matters.<br>
-        <b>Exam trap 3:</b> The goal at flare is to use stored rotor kinetic energy
-        (Iω²/2) to arrest descent — collective must come in at the right moment or Nr
-        decays past recovery.
-      </p>`,
-    takeaways: [
-      'In autorotation, up-flow through the disc drives the rotor — no engine.',
-      'Span splits into stall (root), driving (mid), driven (tip) regions.',
-      'Collective moves the driving/driven boundary to control RRPM; flare trades energy for thrust.',
-      'Three regions always coexist during autorotation: stall (root), driving (mid), driven (tip).',
-      'Rotor RPM is the energy store — every second of autorotation trades altitude for Nr. Manage Nr, manage the landing.',
-      'Collective up too early = stall region expands outward = Nr decay = unrecoverable. Timing is everything.',
-    ],
+<p>In autorotation the rotor receives no driving engine torque. Airflow can still produce both <b>driving</b> and <b>braking</b> aerodynamic torque. The energy ultimately comes from the aircraft's gravitational/kinetic energy and can exchange with the rotor's stored rotational energy; a driving blade region is an energy-transfer mechanism, not an unlimited source.</p>
+<p>Resolve each section's force tangentially. A component in the direction of rotation contributes driving torque; an opposing component contributes braking torque. Typical diagrams distinguish driving, driven and stalled regions, but their sizes and presence depend on pitch, flow, RPM and geometry. A stalled section can still exert aerodynamic force.</p>
+<p>Whole-rotor motion depends on the torque sum, including applicable drivetrain/accessory loads: <b>I dΩ/dt = Q_net</b> for constant inertia. Power transfer is <b>P_net = Q_net Ω</b>, whereas stored energy is <b>E = ½IΩ²</b>. Steady RPM can coexist with ongoing energy transfer when driving and resisting torques balance.</p>
+<p>This map holds RPM fixed while you compare collective and prescribed upflow. Its weighted torque index is qualitative; it does not integrate RPM or aircraft motion. Region boundaries cannot determine flare height, safe RPM or recoverability.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Driving and braking local torques can coexist.", "Whole-rotor net torque determines RPM tendency under the stated load assumptions.", "Aircraft energy, power transfer and stored rotor energy are different quantities."],
     check: {
-      q: 'Which spanwise region keeps the rotor turning in a steady autorotation?',
-      options: [
-        'The driving region (mid-span), where the force tilts ahead of the spin axis',
-        'The driven region near the tip',
-        'The stalled root region',
-        'None — the rotor slows continuously',
-      ], answer: 0,
-      explain: 'In the mid-span driving region the upward flow tilts the total aerodynamic force ahead of the rotation axis, giving a forward (accelerating) component that replaces engine torque. The driven tip region brakes; the root is stalled.',
-    },
+  "q": "At steady autorotative RPM, with engine torque absent and all resisting loads included, what must hold?",
+  "options": [
+    "Driving and resisting torque approximately balance while energy continues to flow.",
+    "Every blade section must produce zero torque.",
+    "No energy can be transferred because RPM is constant."
+  ],
+  "answer": 0,
+  "explain": "Constant Ω means approximately zero net torque. Nonzero driving and resisting contributions can balance while exchanging power."
+},
   },
   {
-    id: 'performance', stage: 'Advanced', title: 'Power Required & Performance',
-    subtitle: 'The power curve, translational lift, range & endurance',
+    id: 'performance', stage: 'Advanced', title: "Power Required & Performance",
+    subtitle: "Components, condition-specific margin and ideal markers",
     widget: 'wPerformance',
     body: `
-      <p>Total power required is the sum of four parts, and each behaves
-      differently with speed:</p>
-      <ul>
-        <li><b>P<sub>i</sub> — induced power</b> (making lift): huge in the hover,
-            <b>falls</b> rapidly as you accelerate, because forward flight supplies
-            fresh air to the disc (less induced velocity needed).</li>
-        <li><b>P<sub>p</sub> — profile power</b> (blade drag): roughly constant,
-            rising slowly with speed.</li>
-        <li><b>P<sub>par</sub> — parasite power</b> (fuselage drag): tiny at low
-            speed, grows with <b>V³</b> and dominates at high speed.</li>
-        <li><b>P<sub>c</sub> — climb power</b>: zero in level flight.</li>
-      </ul>
-      <p>Add them up and you get the famous <b>"power bucket"</b>. Two speeds fall
-      straight out of it:</p>
-      <ul>
-        <li><b>Best endurance / min-power speed</b>: the bottom of the bucket
-            (least fuel per hour, best rate of climb, min descent in autorotation).</li>
-        <li><b>Best range speed</b>: where a line from the origin is tangent to the
-            curve (least fuel per mile).</li>
-      </ul>
-      <p>The steep fall of P<sub>i</sub> at 15–25 kt is <b>effective translational
-      lift (ETL)</b> — the helicopter "gets light on the controls" as it flies into
-      undisturbed air. Adjust weight and altitude and watch the whole curve and its
-      speeds shift.</p>`,
-    takeaways: [
-      'P_total = P_i + P_p + P_par + P_c; induced falls, parasite (V³) rises.',
-      'Min-power speed = best endurance/climb; tangent from origin = best range.',
-      'The induced-power drop at 15–25 kt is translational lift (ETL).',
-    ],
+<p>A level-flight teaching curve combines <b>induced power</b>, <b>profile power</b> from blade drag and <b>parasite power</b> associated with aircraft drag. Climb adds an aircraft energy-rate requirement; tail-rotor and drivetrain terms also matter for installed power.</p>
+<p>Induced power generally falls from hover into forward flight for a fixed loading condition. Profile power varies with blade speed and drag. With density and effective drag area held fixed, parasite drag scales approximately with V² and parasite power with <b>V³</b>. Together these produce a minimum in required power.</p>
+<p>The model markers locate <b>minimum P</b> and <b>minimum P/V</b>. They approximate fuel endurance/range only with appropriate fuel-flow assumptions; wind alters distance over the ground. Maximum climb needs available-minus-required power versus speed. A powered level-flight curve does not establish an autorotative minimum-descent speed.</p>
+<p>The shaded translational-flow band is illustrative, not a universal ETL threshold. Save independent mass and density-altitude comparisons. This widget plots required power only; a numerical margin needs available-power data at the <b>same condition and power reference</b>.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Combine all relevant power components before interpreting total demand.", "A power margin requires matched available and required power data.", "Minimum P and minimum P/V are model markers, with extra assumptions for fuel performance."],
     check: {
-      q: 'Best-range speed is found on the power curve by…',
-      options: [
-        'The point where a straight line from the origin is tangent to the curve',
-        'The lowest point of the curve',
-        'The highest speed shown',
-        'Where induced and parasite power are equal',
-      ], answer: 0,
-      explain: 'Range is about fuel per distance — minimising power/speed (P/V). Geometrically that is the tangent from the origin. The lowest point of the curve (min power) is best endurance, not best range.',
-    },
+  "q": "What does a tangent from the origin to a required-power curve identify?",
+  "options": [
+    "Minimum P/V for that model; fuel range needs additional fuel-flow and wind assumptions.",
+    "Maximum excess power at every altitude.",
+    "Minimum descent speed in autorotation."
+  ],
+  "answer": 0,
+  "explain": "The slope from the origin is P/V. Fuel per distance additionally depends on how fuel flow relates to power and on ground speed."
+},
   },
   {
-    id: 'betdiagram', stage: 'Advanced', title: 'The BET Diagram',
-    subtitle: 'Putting it together — the exam drawing',
+    id: 'betdiagram', stage: 'Advanced', title: "The BET Diagram",
+    subtitle: "Resolve a section before integrating the rotor",
     widget: 'wBetDiagram',
     body: `
-      <p>Everything you've learned now lives in one diagram — the one you must draw
-      by hand on the ATPL(H) exam. For a chosen blade element it shows the full
-      <b>velocity triangle</b> and the <b>force triangle</b> built on it:</p>
-      <ul>
-        <li><b>Velocities:</b> v<sub>rot</sub> (= Ω·r along the rotor plane),
-            v<sub>i</sub> (induced, down), any climb/descent flow, and their
-            resultant <b>v<sub>rel</sub></b>.</li>
-        <li><b>Angles:</b> θ from plane to chord, φ (= α<sub>i</sub>) from plane to
-            v<sub>rel</sub>, and α between chord and v<sub>rel</sub>.</li>
-        <li><b>Forces:</b> lift F<sub>L</sub> ⟂ v<sub>rel</sub>, drag F<sub>D</sub>
-            ∥ v<sub>rel</sub>, their resultant <b>TAF</b>, resolved into a vertical
-            part (thrust) and a horizontal part F<sub>H</sub>.</li>
-      </ul>
-      <p>The direction of <b>F<sub>H</sub></b> tells the whole story: pointing back
-      = the element brakes the rotor (driven / powered flight), pointing forward =
-      it drives the rotor (autorotation driving region). Pick a flight case and
-      blade position and study how the triangle changes — then practise drawing it
-      yourself by hand.</p>`,
-    takeaways: [
-      'The BET diagram = velocity triangle (v_rot, v_i, v_rel) + force triangle (L, D, TAF).',
-      'φ = α_i; α = θ − φ; TAF resolves into thrust (vertical) and F_H (horizontal).',
-      'F_H direction reveals driving vs driven — the key to autorotation.',
-    ],
+<p>For a chosen radius, azimuth and flow condition, draw the tangential/perpendicular velocity components and their resultant. Add geometric pitch and the signed inflow angle to interpret α in normal chordwise flow.</p>
+<p>Place lift normal to relative airflow and drag opposite relative motion through the air. Their resultant is the <b>total aerodynamic force</b>. Resolve it normal and tangential to the stated rotor-plane reference. Rotor-normal is not necessarily earth-vertical; the normal component contributes to rotor thrust after integration.</p>
+<p>The tangential component contributes local torque with lever arm r. In the rotation direction it drives; opposite rotation it brakes. The whole rotor's torque is the sum over sections and azimuths plus other applicable loads. One driving section cannot establish constant or rising RPM.</p>
+<p>Compare powered and prescribed-upflow cases, retaining the signs. A 2D normal-flow section diagram does not resolve reverse-flow or unsteady stalled-section aerodynamics. Practise reconstructing the diagram from a new stated condition.</p>
+<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+    `,
+    takeaways: ["Label the reference frame, radius and flow condition.", "Resolve the total section force before discussing thrust and torque.", "Local torque sign is not the whole-rotor torque balance."],
     check: {
-      q: 'On a blade element, the horizontal component of the total aerodynamic force (F_H) points forward (in the direction of rotation). What does this mean?',
-      options: [
-        'The element is driving the rotor — the autorotation driving region',
-        'The element is braking the rotor',
-        'The element is stalled',
-        'The blade is in the hover',
-      ], answer: 0,
-      explain: 'If F_H points in the direction of rotation it adds torque that accelerates the rotor — the driving region of autorotation. Pointing backward means it absorbs torque (driven / powered flight). This sign is exactly what examiners look for.',
-    },
+  "q": "One section has a tangential force in the rotation direction. What is established?",
+  "options": [
+    "That section contributes driving torque; whole-rotor RPM tendency needs the total torque balance.",
+    "The whole rotor must accelerate.",
+    "No other section can contribute braking torque."
+  ],
+  "answer": 0,
+  "explain": "Local tangential force times radius gives local torque. All contributions must be summed."
+},
   },
 ];
+
+
+/* Reviewed guides for tasks that use a different context from the reference lesson. */
+const HL_LEARNING_GUIDES = {
+  "cbt-m2-hover": {
+    "bodyHtml": "<p>A stationary aircraft can still transfer energy to moving air. Commit your mechanism before the native reveal, then identify the airflow that carries momentum and energy away. Induced power is one part of the total power requirement; blade drag and other loads remain.</p>",
+    "takeaways": [
+      "Distinguish aircraft velocity from rotor-induced airflow.",
+      "Connect hover thrust with continuous energy transfer."
+    ]
+  },
+  "cbt-m2-verticalflight": {
+    "bodyHtml": "<p>This is a pair of hover rotor states with manual collective and trim off, not a time-resolved climb. Collective changes pitch first; the coupled steady solution then changes produced thrust and induced flow. Weight remains fixed. If thrust exceeds weight, infer an upward acceleration tendency rather than a completed climb trajectory.</p>",
+    "takeaways": [
+      "A coupled steady calculation does not measure the timing of every flow response.",
+      "Produced thrust can differ from the unchanged hover demand."
+    ]
+  },
+  "cbt-m2-groundeffect": {
+    "bodyHtml": "<p>This task compares mass and density with hover trim on; ground effect is the next activity. In steady hover, T ≈ W. At fixed density and disc area, ideal induced power scales as W^(3/2): 15% more mass gives about 23% more induced power. Lower density at unchanged mass raises the induced-flow cost while required thrust stays the same.</p>",
+    "takeaways": [
+      "Separate the mass comparison from the density comparison.",
+      "The induced-power percentage does not describe every installed power component."
+    ]
+  },
+  "cbt-m2-ige-practice": {
+    "bodyHtml": "<p>Compare rotor heights at equal required thrust. Read h/R as rotor height divided by radius. A nearby surface modifies the wake and lowers the induced-power cost in this teaching approximation. A fixed-collective experiment would instead allow produced thrust to change. The surface and wind assumptions limit the comparison.</p>",
+    "takeaways": [
+      "Equal thrust does not imply equal induced velocity or power.",
+      "A height correction is not an aircraft hover-performance approval."
+    ]
+  },
+  "cbt-m2-axial-practice": {
+    "bodyHtml": "<p>Use V_c = 0 for hover and V_c < 0 for descent in the manual comparison. Aircraft throughflow and induced flow combine in the local triangle. Recirculation violates the simple clean-streamtube assumption; the coloured bands locate illustrative regimes rather than validated aircraft boundaries. Explain which result you would stop trusting and why.</p>",
+    "takeaways": [
+      "Interpret the signed vertical-flow convention.",
+      "State the model-validity limit rather than deriving a recovery sequence."
+    ]
+  },
+  "cbt-m6-energy": {
+    "bodyHtml": "<p>With inertia I fixed, E = ½IΩ². At 90% reference RPM, 0.90² = 0.81, so 81% of reference rotor energy remains. That is an energy state comparison. Torque gives the tendency of RPM change; QΩ is power, the rate of energy transfer. The slider does not simulate the time or manoeuvre needed to change RPM.</p>",
+    "takeaways": [
+      "Square the RPM fraction to obtain the energy fraction.",
+      "Stored energy, torque and power have different meanings."
+    ]
+  },
+  "cbt-m1-transfer": {
+    "bodyHtml": "<p>Use the angle convention and local-force direction from Module 1 under changed conditions. Compare pitch at fixed inflow and inflow at fixed pitch. Then move the station at fixed RPM and zero twist: Ωr changes linearly and the rotational dynamic-pressure term quadratically. In your debrief connect each conclusion to one saved comparison, rather than treating speed alone as lift.</p>",
+    "takeaways": [
+      "Name the changed variable and the controlled variables.",
+      "Use local relative airflow for angles and force directions."
+    ]
+  },
+  "cbt-m2-transfer": {
+    "bodyHtml": "<p>Combine the separate demand and ground-proximity mechanisms. For ideal OGE hover at fixed area and density, P_i scales with W^(3/2). For the height comparison, keep required thrust fixed and explain the changed induced-flow cost. The percentage in the case applies to induced power; IGE benefit is not a change in aircraft weight.</p>",
+    "takeaways": [
+      "Separate demand from the power cost of meeting it.",
+      "Use the correct controlled condition for each model comparison."
+    ]
+  },
+  "cbt-m3-transfer": {
+    "bodyHtml": "<p>Separate imposed pitch, flapping rate and total local flow. Use identical speed, radius and azimuth when comparing rigid and flapping layers. At 90° and 270° in the cyclic layer, compare θ and φ before interpreting α. A level-disc teaching trim does not establish aircraft forward acceleration. If you explore fore-aft inflow, distinguish that mechanism from advancing/retreating speed asymmetry.</p>",
+    "takeaways": [
+      "Local flow and pitch jointly determine α.",
+      "State the selected layer and the limits of its prescribed response."
+    ]
+  },
+  "cbt-m4-transfer": {
+    "bodyHtml": "<p>Read required-power components together, then use the supplied matched available/required dataset for margin. The Power curves widget does not supply engine availability. In Rotor limits compare local Mach and α demand at fixed settings. A positive power difference cannot remove a local aerodynamic constraint or certify V_NE.</p>",
+    "takeaways": [
+      "Calculate margin at one matched condition and power reference.",
+      "Distinguish power evidence from local rotor diagnostics."
+    ]
+  },
+  "cbt-m5-transfer": {
+    "bodyHtml": "<p>Identify the constrained ground pivot before comparing thrust moments. For the yaw case, distinguish main-rotor torque demand, fuselage/fin moments and tail-rotor balancing response. The wind-sector widget identifies possible mechanisms; it does not calculate authority or yaw motion. Explain each balance separately using your controlled snapshots.</p>",
+    "takeaways": [
+      "A static pivot threshold does not determine dynamic recoverability.",
+      "An external weathercock moment need not mean tail-rotor thrust deterioration."
+    ]
+  },
+  "cbt-m6-transfer": {
+    "bodyHtml": "<p>Resolve the signed local aerodynamic torque, then use the supplied whole-rotor torque balance with its stated load assumptions. The map has fixed RPM and does not create an RPM history. In the separate energy view keep inertia fixed and square the RPM fraction. Explain how aerodynamic transfer can change stored energy without confusing a driving region with the original energy source.</p>",
+    "takeaways": [
+      "Include all stated resisting loads in a net-torque claim.",
+      "An instantaneous torque and an energy state do not establish their prior history."
+    ]
+  },
+  "cbt-m7-transfer": {
+    "bodyHtml": "<p>Use the supplied mass and density ratios for the numerical ideal-hover estimate: P_i/P_i,ref = mass^(3/2)/√density at unchanged disc area. Model sliders test the separate directions; density altitude is not a direct density-ratio input. Power data are matched at the changed hover condition and one shaft reference. The local angle dataset is a separate forward-flight state. Compute θ − φ for each station and connect it to your saved cyclic-layer comparisons.</p>",
+    "takeaways": [
+      "Choose evidence at the scale of the question: whole-rotor demand or local flow.",
+      "Keep ideal induced power separate from supplied total shaft power."
+    ]
+  },
+  "cbt-m7-energy-case": {
+    "bodyHtml": "<p>The supplied driving/braking torques include the stated resisting loads; their difference determines the instantaneous tendency at constant inertia. The RPM pair supplies a separate stored-energy comparison. A positive net torque now can coexist with less stored energy than the reference: energy can be below reference while increasing. Without a time history, do not infer which torque caused the earlier energy difference.</p>",
+    "takeaways": [
+      "Distinguish a state value from its current rate of change.",
+      "Use torque balance, E = ½IΩ² and the supplied conditions together."
+    ]
+  }
+};
 
 /* group order for the sidebar */
 const HL_STAGES = ['Basics', 'Hover & Vertical', 'Forward Flight', 'Safety & Limits', 'Advanced'];
