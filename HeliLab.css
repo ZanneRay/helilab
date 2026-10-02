@@ -259,6 +259,9 @@ body {
 
 /* ── widget internals ───────────────────────────────────────────────────── */
 .hl-w { display: flex; flex-direction: column; gap: 10px; }
+.hl-optional-map { padding: 12px; border: 1px solid var(--hl-grid); border-radius: 8px; }
+.hl-optional-map summary { cursor: pointer; color: var(--hl-dim); font-size: 13px; }
+.hl-optional-map[open] summary { margin-bottom: 12px; }
 .hl-w-stage { width: 100%; aspect-ratio: 16 / 11; background: var(--hl-canvas);
   border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 /* wide lessons: widget spans the full row above the text, so a dense diagram

@@ -4,7 +4,7 @@ const HLTrainingUI=(()=>{
   const node=(tag,text,cls)=>{const e=document.createElement(tag);if(text!=null)e.textContent=text;if(cls)e.className=cls;return e;};
   const button=(text,fn,primary=false)=>{const b=node('button',text,'hl-foot-btn'+(primary?' primary':''));b.type='button';b.onclick=fn;return b;};
   function field(parent,label,value='',multiline=true){const wrap=node('label',null,'cbt-field');wrap.append(node('span',label));const input=node(multiline?'textarea':'input');input.value=value;input.maxLength=multiline?4000:120;if(multiline)input.rows=3;wrap.append(input);parent.append(wrap);return input;}
-  const results=(a,s)=>HLTraining.questions(a).map(q=>({q,d:s.decisions[q.key]}));
+  const results=(a,s)=>HLTraining.questions(a).map(q=>({q,d:s.decisions[q.key]?.question===q.id?s.decisions[q.key]:null}));
   const evidenceOK=(a,s)=>HLTraining.evidence(a,s.snapshots).every(r=>r.passed);
   function mount(main,grid,widget,lesson,a,module,onUpdate){
     const id=a.lessonId;HLProgress.prepare(id,a.version);HLProgress.visit(id);
@@ -20,6 +20,8 @@ const HLTrainingUI=(()=>{
     top.append(node('p',a.task,'cbt-task-instruction'));
     const criterion=node('details',null,'cbt-criterion');criterion.append(node('summary','What this activity demonstrates'),node('p',a.criteria));top.append(criterion);
     if(HLProgress.get(id).prior){const note=node('p','This task has been updated. Your earlier work is kept in Learning record; complete the revised task here.','cbt-status');top.append(note);}
+    const previous=HLProgress.get(id),currentQuestions=HLTraining.questions(a);
+    if(currentQuestions.some(q=>previous.decisions[q.key]&&previous.decisions[q.key].question!==q.id)||previous.complete&&currentQuestions.some(q=>!previous.decisions[q.key]))top.append(node('p','The content checks have been revised. Your saved model comparisons and explanation are retained; answer the updated checks to complete this activity.','cbt-status cbt-content-update'));
     const phases=node('nav',null,'cbt-phases');phases.setAttribute('aria-label','Activity phases');
     const phaseButtons=[];
     for(const [value,label] of (a.internalPrediction?[['model','1 · Predict & build'],['check','2 · Check & explain']]:[['predict','1 · Predict'],['model','2 · Compare'],['check','3 · Check & explain']])){const b=button(label,()=>go(value));b.dataset.phase=value;phaseButtons.push(b);phases.append(b);}
@@ -28,7 +30,7 @@ const HLTrainingUI=(()=>{
     const caseBox=node('div',null,'cbt-brief');
     const scenario=typeof a.scenario==='function'?a.scenario(HLProgress.get(id).variant):a.scenario;
     if(scenario){caseBox.append(node('p',scenario.brief));const table=node('table',null,'cbt-data-table');const body=node('tbody');for(const [k,v] of scenario.data){const row=node('tr');row.append(node('th',k),node('td',v));body.append(row);}table.append(body);caseBox.append(table);predict.append(caseBox);const reference=node('details',null,'cbt-case-reference');reference.append(node('summary','View supplied case data'),caseBox.cloneNode(true));top.insertBefore(reference,phases);}
-    else if(a.transfer){predict.append(node('p','Two changed conditions. Give your own reasoning before opening the models.'));for(const q of HLTraining.questions(a))predict.append(node('p',q.prompt));}
+    else if(a.transfer){predict.append(node('p','Changed conditions. Give your own reasoning before opening the models.'));for(const q of HLTraining.questions(a))predict.append(node('p',q.prompt));}
     const prediction=field(predict,a.scenario?'Your first analysis: conditions, expected changes and the evidence you will need.':'Your prediction and reason — what will change, and what will stay constant?',HLProgress.get(id).prediction);
     prediction.oninput=()=>HLProgress.patch(id,{prediction:prediction.value});
     const predictStatus=node('p',null,'cbt-status');predictStatus.setAttribute('role','status');
@@ -93,7 +95,8 @@ const HLTrainingUI=(()=>{
       }
       return box;
     }
-    function checkpoint(){if(restoring||disposed)return;HLProgress.patch(id,{checkpoint:JSON.parse(JSON.stringify(widget._hlModel.get()))});}
+    function updateReference(){if(!a.internalPrediction)return;const reference=grid.querySelector('.cbt-model-reference'),gates=widget._hlModel.evidence?.().gates||{};if(reference)reference.hidden=!a.requirements.every(r=>r.kind==='gates'&&r.keys.every(k=>gates[k]===true));}
+    function checkpoint(){if(restoring||disposed)return;HLProgress.patch(id,{checkpoint:JSON.parse(JSON.stringify(widget._hlModel.get()))});updateReference();}
     for(const event of ['input','change','click','pointerup'])widget.addEventListener(event,checkpoint);
     function go(value){
       const s=HLProgress.get(id);
@@ -104,6 +107,7 @@ const HLTrainingUI=(()=>{
       target.scrollIntoView({block:'start',behavior:'instant'});const heading=target.querySelector('h2')||target;heading.tabIndex=-1;heading.focus({preventScroll:true});
     }
     function refresh(rebuildStates=true){
+      updateReference();
       const s=HLProgress.get(id),requirements=HLTraining.evidence(a,s.snapshots),hasEvidence=requirements.every(r=>r.passed),passed=results(a,s).every(({q,d})=>d?.correct&&d.question===q.id);
       const predicted=a.internalPrediction||!!s.prediction.trim(),explained=!a.transfer||!!s.reflection.trim()&&!!s.limitation?.trim();
       const performed=predicted&&hasEvidence&&passed;

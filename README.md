@@ -52,6 +52,8 @@ The physics follows existing Van Holten/Melkert, Leishman and Wagtendonk referen
 
 ## Verification and maintenance
 
+The [content review](CONTENT-REVIEW.md) covers all 29 activities and 19 references, their corrected explanations, source checks and remaining learner evaluation. The velocity triangle now uses one consistent signed trim state. Advanced disc diagnostics are optional after the local triangle; yaw sectors explain mechanisms without an invented authority index. Text revisions preserve saved comparisons; updated questions require new decisions, and the corrected velocity-model task archives its earlier version.
+
 `node verify_physics.js` runs the physics checks; `node tests/learning.cjs` checks curriculum and record integrity. `npm test` runs both. Browser checks require the pinned development-only Playwright dependency: `npm ci`, `npx playwright install chromium`, then `npm run test:browser`. These dependencies are not required to use the app. `CHROMIUM_PATH` and `PLAYWRIGHT_MODULE` can point the tests to an existing installation.
 
 Browser tests traverse all 29 activities at desktop, tablet and phone widths and exercise actual completion, keyboard construction, retry, storage/reload, backup/import, reviewer observations, cleanup and no-WebGL fallback. See [RELEASE-VALIDATION.md](RELEASE-VALIDATION.md) for observed results and remaining evaluation limits. The user-directed delivery scope and acceptance criteria are in [DELIVERY-PLAN.md](DELIVERY-PLAN.md), superseding earlier slice-only rollout restrictions.
