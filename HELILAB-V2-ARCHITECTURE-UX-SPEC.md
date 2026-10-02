@@ -16,6 +16,9 @@ HeliLab is not a linear e-learning course and is not the formal assessment syste
 
 > **HeliLab is the interactive concept laboratory for ATPL(H) Principles of Flight.**
 
+HeliLab supports conceptual understanding, causal reasoning and formative feedback.
+Formal exam practice, scoring and exam readiness belong to the ecosystem’s question-bank layer.
+
 Its purpose is to make invisible aerodynamic mechanisms visible and manipulable so that students learn to reason causally rather than memorise completed diagrams or isolated statements.
 
 The student progression is:

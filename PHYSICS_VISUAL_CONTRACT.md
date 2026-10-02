@@ -198,3 +198,11 @@ state 2: ...
   small residual and the readout already says "decel". Documented, not a bug.
 - **Net-force arrow scale**: `/WN` (small residual), *not* `/max(ThN,DN)`. Reverted in
   3ac48f4 after the latter made the arrow oversized vs the main forces.
+
+## 2026-10-01 — induced-inflow harmonic correction
+
+`HL.linearInflowModel` is a prescribed **induced-only** first-harmonic teaching model. Its previous gradient omitted the mean induced ratio, producing front/rear values of about −64/+70 m/s at the reviewed 80 kt condition. It also described the total throughflow as induced flow.
+
+The corrected longitudinal coefficient uses the same prescription already used by `flapping.js:localInflow`: `lambda_c = lambda_i * (4/3) * mu / (hypot(mu,lambda_i) + lambda_i)`. The existing source annotation attributes this longitudinal skew approximation to Drees/Leishman. The optional lateral-wind illustration uses the analogous mean-scaled coefficient with `mu_lat`; it is independent of the longitudinal coefficient. This helper is **not** the full Drees lateral term and **not** Pitt–Peters dynamic inflow. It illustrates steady hover/forward-flight gradients, not VRS or transient wake dynamics.
+
+The old tests demanded monotonically increasing *absolute* asymmetry with speed; that incorrectly suppressed the decrease of mean induced flow. Tests now check normalised skew, the 4/3 mean-relative bound, physically reasonable local speeds and agreement with the established longitudinal core prescription at fore/aft azimuths. Aircraft throughflow remains separate. Signed upwash must be drawn with its sign and must not be silently relabelled zero. No axial, trim, flapping or power equations were changed.

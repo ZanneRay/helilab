@@ -1,3 +1,6 @@
 Thumbs.db
 .DS_Store
 desktop.ini
+node_modules/
+test-results/
+__pycache__/

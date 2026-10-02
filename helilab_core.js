@@ -347,18 +347,21 @@ const HL = (function () {
        λ_s > 0  →  more inflow at ADV than RET (lateral / skewed-inflow gradient)
 
      st.Vlat [m/s] (optional): lateral wind into the advancing (starboard) side.
-     Reference: Pitt & Peters (1981); simplified Mangler–Squire approximation. */
+     Reference: longitudinal skew follows the existing Drees-style localInflow
+     prescription in flapping.js. This is not a Pitt–Peters dynamic-inflow model.
+     Valid for qualitative steady hover/forward-flight comparisons, not VRS. */
   function linearInflowModel(st) {
     const OmR = omR(st);
     if (OmR < 1) return { lam0: 0, lamc: 0, lams: 0 };
-    const lam0  = inflowRatio(st);
-    const mu    = advanceRatio(st);
-    const muLat = (st.Vlat || 0) / OmR;
-    const denom = Math.sqrt(mu * mu + lam0 * lam0);
-    // Mangler–Squire / Pitt-Peters: gradients scale with wake-skew angle χ.
-    // The compact form (4/3π)·component/√(μ²+λ₀²) is numerically stable at hover.
-    const lamc = denom > 1e-6 ? (4 / (3 * Math.PI)) * mu    / denom : 0;
-    const lams = denom > 1e-6 ? (4 / (3 * Math.PI)) * muLat / denom : 0;
+    const lam0 = inducedInflowRatio(st);
+    const mu = advanceRatio(st), muLat = (st.Vlat || 0) / OmR;
+    // Prescribed longitudinal Drees-style wake skew, as used by localInflow.
+    // The harmonic is an induced-velocity ratio, so it MUST scale with λ₀.
+    // Lateral wind is a separate illustrative skew input, not a full wake solution.
+    const denom = Math.hypot(mu, lam0) + lam0;
+    const lamc = denom > 1e-6 ? lam0 * (4 / 3) * mu / denom : 0;
+    const lateralDenom = Math.hypot(muLat, lam0) + lam0;
+    const lams = lateralDenom > 1e-6 ? lam0 * (4 / 3) * muLat / lateralDenom : 0;
     return { lam0, lamc, lams };
   }
 

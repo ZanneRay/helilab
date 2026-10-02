@@ -10,7 +10,6 @@
 (function () {
   const LS_PROGRESS = 'helilab_progress_v1';
   const LS_THEME = 'helilab_theme_v1';
-  const LS_EXAM = 'helilab_exam_v1';
 
   const HLS = (function () {
     const STORE_KEY = 'local' + 'Storage';
@@ -39,10 +38,10 @@
   };
 
   let progress = {};
-  try { progress = JSON.parse(HLS.getItem(LS_PROGRESS) || '{}'); } catch (e) { progress = {}; }
+  try { progress = JSON.parse(HLS.getItem(LS_PROGRESS) || '{}'); if (!progress || typeof progress !== 'object' || Array.isArray(progress)) progress = {}; } catch (e) { progress = {}; }
   const saveProgress = () => { try { HLS.setItem(LS_PROGRESS, JSON.stringify(progress)); } catch (e) {} };
 
-  const LESSON_BY_ID = Object.fromEntries(HL_LESSONS.map((lesson) => [lesson.id, lesson]));
+  const LESSON_BY_ID = Object.fromEntries([...HL_LESSONS,...HLTraining.lessons()].map((lesson) => [lesson.id, lesson]));
   const MODULE_BY_ID = Object.fromEntries(HL_V2_MODULES.map((module) => [module.id, module]));
   const MODULE_ACTIVITY_BY_LESSON = {};
   HL_V2_MODULES.forEach((module) => {
@@ -106,10 +105,12 @@
   };
 
   function setActiveCleanup(handle) {
-    activeCleanup = null;
     if (!handle) return;
+    const previous = activeCleanup;
     if (typeof handle === 'function') activeCleanup = handle;
     else if (typeof handle.dispose === 'function') activeCleanup = () => handle.dispose();
+    const next = activeCleanup;
+    if (previous && previous !== next) activeCleanup = () => { previous(); next(); };
   }
 
   function cleanupActiveView() {
@@ -119,10 +120,11 @@
   }
 
   function updateProgressBar() {
-    const total = HL_LESSONS.length;
-    const doneN = HL_LESSONS.filter((lesson) => progress[lesson.id] === 'done').length;
+    const activities = HLTraining.activities();
+    const total = activities.length;
+    const doneN = activities.filter(a => HLProgress.get(a.lessonId).complete).length;
     $('#hlProgressFill').style.width = (doneN / total * 100) + '%';
-    $('#hlProgressTxt').textContent = `${doneN} / ${total} complete`;
+    $('#hlProgressTxt').textContent = `${doneN} / ${total} activities`;
   }
 
   function routeForLesson(lessonId, forceLegacy) {
@@ -157,6 +159,7 @@
     if (parts[0] === 'activity' && parts[1]) return { name: 'activity', lessonId: decodeURIComponent(parts[1]) };
     if (parts[0] === 'lesson' && parts[1]) return { name: 'lesson', lessonId: decodeURIComponent(parts[1]) };
     if (parts[0] === 'rotor-lab') return { name: 'rotor-lab', preset: query.get('preset'), mode: query.get('mode') };
+    if (parts[0] === 'record') return { name: 'record' };
     if (parts[0] === 'lab-tools') return { name: 'lab-tools' };
     if (parts[0] === 'maths') return { name: 'maths' };
     if (parts[0] === 'legacy') return { name: 'legacy-library' };
@@ -165,6 +168,7 @@
 
   function ensureValidRoute(route) {
     if ((route.name === 'activity' || route.name === 'lesson') && !LESSON_BY_ID[route.lessonId]) return { name: 'home' };
+    if (route.name === 'activity' && !MODULE_ACTIVITY_BY_LESSON[route.lessonId]) return { name: 'lesson', lessonId: route.lessonId };
     if (route.name === 'module' && !MODULE_BY_ID[route.moduleId]) return { name: 'home' };
     if (route.name === 'rotor-lab' && route.mode === 'guided' && route.preset && !HL_V2_PRESETS[route.preset]) {
       return { name: 'rotor-lab' };
@@ -192,12 +196,13 @@
     const journey = el('div', 'hl-nav-v2-group');
     journey.appendChild(el('div', 'hl-nav-v2-label', 'Learning journey'));
     HL_V2_MODULES.forEach((module) => {
-      const active = route.name === 'module' && route.moduleId === module.id;
+      const active = (route.name === 'module' && route.moduleId === module.id) || (route.name === 'activity' && MODULE_ACTIVITY_BY_LESSON[route.lessonId]?.moduleId === module.id);
       const label = `Module ${String(module.number).padStart(2, '0')} · ${module.title}`;
       const sub = module.available ? module.question : 'Coming later.';
       journey.appendChild(buttonNav(label, active, sub, () => navigate(`#/module/${module.id}`), { muted: !module.available }));
     });
     nav.appendChild(journey);
+    nav.appendChild(buttonNav('Learning record', route.name === 'record', 'Evidence, backup and instructor review', () => navigate('#/record')));
 
     const lab = el('div', 'hl-nav-v2-group');
     lab.appendChild(el('div', 'hl-nav-v2-label', 'Rotor lab'));
@@ -225,7 +230,7 @@
       b.title = lesson.stage + ' — ' + lesson.subtitle;
       b.onclick = () => {
         navigate(routeForLesson(rid));
-        $('#hlMain').scrollTop = 0;
+        $('#hlMain').scrollTo({top:0,behavior:'instant'});
       };
       chips.appendChild(b);
     });
@@ -305,7 +310,7 @@
     const bridgeHtml = legacy ? lesson.bridge : (activityMeta && activityMeta.bridge);
     const subtitle = v2View && activityMeta.subtitle ? activityMeta.subtitle : lesson.subtitle;
     const widgetName = v2View && activityMeta.widget ? activityMeta.widget : lesson.widget;
-    touchLesson(lesson.id);
+    if (legacy) touchLesson(lesson.id);
     main.innerHTML = '';
 
     const head = el('div', 'hl-lesson-head');
@@ -367,7 +372,8 @@
       }
     }
 
-    if (checkData) main.appendChild(buildCheck(lesson, checkData));
+    if (legacy && checkData) main.appendChild(buildCheck(lesson, checkData));
+    if (v2View) HLTrainingUI.mount(main, grid, mount, lesson, activityMeta, moduleMeta, updateProgressBar);
 
     if (lesson.appendix) {
       const ap = el('div', 'hl-appendix');
@@ -385,7 +391,7 @@
           built = true;
           const fn = HLW[lesson.appendix.widget];
           if (fn) {
-            try { fn(body); } catch (e) {
+            try { setActiveCleanup(fn(body)); } catch (e) {
               body.innerHTML = '<div class="hl-err">Appendix error: ' + e.message + '</div>';
               console.error(e);
             }
@@ -417,24 +423,19 @@
       const finalLabel = activityMeta.completionLabel || (moduleMeta.id === 'm1' ? 'Open the 3D Rotor Lab →' : `Back to Module ${moduleMeta.number} →`);
       const next = el('button', 'hl-foot-btn primary', idx < activities.length - 1 ? 'Next activity →' : finalLabel);
       next.onclick = () => {
-        progress[lesson.id] = 'done';
-        saveProgress();
-        buildSidebar(currentRoute);
         navigate(idx < activities.length - 1 ? routeForLesson(activities[idx + 1].lessonId) : finalRoute);
       };
       foot.appendChild(prev);
       foot.appendChild(next);
     } else {
-      const idx = HL_LESSONS.indexOf(lesson);
+      const legacyLessons = HL_LESSONS.filter(l=>!l.id.startsWith('cbt-'));
+      const idx = legacyLessons.indexOf(lesson);
       const prev = el('button', 'hl-foot-btn', '← Previous');
       prev.disabled = idx === 0;
-      prev.onclick = () => navigate(idx > 0 ? routeForLesson(HL_LESSONS[idx - 1].id, true) : '#/legacy');
-      const next = el('button', 'hl-foot-btn primary', idx === HL_LESSONS.length - 1 ? 'Finish → Rotor Lab' : 'Next lesson →');
+      prev.onclick = () => navigate(idx > 0 ? routeForLesson(legacyLessons[idx - 1].id, true) : '#/legacy');
+      const next = el('button', 'hl-foot-btn primary', idx === legacyLessons.length - 1 ? 'Finish → Rotor Lab' : 'Next lesson →');
       next.onclick = () => {
-        progress[lesson.id] = 'done';
-        saveProgress();
-        buildSidebar(currentRoute);
-        navigate(idx === HL_LESSONS.length - 1 ? '#/rotor-lab' : routeForLesson(HL_LESSONS[idx + 1].id, true));
+        navigate(idx === legacyLessons.length - 1 ? '#/rotor-lab' : routeForLesson(legacyLessons[idx + 1].id, true));
       };
       foot.appendChild(prev);
       foot.appendChild(next);
@@ -447,9 +448,9 @@
     const modules = HL_V2_MODULES.filter((module) => module.available && (module.activities || []).length);
     for (const module of modules) {
       const activities = (module.activities || []).map((activity) => activity.lessonId);
-      const pending = activities.find((lessonId) => progress[lessonId] !== 'done');
+      const pending = activities.find((lessonId) => !HLProgress.get(lessonId).complete);
       if (!pending) continue;
-      return activities.find((lessonId) => progress[lessonId] === 'seen')
+      return activities.find((lessonId) => HLProgress.get(lessonId).viewed && !HLProgress.get(lessonId).complete)
         || pending;
     }
     const lastModule = modules[modules.length - 1];
@@ -464,7 +465,7 @@
       `<div class="hl-module-card-kicker">Module ${String(module.number).padStart(2, '0')}</div>` +
       `<h3>${module.title}</h3>` +
       `<p>${module.question}</p>` +
-      `<div class="hl-module-card-note">${module.available ? 'Ready to explore' : 'Coming later'}</div>`;
+      `<div class="hl-module-card-note">${`${module.activities.filter(a=>HLProgress.get(a.lessonId).complete).length} / ${module.activities.length} activities complete`}</div>`;
     return card;
   }
 
@@ -479,10 +480,10 @@
     const continueModule = continueActivity ? MODULE_BY_ID[continueActivity.moduleId] : MODULE_BY_ID.m1;
     const primaryRoute = continueId ? routeForLesson(continueId) : (continueModule ? `#/module/${continueModule.id}` : '#/rotor-lab');
     const primaryLabel = continueId
-      ? (progress[continueId] ? 'Continue learning' : `Start Module ${continueModule ? continueModule.number : 1}`)
+      ? (HLProgress.get(continueId).viewed ? 'Continue learning' : `Start Module ${continueModule ? continueModule.number : 1}`)
       : (continueModule ? `Open Module ${continueModule.number}` : 'Explore the 3D Rotor Lab');
     copy.innerHTML =
-      '<div class="hl-home-kicker">HELILAB · Interactive Helicopter Aerodynamics for ATPL(H)</div>' +
+      '<div class="hl-home-kicker">HELILAB · Competency-oriented aerodynamics training</div>' +
       '<h1>Understand the rotor. Don’t memorise it.</h1>' +
       '<p>Predict, build, explore and explain the same aerodynamic model — from the first blade element to the full rotor wake.</p>' +
       '<div class="hl-home-sequence">PREDICT → BUILD → EXPLORE → EXPLAIN</div>';
@@ -506,7 +507,7 @@
     }));
 
     const modules = el('section', 'hl-v2-section');
-    modules.innerHTML = '<div class="hl-v2-section-kicker">One model. Seven flight problems.</div><h2>Learning journey</h2><p>Build the rotor model in Module 1, then carry the same causal thinking into hover and vertical-flow problems in Module 2.</p>';
+    modules.innerHTML = '<div class="hl-v2-section-kicker">One model. Seven flight problems.</div><h2>Learning journey</h2><p>Seven outcomes, a practical model task, an explanation and a transfer check. Start with Module 1 or revisit the outcome you need to practise.</p>';
     const moduleGrid = el('div', 'hl-module-grid');
     HL_V2_MODULES.forEach((module) => moduleGrid.appendChild(buildModuleCard(module)));
     modules.appendChild(moduleGrid);
@@ -519,7 +520,7 @@
       ['MODEL', 'Make one relationship visible with high scaffolding.'],
       ['EXPLORE', 'Change one or two inputs, then explain what changed and why.'],
       ['MISSION', 'Construct → commit → reveal before you see the completed answer.'],
-      ['CHALLENGE', 'Transfer tasks arrive later in the learning journey.'],
+      ['CHALLENGE', 'Apply the mechanism to two changed conditions; explain your evidence and limits.'],
     ].forEach(([title, desc]) => {
       modes.appendChild(el('div', 'hl-mode-card', `<div class="hl-mode-card-kicker">${title}</div><p>${desc}</p>`));
     });
@@ -527,8 +528,8 @@
     main.appendChild(philosophy);
 
     const ecosystem = el('section', 'hl-v2-section hl-v2-section--compact',
-      '<div class="hl-v2-section-kicker">Built into a learning ecosystem</div>' +
-      '<p>Use HeliLab to make the mechanism visible, then carry the same variables and conventions into class, revision, and exam practice.</p>');
+      '<div class="hl-v2-section-kicker">Your standalone training workspace</div>' +
+      '<p>No account or other platform is required. Your learning record stays in this browser; use Export to keep a backup. Activity completion records practice, not certified pilot competence. Models explain mechanisms and do not replace approved aircraft data or instruction.</p>');
     main.appendChild(ecosystem);
     main.scrollTop = 0;
   }
@@ -540,7 +541,7 @@
     card.innerHTML =
       `<div class="hl-activity-card-kicker">${activity.kicker}</div>` +
       `<h3>${title}</h3>` +
-      `<p>${activity.summary}</p>` +
+      `<p>${activity.summary}</p><p class="cbt-status">${HLProgress.status(activity.lessonId)}</p>` +
       `<p class="hl-activity-card-note">${activity.modeAction || copy.action}</p>`;
     const actions = el('div', 'hl-activity-card-actions');
     const open = el('button', 'hl-home-btn primary', activity.actionLabel || copy.button);
@@ -583,7 +584,7 @@
     head.innerHTML =
       `<div class="hl-v2-section-kicker">Module ${String(module.number).padStart(2, '0')}</div>` +
       `<h1>${module.title}</h1>` +
-      `<p class="hl-v2-module-question">${module.question}</p>` +
+      `<p class="hl-v2-module-question">${module.question}</p><p><b>Observable outcome:</b> ${module.outcome}</p>` +
       `${module.spine && module.spine.length ? `<div class="hl-v2-spine">${module.spine.join(' → ')}</div>` : ''}`;
     main.appendChild(head);
 
@@ -657,7 +658,7 @@
     main.appendChild(head);
     const mount = el('div', 'hl-maths-mount');
     main.appendChild(mount);
-    try { HLW.wBetModel(mount); } catch (e) {
+    try { setActiveCleanup(HLW.wBetModel(mount)); } catch (e) {
       mount.innerHTML = '<div class="hl-err">Maths error: ' + e.message + '</div>';
       console.error(e);
     }
@@ -675,7 +676,7 @@
       const sec = el('section', 'hl-v2-section hl-v2-section--compact');
       sec.appendChild(el('div', 'hl-v2-section-kicker', stage));
       const list = el('div', 'hl-legacy-list');
-      HL_LESSONS.filter((lesson) => lesson.stage === stage).forEach((lesson) => {
+      HL_LESSONS.filter(lesson => !lesson.id.startsWith('cbt-')).filter((lesson) => lesson.stage === stage).forEach((lesson) => {
         const item = el('button', 'hl-legacy-item', `<b>${lesson.title}</b><small>${lesson.subtitle}</small>`);
         item.onclick = () => navigate(routeForLesson(lesson.id, true));
         list.appendChild(item);
@@ -723,12 +724,24 @@
     else if (route.name === 'lesson') renderLegacyLesson(route.lessonId);
     else if (route.name === 'rotor-lab') renderRotorLab(route);
     else if (route.name === 'maths') renderMaths();
+    else if (route.name === 'record') HLTrainingUI.record($('#hlMain'), updateProgressBar);
     else if (route.name === 'legacy-library') renderLegacyLibrary();
     else renderLabTools();
+    $('#hlMain').scrollTo({top:0,behavior:'instant'});
+  }
+
+  function syncSidebar() {
+    const sidebar = $('#hlSidebar');
+    sidebar.inert = matchMedia('(max-width: 820px)').matches && !sidebar.classList.contains('open');
   }
 
   function handleRoute() {
-    renderRoute(ensureValidRoute(parseRoute(location.hash)));
+    let route;
+    try { route = ensureValidRoute(parseRoute(location.hash)); } catch (e) { route = {name:'home'}; }
+    renderRoute(route);
+    $('#hlSidebar').classList.remove('open');
+    $('#hlMenuBtn').setAttribute('aria-expanded','false');
+    syncSidebar();
   }
 
   function applyTheme(theme) {
@@ -745,25 +758,9 @@
       applyTheme(cur === 'light' ? 'dark' : 'light');
     };
 
-    const applyExam = (on) => {
-      document.body.classList.toggle('exam-mode', on);
-      $('#hlExamBtn').classList.toggle('on', on);
-      try { HLS.setItem(LS_EXAM, on ? '1' : '0'); } catch (e) {}
-    };
-    applyExam(HLS.getItem(LS_EXAM) === '1');
-    $('#hlExamBtn').onclick = () => applyExam(!document.body.classList.contains('exam-mode'));
-    document.addEventListener('click', (e) => {
-      if (!document.body.classList.contains('exam-mode')) return;
-      const readout = e.target.closest('.hl-w-readout, .hl-sandbox-readout, .hl-rotor-readout');
-      if (readout && !readout.classList.contains('revealed')) {
-        readout.classList.add('revealed');
-        e.stopPropagation();
-        e.preventDefault();
-      }
-    }, true);
-
     $('#hlResetBtn').onclick = () => {
-      if (confirm('Reset all lesson progress?')) {
+      if (confirm('Delete all local training evidence, reflections and reviews? Export your learning record first to keep a backup.')) {
+        HLProgress.reset();
         progress = {};
         saveProgress();
         if (window.HLCourseMap) window.HLCourseMap.resetProgress();
@@ -772,7 +769,11 @@
     };
 
     const sidebar = $('#hlSidebar');
-    $('#hlMenuBtn').onclick = () => sidebar.classList.toggle('open');
+    $('#hlMenuBtn').setAttribute('aria-expanded','false');
+    $('#hlMenuBtn').onclick = () => { $('#hlMenuBtn').setAttribute('aria-expanded', String(sidebar.classList.toggle('open'))); syncSidebar(); };
+    window.addEventListener('resize', syncSidebar);
+    window.addEventListener('keydown', e => { if(e.key==='Escape' && sidebar.classList.contains('open')) { sidebar.classList.remove('open'); $('#hlMenuBtn').setAttribute('aria-expanded','false'); syncSidebar(); $('#hlMenuBtn').focus(); } });
+    document.querySelector('.cbt-skip').onclick = e => { e.preventDefault(); $('#hlMain').focus(); };
     window.addEventListener('hashchange', handleRoute);
     window.addEventListener('beforeunload', cleanupActiveView);
 
