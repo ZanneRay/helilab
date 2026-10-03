@@ -314,28 +314,8 @@ const HLW = (function () {
     return `rgb(${Math.round(60 + 150 * t)},${Math.round(200 - 20 * t)},${Math.round(120 - 60 * t)})`;
   }
 
-  /* Airload confidence 0..1 for a blade element from its tangential speed U_T
-     and the advance ratio μ. A rotor element only carries meaningful load where
-     the dynamic pressure q ∝ U_T² is real. Right at the reverse-flow boundary
-     U_T → 0, so α can be geometrically huge yet aerodynamically irrelevant. */
-  function airloadConf(UT, mu) {
-    const qShare = Math.min(1, Math.pow(Math.max(0, UT) / (0.55 * (1 + mu)), 2));
-    const Q_MIN = 0.25;                       // real dynamic-pressure floor
-    return { qShare, Q_MIN, conf: Math.min(1, qShare / Q_MIN) };
-  }
-
-  /* Fade an "rgb(r,g,b)" fill toward the disc-neutral tone by an airload
-     confidence (1 = full colour, 0 = washed-out grey). Used so low-q inboard
-     cells never read as a saturated red "stall" in ANY plot mode. */
-  function fadeToNeutral(rgbStr, conf) {
-    const m = /rgb\((\d+),\s*(\d+),\s*(\d+)\)/.exec(rgbStr);
-    if (!m) return rgbStr;
-    const bg = [70, 82, 96];                  // neutral slate the disc sits on
-    const k = Math.max(0, Math.min(1, conf));
-    const r = Math.round(bg[0] + (+m[1] - bg[0]) * k);
-    const g = Math.round(bg[1] + (+m[2] - bg[1]) * k);
-    const b = Math.round(bg[2] + (+m[3] - bg[2]) * k);
-    return `rgb(${r},${g},${b})`;
+  function ratioColor(ratio) {
+    return ratio>=1?'rgb(235,70,50)':ratio>=.8?'rgb(240,190,60)':aoaColor(ratio*100,100);
   }
 
   /* apply forward-flight trim cyclic to a state (level disc) */
@@ -344,32 +324,11 @@ const HLW = (function () {
     return { ...st, theta1s: t.t1s_deg, theta1c: t.t1c_deg };
   }
 
-  /* Two different teaching assumptions for the optional envelope map.
-     Extended uses the core normal-flow BET. Foundation prescribes phi from
-     uniform inflow/radius, suppressing its azimuth dependence and lateral cyclic.
-     That deliberately different angle approximation must not be presented as
-     the actual local velocity triangle or as universal aircraft stall location. */
-  function localAoAmodel(st, c, rBar, psi, model) {
-    if (model !== 'foundation') return localAoA(st, c, rBar, psi);
-
-    // Foundation model: untwisted blade, no lateral cyclic, uniform inflow.
-    const st0 = trimmed({ ...st, twist: 0 });
-    st0.theta1c = 0;                       // kill lateral cyclic → pitch peaks at ψ=270°
-    const mu   = advanceRatio(st0);
-    const lam0 = inflowRatio(st0);         // mean (uniform) inflow ratio
-    const UT    = rBar + mu * Math.sin(psi);   // TRUE tangential speed (unchanged)
-    const theta = bladePitch(st0, rBar, psi);  // θ₀ + θ₁s·sinψ (θ₁c=0, twist=0)
-    // Uniform-inflow induced angle, referenced to the rotational speed r̄ so it
-    // does NOT swing with azimuth — the classic small-disc-loading assumption.
-    const phi = Math.atan2(lam0, rBar);
-    return {
-      aoa: theta - phi,
-      phi,
-      theta,
-      UT,
-      UP: lam0,
-      reverseFlow: UT < 0,
-    };
+  /* Optional map presets change several assumptions, not twist alone.
+     Both use the actual local UT in the normal-flow angle triangle. */
+  function localAoAmodel(st,c,rBar,psi,model) {
+    if(model!=='foundation')return localAoA(st,c,rBar,psi);
+    return HLMechanisms.foundation(st,rBar,psi);
   }
 
   function rotorViewState(cfg) {
@@ -2403,64 +2362,93 @@ const HLW = (function () {
     ui.onDraw(draw);
   }
 
-  /* 8 — Flapping: 3-D disc (coning + natural blowback) + β(ψ) plot */
+  /* Controlled flap-rate experiment: hold the other velocity terms fixed. */
   function wFlapping(host) {
-    host.innerHTML = '';
-    const wrap = el('div', 'hl-w');
-    const stage3d = el('div', 'hl-w-3d');
-    const betWrap = el('div', 'hl-w-stage hl-w-stage-short');
-    const betCanvas = el('canvas'); betWrap.appendChild(betCanvas);
-    const side = el('div', 'hl-w-side');
-    const controls = el('div', 'hl-w-controls');
-    const readout = el('div', 'hl-w-readout');
-    side.appendChild(controls); side.appendChild(readout);
-    wrap.appendChild(stage3d); wrap.appendChild(betWrap); wrap.appendChild(side);
-    host.appendChild(wrap);
-
-    let Vkt = 80;
-    // 3-D view: level fuselage, disc tilts back by natural a₁ (blowback)
-    let view3d = null;
-    if (window.HL3D) {
-      try { view3d = window.HL3D.create(stage3d, { showWake: false, showFuselage: true, showMarker: false }); }
-      catch (e) { console.error(e); }
-    }
-    if (!view3d) stage3d.innerHTML = noThreeHTML();
-
-    const drawBet = () => {
-      const st = HL.defaultState(); st.V = Vkt * 0.5144;
-      // NO trim cyclic: show the rotor's NATURAL flapping response (a₁/b₁ ≠ 0).
-      const c = flappingCoeffs(st);
-      const a0 = c.a0 * R2D, a1 = -c.a1c * R2D, b1 = -c.a1s * R2D;
-      if (view3d) view3d.update({
-        coningDeg: a0, discTiltLonDeg: a1, discTiltLatDeg: b1,
-        bodyPitchDeg: 0, bladePitchDeg: 8, mu: advanceRatio(st), lam: inflowRatio(st),
-      });
-      const { ctx, W, H, col } = HLD.setup(betCanvas);
-      HLD.clear(ctx, W, H, col);
-      const pts = [];
-      for (let i = 0; i <= 72; i++) pts.push({ x: i * 5, y: flappingAngle(c, (i / 72) * 2 * Math.PI) * R2D });
-      const ys = pts.map(p => p.y); const ymin = Math.min(...ys, 0) - 1, ymax = Math.max(...ys) + 1;
-      const ch = HLD.lineChart(ctx, W, H, [{ pts, color: col.accent, width: 2.5, label: 'β(ψ)' }],
-        { xmin: 0, xmax: 360, ymin, ymax, xlab: 'azimuth ψ (deg)', ylab: 'flap β (deg)' }, col,
-        [{ x: 90, color: col.good, label: 'ADV' }, { x: 270, color: col.warn, label: 'RET' }]);
-      HLD.dline(ctx, ch.x0, ch.sy(a0), ch.x1, ch.sy(a0), col.lift, 1.2, [5, 4]);
-      HLD.text(ctx, 'coning a₀', ch.x0 + 4, ch.sy(a0) - 4, col.lift, '9px IBM Plex Sans');
-      readout.innerHTML = kv([
-        ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
-        ['Coning a₀', a0.toFixed(1) + '°', 'var(--hl-lift)'],
-        ['Long. tilt a₁ (blowback)', a1.toFixed(1) + '°', 'var(--hl-accent)'],
-        ['Lateral tilt b₁', b1.toFixed(1) + '°', 'var(--hl-warn)'],
-      ]) + `<p class="hl-note">This is the prescribed <b>untrimmed</b> response
-        on a level fuselage: mean coning a₀ and first-harmonic disc tilt. A near-90°
-        forcing/flapping phase is an ideal articulated-rotor approximation. Hinge
-        offset, stiffness and damping change real phase. Flap rate alters the local
-        velocity triangle; displacement locates the blade. Cyclic changes the
-        pitch distribution and trim response.</p>`;
+    const ui=scaffold(host,{mainStage:'hl-w-stage hl-w-stage-mechanism'});
+    let Vkt=60,psiDeg=270,rBar=.75,rateDeg=0;
+    const draw=()=>{
+      const st={...HL.defaultState(),V:Vkt*.5144,theta0:10,theta1c:0,theta1s:0,twist:0};
+      const psi=psiDeg*D2R,d=HLMechanisms.flap(st,rBar,psi,rateDeg),base=HLMechanisms.flap(st,rBar,psi,0);
+      const omR=HL.omR(st),supported=d.UT>1e-4;
+      const {ctx,W,H,col}=HLD.setup(ui.canvas);HLD.clear(ctx,W,H,col);
+      const fs=W<420?11:13;
+      HLD.text(ctx,'Same pitch + same air flow',W*.5,24,col.ink,'bold '+fs+'px IBM Plex Sans','center');
+      // Air arriving at the element points from the upstream end to the blade.
+      // Same angle scale and line length in both diagrams; retain signed phi.
+      const A=2,len=Math.min(W*.65,H*.16/Math.max(.1,Math.abs(Math.sin(d.theta*A)),Math.abs(Math.sin(d.phi*A)),Math.abs(Math.sin(base.phi*A))));
+      for(const [i,x,label] of [[0,base,'Reference · no flap rate'],[1,d,'Selected · '+(rateDeg<0?'downward':rateDeg>0?'upward':'no motion')]]){
+        const y=H*(i===0?.34:.72),ox=W*.14;
+        HLD.text(ctx,label,W*.5,y-85,i?col.accent:col.dim,fs+'px IBM Plex Sans','center');
+        HLD.dline(ctx,ox-12,y,ox+len+12,y,col.dim,1);
+        HLD.dline(ctx,ox,y,ox+len*Math.cos(x.theta*A),y-len*Math.sin(x.theta*A),col.chord,2,[6,3]);
+        if(supported){
+          HLD.arrow(ctx,ox+len*Math.cos(x.phi*A),y-len*Math.sin(x.phi*A),ox,y,col.wind,2,8);
+          HLD.arc(ctx,ox,y,30,-x.theta*A,-x.phi*A,col.lift);
+          HLD.text(ctx,'φ '+(x.phi*R2D).toFixed(1)+'°  →  α '+(x.aoa*R2D).toFixed(1)+'°',W*.5,y+32,col.ink,fs+'px IBM Plex Sans','center');
+        }else HLD.text(ctx,'Reverse / near-zero tangential flow',W*.5,y+30,col.warn,fs+'px IBM Plex Sans','center');
+      }
+      HLD.text(ctx,'Dashed orange: fixed θ = 10°',W*.5,H-46,col.chord,'11px IBM Plex Sans','center');
+      HLD.text(ctx,'Blue arrow: air relative to blade · angles ×2',W*.5,H-24,col.wind,'10px IBM Plex Sans','center');
+      const motion=rateDeg<0?'downward':rateDeg>0?'upward':'stationary instantaneously';
+      ui.readout.innerHTML=kv([
+        ['Blade motion',motion,'var(--hl-accent)'],['Flapping rate β̇',rateDeg.toFixed(0)+'°/s','var(--hl-accent)'],
+        ['Displacement β','0° at this instant','var(--hl-dim)'],['Fixed pitch θ','10.0°','var(--hl-chord)'],
+        ['Unchanged U_T',(d.UT*omR).toFixed(2)+' m/s','var(--hl-ink)'],
+        ['Unchanged air-flow normal term',(base.UP*omR).toFixed(2)+' m/s','var(--hl-ink)'],
+        ['Flap-rate term r·β̇',(d.flapRateNormal*omR).toFixed(2)+' m/s','var(--hl-accent)'],
+        ['Total U_P',(d.UP*omR).toFixed(2)+' m/s','var(--hl-ink)'],
+        ['Inflow φ',supported?(d.phi*R2D).toFixed(2)+'°':'outside normal-flow comparison','var(--hl-wind)'],
+        ['Angle of attack α',supported?(d.aoa*R2D).toFixed(2)+'°':'outside normal-flow comparison','var(--hl-lift)'],
+        ['α change from no motion',supported?((d.aoa-base.aoa)*R2D).toFixed(2)+'°':'n/a','var(--hl-lift)']
+      ])+`<p class="hl-note"><b>${rateDeg<0?'Downward rate → smaller U_P → smaller φ → larger α.':rateDeg>0?'Upward rate → larger U_P → larger φ → smaller α.':'Set −60°/s, then +60°/s. Predict which α is greater.'}</b> This chain holds at fixed pitch, positive U_T and unchanged other flow.</p><p class="hl-note">We prescribe β = 0 and its instantaneous rate to isolate motion. This is not a solved flapping response. The unchanged β shows why blade height alone cannot explain α. Disc response and phase are explored in the next activity.</p>`;
     };
-    slider(controls, { label: 'Forward speed', min: 0, max: 160, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; drawBet(); } });
-    const ro = new ResizeObserver(() => drawBet()); ro.observe(betWrap);
-    (host._hlDisposers ||= []).push(() => ro.disconnect());
-    requestAnimationFrame(drawBet);
+    slider(ui.controls,{label:'Flapping rate β̇',min:-90,max:90,step:15,val:rateDeg,unit:'°/s',on:v=>{rateDeg=v;draw();}});
+    slider(ui.controls,{label:'Forward speed',min:0,max:120,step:5,val:Vkt,unit:' kt',on:v=>{Vkt=v;draw();}});
+    slider(ui.controls,{label:'Azimuth ψ',min:0,max:360,step:5,val:psiDeg,unit:'°',on:v=>{psiDeg=v;draw();}});
+    slider(ui.controls,{label:'Blade station r/R',min:.4,max:1,step:.05,val:rBar,fmt:v=>v.toFixed(2),on:v=>{rBar=v;draw();}});
+    ui.onDraw(draw);
+  }
+
+  /* Frozen-flow radial comparison: twist alone changes pitch. */
+  function wTwistComparison(host) {
+    const ui=scaffold(host,{mainStage:'hl-w-stage hl-w-stage-mechanism'});
+    let Vkt=60,psiDeg=270,rBar=.75,twist=-8,pitch=14,normalMS=6;
+    const draw=()=>{
+      const st={...HL.defaultState(),V:Vkt*.5144,theta0:pitch,theta1c:0,theta1s:0};
+      const at=(r,t)=>HLMechanisms.twist(st,r,psiDeg*D2R,t,normalMS);
+      const d=at(rBar,twist),ref=at(rBar,0),curves=[[],[]];let max={alpha:-Infinity,r:0},refMax={alpha:-Infinity,r:0};
+      for(let i=0;i<=130;i++){
+        const r=.35+.65*i/130,b=at(r,0),x=at(r,twist);
+        if(x.reverseFlow)continue;
+        curves[0].push({x:r,y:b.aoa*R2D});curves[1].push({x:r,y:x.aoa*R2D});
+        if(x.aoa*R2D>max.alpha)max={alpha:x.aoa*R2D,r};
+        if(b.aoa*R2D>refMax.alpha)refMax={alpha:b.aoa*R2D,r};
+      }
+      const {ctx,W,H,col}=HLD.setup(ui.canvas);HLD.clear(ctx,W,H,col);
+      const all=curves.flat().map(x=>x.y);
+      HLD.lineChart(ctx,W,H,[{pts:curves[0],color:col.dim,width:2,label:'α · zero twist'},{pts:curves[1],color:col.lift,width:2.5,label:'α · selected twist'}],
+        {xmin:.35,xmax:1,ymin:Math.floor(Math.min(...all,0))-1,ymax:Math.ceil(Math.max(...all,st.stallAoA))+1,xlab:'blade station r/R',ylab:'angle of attack α (°)'},col,
+        [{x:rBar,color:col.chord,label:'station'}]);
+      const supported=!d.reverseFlow;
+      ui.readout.innerHTML=kv([
+        ['Pitch reference at 0.75R',pitch.toFixed(1)+'° · unchanged','var(--hl-chord)'],
+        ['Prescribed normal flow',normalMS.toFixed(1)+' m/s · unchanged','var(--hl-wind)'],
+        ['Selected twist',twist.toFixed(0)+'° root-to-tip','var(--hl-chord)'],
+        ['Selected station',rBar.toFixed(2)+'R','var(--hl-ink)'],
+        ['θ: zero → selected twist',(ref.theta*R2D).toFixed(2)+'° → '+(d.theta*R2D).toFixed(2)+'°','var(--hl-chord)'],
+        ['φ: zero → selected twist',supported?(ref.phi*R2D).toFixed(2)+'° → '+(d.phi*R2D).toFixed(2)+'°':'reverse / near-zero flow','var(--hl-wind)'],
+        ['α: zero → selected twist',supported?(ref.aoa*R2D).toFixed(2)+'° → '+(d.aoa*R2D).toFixed(2)+'°':'outside normal-flow comparison','var(--hl-lift)'],
+        ['Peak α: zero twist',refMax.alpha.toFixed(2)+'° at '+refMax.r.toFixed(2)+'R','var(--hl-dim)'],
+        ['Peak α: selected twist',max.alpha.toFixed(2)+'° at '+max.r.toFixed(2)+'R','var(--hl-lift)'],
+      ])+'<p class="hl-note"><b>Read the two curves at the same radius.</b> Negative twist lowers pitch outboard of 0.75R and raises it inboard. φ is unchanged, so Δα = Δθ. The sampled peak may move inward; its exact radius is not a rule.</p><p class="hl-note">Uniform downflow is prescribed. No cyclic, flapping or re-trim occurs. This isolates twist; it does not keep thrust constant or predict actual stall. Stall also requires local critical-α data. The rotor-map comparison changes several assumptions together.</p>';
+    };
+    slider(ui.controls,{label:'Blade twist (washout)',min:-16,max:0,step:2,val:twist,unit:'°',on:v=>{twist=v;draw();}});
+    slider(ui.controls,{label:'Blade station r/R',min:.35,max:1,step:.05,val:rBar,fmt:v=>v.toFixed(2),on:v=>{rBar=v;draw();}});
+    slider(ui.controls,{label:'Pitch at 0.75R',min:6,max:18,step:1,val:pitch,unit:'°',on:v=>{pitch=v;draw();}});
+    slider(ui.controls,{label:'Prescribed normal flow',min:2,max:12,step:1,val:normalMS,unit:' m/s',on:v=>{normalMS=v;draw();}});
+    slider(ui.controls,{label:'Forward speed',min:0,max:120,step:5,val:Vkt,unit:' kt',on:v=>{Vkt=v;draw();}});
+    slider(ui.controls,{label:'Azimuth ψ',min:0,max:360,step:5,val:psiDeg,unit:'°',on:v=>{psiDeg=v;draw();}});
+    ui.onDraw(draw);
   }
 
   /* Flapback & Inflow Roll: longitudinal flapback, lateral inflow roll, compare mode
@@ -3187,217 +3175,57 @@ const HLW = (function () {
     ui.onDraw(draw);
   }
 
-  /* 9 — Retreating stall & envelope: AoA / %-critical-α / lift contour over disc */
+  /* Disc diagnostics: raw angle ratios are never weighted by loading. */
   function wEnvelope(host) {
-    const ui = scaffold(host);
-    let Vkt = 60, plotMode = 'pctcrit', showIso = true, discModel = 'extended';
-    // discModel: 'foundation' = the clean ATPL/POF textbook plate — untwisted blade
-    //   (twist=0) + no lateral cyclic (θ₁c=0) + uniform inflow, so the high-α
-    //   zone lands squarely on the RETREATING TIP at ψ=270° (r→1) and spreads
-    //   inboard with speed/weight/g/altitude; 'extended' = the core-based extended approximation
-    //   BET (−8° washout, full trim cyclic, Drees lateral inflow), which puts
-    //   the α peak a little INBOARD (≈0.7 R) and slightly BEFORE 270° (≈235°).
-    //   See localAoAmodel() for the exact, documented simplifications.
-    // plotMode: 'aoa' raw α (°) · 'pctcrit' α as % of the (Mach-adjusted)
-    // critical α · 'lift' normalised load dL/dr ∝ U_T²·C_l (dynamic-pressure
-    // weighted — the physical airload, which peaks at the tip).
-    const sos0 = sosAtAltFt(0);
-    // Mach-adjusted critical α at a cell (NACA-0012 trend: c_lmax falls above
-    // M≈0.3), floored at 5°. Shared by the fill, the %-crit scale and iso-lines.
-    const stallEffAt = (st, UT) => {
-      const Mloc = HL.omR(st) * Math.max(0, UT) / sosAtAltFt(st.alt);
-      return Math.max(5, st.stallAoA - 18 * Math.max(0, Mloc - 0.30));
+    const ui=scaffold(host);
+    let Vkt=60,plotMode='pctcrit',showIso=true,discModel='extended',rBar=.75,psiDeg=270;
+    const draw=()=>{
+      const st={...HL.defaultState(),V:Vkt*.5144},stt=trimmed(st),c=flappingCoeffs(stt);
+      const AOA=(r,p)=>localAoAmodel(stt,c,r,p,discModel);
+      const diag=(d)=>HLMechanisms.diagnostic(st,d);
+      const {ctx,W,H,col}=HLD.setup(ui.canvas);HLD.clear(ctx,W,H,col);
+      const cx=W*.44,cy=H*.53,R=Math.max(35,Math.min(cx-50,W-cx-50,H*.40)),nr=12,np=60;
+      let peak=null,maxQ=1e-6;
+      const cells=[];
+      for(let ir=0;ir<nr;ir++)for(let ip=0;ip<np;ip++){
+        const r0=.2+.8*ir/nr,r1=.2+.8*(ir+1)/nr,p0=ip/np*2*Math.PI,p1=(ip+1)/np*2*Math.PI;
+        const r=(r0+r1)/2,p=(p0+p1)/2,d=AOA(r,p),v=diag(d);
+        cells.push({r0,r1,p0,p1,r,p,d,v});maxQ=Math.max(maxQ,Math.max(0,d.UT)**2);
+        if(Math.sin(p)<0&&!v.unsupported&&(!peak||v.ratio>peak.v.ratio))peak={r,p,v};
+      }
+      for(const {r0,r1,p0,p1,r,p,d,v} of cells){
+        ctx.fillStyle=v.unsupported?'rgba(180,60,200,.6)':plotMode==='lift'?ramp(Math.max(0,d.UT)**2/maxQ):plotMode==='aoa'?aoaColor(v.alpha,v.critical):ratioColor(v.ratio);
+        ctx.beginPath();ctx.arc(cx,cy,R*r1,HLD.polarToCanvas(p0),HLD.polarToCanvas(p1),true);ctx.arc(cx,cy,R*r0,HLD.polarToCanvas(p1),HLD.polarToCanvas(p0),false);ctx.closePath();ctx.fill();
+        if(v.crossed||v.unsupported){const a=HLD.polarToCanvas(p);HLD.tick(ctx,cx+R*r*Math.cos(a),cy+R*r*Math.sin(a),R*(r1-r0)*.85,v.crossed?Math.PI/4:-Math.PI/4,v.crossed?'#ff3fa0':'#c46ee0',1.7);}
+      }
+      if(showIso&&plotMode!=='lift')HLD.discIso(ctx,cx,cy,R,(r,p)=>{const v=diag(AOA(r,p));return v.unsupported?null:plotMode==='pctcrit'?100*v.ratio:v.alpha;},plotMode==='pctcrit'?[40,60,80,100,120]:[2,4,6,8,10,12,14],{rMin:.2,color:'rgba(20,25,35,.65)',width:1,fmt:v=>v+(plotMode==='pctcrit'?'%':'°'),label:W>=420});
+      ctx.strokeStyle=col.dim;ctx.lineWidth=1;ctx.beginPath();ctx.arc(cx,cy,R,0,2*Math.PI);ctx.stroke();
+      HLD.text(ctx,'RET 270°',cx-R-4,cy,col.dim,'9px IBM Plex Sans','right');HLD.text(ctx,'ADV 90°',cx+R+4,cy,col.dim,'9px IBM Plex Sans');
+      HLD.text(ctx,'NOSE',cx,cy-R-8,col.dim,'10px IBM Plex Sans','center');HLD.text(ctx,'TAIL',cx,cy+R+14,col.dim,'10px IBM Plex Sans','center');
+      const lx=W-90;
+      HLD.text(ctx,plotMode==='lift'?'■ high q proxy':plotMode==='aoa'?'■ high α':'■ ≥100% crit',lx,18,col.bad,'10px IBM Plex Sans');
+      HLD.text(ctx,'╱ α threshold',lx,34,'#ff3fa0','10px IBM Plex Sans');HLD.text(ctx,'■ reverse / UT≈0',lx,50,'#c46ee0','9px IBM Plex Sans');
+      const p=psiDeg*D2R,d=AOA(rBar,p),v=diag(d);
+      HLD.dot(ctx,cx+R*rBar*Math.sin(p),cy+R*rBar*Math.cos(p),5,col.ink);
+      const tipMach=HL.omR(st)*(1+advanceRatio(st))/sosAtAltFt(st.alt);
+      const status=peak?.v.crossed?'retreating α threshold crossed':peak?.v.near?'retreating α near threshold':'retreating α below threshold';
+      ui.readout.innerHTML=kv([
+        ['Selected ψ / station',psiDeg.toFixed(0)+'° / '+rBar.toFixed(2)+'R','var(--hl-ink)'],
+        ['Selected local α',v.unsupported?'outside normal-flow model':v.alpha.toFixed(2)+'°','var(--hl-ink)'],
+        ['Assumed local critical α',v.unsupported?'n/a':v.critical.toFixed(2)+'°','var(--hl-dim)'],
+        ['Selected α / critical α',v.unsupported?'n/a':(v.ratio*100).toFixed(1)+'%','var(--hl-ink)'],
+        ['Selected α diagnostic',v.unsupported?'reverse / near-zero tangential flow':v.crossed?'model threshold crossed':v.near?'near model threshold':'below model threshold',v.crossed?'var(--hl-bad)':'var(--hl-ink)'],
+        ['Peak retreating ratio (sampled)',peak?(peak.v.ratio*100).toFixed(1)+'% at '+peak.r.toFixed(2)+'R / '+(peak.p*R2D).toFixed(0)+'°':'n/a','var(--hl-warn)'],
+        ['Advancing tip Mach',tipMach.toFixed(2)+' / assumed 0.85 line',tipMach>.85?'var(--hl-bad)':'var(--hl-ink)'],
+        ['Model diagnostics',status+(tipMach>.85?'; Mach line crossed':''),peak?.v.crossed?'var(--hl-bad)':'var(--hl-ink)']
+      ])+`<p class="hl-note">${plotMode==='lift'?'<b>Tangential loading proxy:</b> U_T² relative to the map maximum. It is not lift; α, section coefficients and full relative velocity also matter.':'Colour shows the actual '+(plotMode==='aoa'?'α':'α / assumed local critical α')+'. Hatching marks positive-α threshold crossings. Low loading does not turn a high α into a low α.'}</p><p class="hl-note"><b>${discModel==='foundation'?'Foundation: uniform normal flow, zero twist, restricted cyclic, no flap velocity.':'Extended: core BET, washout, trim cyclic and nonuniform inflow.'}</b> Changing this preset changes several assumptions together. Use the separate twist comparison to isolate twist. Course rotor: CCW viewed from above, advancing right and retreating left. The illustrative Mach/α rules do not establish actual stall loads, symptoms or aircraft V_NE.</p>`;
     };
-    const draw = () => {
-      const st = HL.defaultState(); st.V = Vkt * 0.5144;
-      const stt = trimmed(st);
-      const c = flappingCoeffs(stt);
-      const mu = advanceRatio(stt);
-      const AOA = (s, cc, rB, ps) => localAoAmodel(s, cc, rB, ps, discModel);
-      // Foundation model uses a firmer airload floor so the low-q inboard smear vanishes
-      // entirely and only the outboard retreating stall reads through.
-      const QFLOOR = discModel === 'foundation' ? 0.40 : 0.25;
-      const sos = sosAtAltFt(st.alt);
-      const { ctx, W, H, col } = HLD.setup(ui.canvas);
-      HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
-      // leave a fixed left/right gutter for the RET/ADV labels so they never
-      // clip on narrow (mobile) viewports; the disc shrinks to fit instead.
-      const GUT = 52;                                   // px reserved each side for labels
-      const cx = W * 0.44, cy = H * 0.52;
-      const R = Math.max(40, Math.min(cx - GUT, W - cx - GUT, H * 0.42));
-      const nr = 12, np = 60;
-      let maxRetAoA = -99, tipMach = 0, maxLift = 1e-6;
-      // pass 1 for the lift scale: find the peak normalised load so the colour
-      // ramp fills the whole range regardless of speed.
-      if (plotMode === 'lift') {
-        for (let ir = 0; ir < nr; ir++) {
-          const rm = 0.2 + 0.8 * (ir + 0.5) / nr;
-          for (let ip = 0; ip < np; ip++) {
-            const pm = ((ip + 0.5) / np) * 2 * Math.PI;
-            const d = AOA(stt, c, rm, pm);
-            if (d.reverseFlow) continue;
-            const se = stallEffAt(st, d.UT) * D2R;
-            const Cl = Math.abs(d.aoa) < se ? st.clAlpha * d.aoa : 0;
-            maxLift = Math.max(maxLift, Math.max(0, d.UT) * Math.max(0, d.UT) * Cl);
-          }
-        }
-      }
-      for (let ir = 0; ir < nr; ir++) {
-        const r0 = 0.2 + 0.8 * ir / nr, r1 = 0.2 + 0.8 * (ir + 1) / nr;
-        for (let ip = 0; ip < np; ip++) {
-          const p0 = (ip / np) * 2 * Math.PI, p1 = ((ip + 1) / np) * 2 * Math.PI;
-          const pm = (p0 + p1) / 2, rm = (r0 + r1) / 2;
-          const d = AOA(stt, c, rm, pm);
-          const aoaDeg = d.aoa * R2D;
-          const stallEff = stallEffAt(st, d.UT);
-          // Dynamic-pressure share of this cell (0..1). A blade element can only
-          // REALLY stall where there is both high α AND meaningful airload
-          // (q ∝ U_T²). Right at the reverse-flow boundary U_T→0, so α blows up
-          // but q→0 — that is a low-q artefact, not a stall. We therefore gate
-          // every "genuinely stalled" decision (hatch, lift-mode magenta, count,
-          // iso-lines) on the SAME qShare the colour fade uses, with a real
-          // airload floor Q_MIN so the inboard fwd/retreating blob never hatches.
-          const AL = airloadConf(d.UT, mu);
-          const qShare = AL.qShare, Q_MIN = QFLOOR, conf = Math.min(1, qShare / QFLOOR);
-          const trulyStalled = !d.reverseFlow && aoaDeg >= stallEff && qShare >= Q_MIN;
-          // fill colour by plot mode
-          if (d.reverseFlow) {
-            ctx.fillStyle = 'rgba(180,60,200,0.5)';
-          } else if (plotMode === 'aoa') {
-            // Raw geometric α, BUT faded toward neutral by the ACTUAL airload
-            // share (not the clamped conf). Inboard on the retreating side α is
-            // geometrically huge while U_T→0, so q≈0: those cells carry no real
-            // load and must NOT read as a saturated red "stall". We fade the
-            // colour toward slate AND drop the opacity by √qShare so the whole
-            // low-q inboard region visibly recedes — the plot stays honest (α is
-            // high there) without ever faking a stall. Full colour only returns
-            // outboard where real dynamic pressure exists.
-            const fade = Math.pow(qShare, 0.7);          // smooth 0..1 airload ramp
-            ctx.globalAlpha = 0.30 + 0.70 * Math.sqrt(qShare);
-            ctx.fillStyle = fadeToNeutral(aoaColor(aoaDeg, stallEff), fade);
-          } else if (plotMode === 'pctcrit') {
-            // fraction of the local critical α, colour-mapped so 100 % = stall.
-            // The inboard blade sees a huge α but almost no dynamic pressure
-            // (U_T→0), so it CANNOT really stall. Fading alpha alone still left a
-            // dark-red "stalled-looking" blob there, so we also SCALE THE VALUE by
-            // the airload share: a cell only reports a high %-of-critical when it
-            // actually carries dynamic pressure. Below the Q_MIN airload floor the
-            // reported %-crit is pulled toward the low (green/ok) end, so the only
-            // red left is the OUTBOARD retreating blade where high α AND real
-            // airload genuinely coincide.
-            const pctRaw = aoaDeg / stallEff;                 // 1.0 = critical (uncapped)
-            const pct = pctRaw * conf;                        // honest %-crit for display
-            ctx.globalAlpha = 0.20 + 0.80 * qShare;
-            ctx.fillStyle = aoaColor(pct * st.stallAoA, st.stallAoA);
-          } else { // lift
-            const Cl = Math.abs(d.aoa) < stallEff * D2R ? st.clAlpha * d.aoa : 0;
-            const dL = Math.max(0, d.UT) * Math.max(0, d.UT) * Cl;
-            // in lift mode a genuinely stalled cell (high α + real q) is painted a
-            // distinct desaturated magenta so it never reads as "high load" red.
-            ctx.fillStyle = trulyStalled ? 'rgb(150,40,110)' : ramp(Math.max(0, dL) / maxLift);
-          }
-          if (!d.reverseFlow && pm > Math.PI / 2 - 0.3 && pm < Math.PI / 2 + 0.3 && rm > 0.9)
-            tipMach = Math.max(tipMach, HL.omR(st) * (rm + mu * Math.sin(pm)) / sos);
-          if (!d.reverseFlow && Math.sin(pm) < -0.3 && rm >= 0.6 && qShare >= Q_MIN)
-            maxRetAoA = Math.max(maxRetAoA, aoaDeg);
-          ctx.beginPath();
-          ctx.arc(cx, cy, R * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
-          ctx.arc(cx, cy, R * r0, HLD.polarToCanvas(p1), HLD.polarToCanvas(p0), false);
-          ctx.closePath(); ctx.fill();
-          ctx.globalAlpha = 1;
-          // CVD texture: hatch STALLED cells (45°) and reverse-flow cells (135°).
-          // A cell only counts as stalled if it also carries real airload
-          // (U_T ≥ 0.2) — the low-q inboard blob is high-α but not truly stalled.
-          const stallCell = trulyStalled;
-          if (stallCell || d.reverseFlow) {
-            const ang = HLD.polarToCanvas(pm);
-            const ux = cx + R * rm * Math.cos(ang), uy = cy + R * rm * Math.sin(ang);
-            const len = R * (r1 - r0) * 0.9;
-            // stalled = bright magenta 45° hatch (matches the STALL_MARK legend);
-            // reverse-flow = purple 135° hatch. Both high-contrast + textured.
-            HLD.tick(ctx, ux, uy, len, stallCell ? Math.PI / 4 : -Math.PI / 4,
-              stallCell ? 'rgba(255,63,160,0.95)' : 'rgba(150,60,220,0.9)', 1.6);
-          }
-        }
-      }
-      // constant-value iso-lines so the α (or %-crit) zones are visible.
-      if (showIso && plotMode !== 'lift') {
-        const field = (rBar, psiRad) => {
-          const d = AOA(stt, c, rBar, psiRad);
-          // skip reverse flow and low-q cells (same airload gate as the fill/hatch)
-          const qS = Math.min(1, Math.pow(Math.max(0, d.UT) / (0.55 * (1 + mu)), 2));
-          if (d.reverseFlow || qS < QFLOOR) return null;
-          const aoaD = d.aoa * R2D;
-          return plotMode === 'pctcrit' ? 100 * aoaD / stallEffAt(st, d.UT) : aoaD;
-        };
-        const levels = plotMode === 'pctcrit'
-          ? [40, 60, 80, 100, 120]
-          : [2, 4, 6, 8, 10, 12, 14];
-        HLD.discIso(ctx, cx, cy, R, field, levels,
-          { rMin: 0.2, color: 'rgba(20,25,35,0.5)', width: 1,
-            fmt: v => plotMode === 'pctcrit' ? v + '%' : v + '°',
-            label: W < 420 ? false : true });
-      }
-      ctx.strokeStyle = col.dim; ctx.lineWidth = 1.2;
-      ctx.beginPath(); ctx.arc(cx, cy, R, 0, 2 * Math.PI); ctx.stroke();
-      HLD.text(ctx, 'ADV 90°', cx + R + 4, cy, col.dim, '10px IBM Plex Sans', 'left', 'middle');
-      HLD.text(ctx, 'RET 270°', cx - R - 4, cy, col.dim, '10px IBM Plex Sans', 'right', 'middle');
-      HLD.text(ctx, 'NOSE', cx, cy - R - 6, col.dim, '10px IBM Plex Sans', 'center');
-      HLD.text(ctx, 'TAIL', cx, cy + R + 12, col.dim, '10px IBM Plex Sans', 'center');
-      // legend depends on the plot mode. The stall MARK (hatched) is always a
-      // distinct magenta so it can never be confused with a warm fill colour.
-      const STALL_MARK = '#ff3fa0';
-      const lx = W - 74;
-      if (plotMode === 'lift') {
-        HLD.text(ctx, '■ high load', lx, 20, 'rgb(235,70,50)', '10px IBM Plex Sans');
-        HLD.text(ctx, '■ mid load', lx, 34, 'rgb(60,200,90)', '10px IBM Plex Sans');
-        HLD.text(ctx, '■ low / none', lx, 48, 'rgb(40,90,200)', '10px IBM Plex Sans');
-        HLD.text(ctx, '╱ stalled', lx, 62, STALL_MARK, '10px IBM Plex Sans');
-        HLD.text(ctx, '■ reverse flow', lx, 76, '#c46ee0', '10px IBM Plex Sans');
-      } else if (plotMode === 'aoa') {
-        // continuous raw-α scale: low (blue) → high (red)
-        HLD.text(ctx, '■ low α', lx, 20, 'rgb(40,90,200)', '10px IBM Plex Sans');
-        HLD.text(ctx, '■ mid α', lx, 34, col.good, '10px IBM Plex Sans');
-        HLD.text(ctx, '■ high α', lx, 48, col.warn, '10px IBM Plex Sans');
-        HLD.text(ctx, '╱ stalled', lx, 62, STALL_MARK, '10px IBM Plex Sans');
-        HLD.text(ctx, '■ reverse flow', lx, 76, '#c46ee0', '10px IBM Plex Sans');
-      } else { // pctcrit
-        HLD.text(ctx, '■ ok (<80%)', lx, 20, col.good, '10px IBM Plex Sans');
-        HLD.text(ctx, '■ near stall', lx, 34, col.warn, '10px IBM Plex Sans');
-        HLD.text(ctx, '■ ≥100% crit', lx, 48, col.bad, '10px IBM Plex Sans');
-        HLD.text(ctx, '╱ stalled', lx, 62, STALL_MARK, '10px IBM Plex Sans');
-        HLD.text(ctx, '■ reverse flow', lx, 76, '#c46ee0', '10px IBM Plex Sans');
-      }
-      const stalled = maxRetAoA >= st.stallAoA;
-      const machHigh = tipMach > 0.85;
-      const exceeded = stalled || machHigh;
-      const approaching = !exceeded && (maxRetAoA >= st.stallAoA - 2 || tipMach > 0.80);
-      const envTxt = exceeded ? (stalled && machHigh ? 'both model thresholds' : stalled ? 'model α threshold' : 'model Mach threshold')
-        : approaching ? 'near model threshold' : 'below model thresholds';
-      const envCol = exceeded ? 'var(--hl-bad)' : approaching ? 'var(--hl-warn)' : 'var(--hl-good)';
-      const modeNote = {
-        aoa: 'Local <b>α</b> in the normal-flow model. Low tangential-speed cells fade to indicate low model loading. Reverse flow is treated separately; the map does not establish its true airloads.',
-        pctcrit: 'α divided by the <b>assumed local critical α</b>. Hatching marks model threshold crossings, with a loading gate. Radius and azimuth depend on the selected trim, twist and inflow assumptions.',
-        lift: 'Normalised <b>local load proxy</b> based on U_T² and the section coefficient. This approximation omits full relative-velocity, unsteady and reverse-flow aerodynamics.'
-      }[plotMode];
-      const modelNote = discModel === 'foundation'
-        ? '<b>Foundation:</b> untwisted blade, restricted cyclic and simplified inflow treatment. Use it to isolate the teaching mechanism; its predicted stall location is not universal.'
-        : '<b>Extended:</b> adds the twist, trim and inflow treatment implemented in this widget. Compare how the map changes under those assumptions; it is not validated aircraft geometry or V_NE.';
-      ui.readout.innerHTML = kv([
-        ['Forward speed', Vkt.toFixed(0) + ' kt', 'var(--hl-ink)'],
-        ['Max retreating α', maxRetAoA.toFixed(1) + '° / ' + st.stallAoA.toFixed(0) + '°', stalled ? 'var(--hl-bad)' : 'var(--hl-warn)'],
-        ['Advancing tip Mach', tipMach.toFixed(2) + ' / 0.85', machHigh ? 'var(--hl-bad)' : 'var(--hl-good)'],
-        ['Model diagnostics', envTxt, envCol],
-      ]) + `<p class="hl-note">${exceeded ? '<b>Assumed model threshold crossed.</b> ' : ''}${modeNote}</p><p class="hl-note">${modelNote} The Mach 0.85 line and section α thresholds do not establish approved aircraft limits or a recovery procedure.</p>`;
-    };
-    slider(ui.controls, { label: 'Forward speed', min: 0, max: 180, step: 5, val: Vkt, unit: ' kt', fmt: v => v.toFixed(0), on: v => { Vkt = v; draw(); } });
-    segmented(ui.controls, { label: 'Model assumptions — toggle assumptions', val: discModel, options: [
-      { v: 'foundation', t: 'Foundation model' }, { v: 'extended', t: 'Extended model' },
-    ], on: v => { discModel = v; draw(); } });
-    segmented(ui.controls, { label: 'Plot', val: plotMode, options: [
-      { v: 'aoa', t: 'Angle of attack' }, { v: 'pctcrit', t: '% of critical α' }, { v: 'lift', t: 'Lift (load)' },
-    ], on: v => { plotMode = v; draw(); } });
-    toggle(ui.controls, { label: 'Constant-angle iso-lines', val: true, on: v => { showIso = v; draw(); } });
+    slider(ui.controls,{label:'Forward speed',min:0,max:180,step:5,val:Vkt,unit:' kt',on:v=>{Vkt=v;draw();}});
+    slider(ui.controls,{label:'Azimuth ψ',min:0,max:360,step:5,val:psiDeg,unit:'°',on:v=>{psiDeg=v;draw();}});
+    slider(ui.controls,{label:'Blade station r/R',min:.2,max:1,step:.05,val:rBar,fmt:v=>v.toFixed(2),on:v=>{rBar=v;draw();}});
+    segmented(ui.controls,{label:'Combined model presets',val:discModel,options:[{v:'foundation',t:'Foundation model'},{v:'extended',t:'Extended model'}],on:v=>{discModel=v;draw();}});
+    segmented(ui.controls,{label:'Plot',val:plotMode,options:[{v:'aoa',t:'Angle of attack'},{v:'pctcrit',t:'% of critical α'},{v:'lift',t:'Tangential loading proxy'}],on:v=>{plotMode=v;draw();}});
+    toggle(ui.controls,{label:'Constant-angle iso-lines',val:true,on:v=>{showIso=v;draw();}});
     ui.onDraw(draw);
   }
 
@@ -3850,12 +3678,9 @@ const HLW = (function () {
     const mapStage=ui.topCanvas.parentElement,mapReadout=el('div','hl-w-readout');
     mapDetails.append(mapSummary,mapStage,mapReadout);host.querySelector('.hl-w').append(mapDetails);
     mapDetails.addEventListener('toggle',()=>{if(host.isConnected)draw();});
-    // Mach-adjusted critical α (NACA-0012 trend) — identical rule to wEnvelope so
+    // Illustrative Mach-adjusted critical α — identical rule to wEnvelope so
     // the BET stall verdict matches the disc map cell-for-cell.
-    const stallEffAt = (st, UT) => {
-      const Mloc = HL.omR(st) * Math.max(0, UT) / sosAtAltFt(st.alt);
-      return Math.max(5, st.stallAoA - 18 * Math.max(0, Mloc - 0.30));
-    };
+    const stallEffAt = (st, UT) => HLMechanisms.diagnostic(st,{UT,aoa:0,reverseFlow:UT<=1e-4}).critical;
     // hit-box of the interactive mini-envelope disc (set each draw) so the click
     // handler can convert canvas x/y → (ψ, r/R).
     let discHit = null;
@@ -3894,18 +3719,16 @@ const HLW = (function () {
 
       // ── ENVELOPE-CONSISTENT VERDICT (same model as the disc map on the previous
       // page). We evaluate localAoAmodel() for THIS exact cell with the chosen
-      // foundation/extended model and apply the identical Mach-critical-α + airload gate the
-      // wEnvelope colour map uses, so a red map cell always reads STALLED here.
+      // foundation/extended model and apply the identical illustrative critical-α rule the
+      // wEnvelope colour map uses, so displayed ratios and positive-α threshold diagnostics agree.
       const dCell   = localAoAmodel(stt, c, rBar, psi, discModel);
       const stallEffDeg = stallEffAt(st, dCell.UT);          // Mach-adjusted crit α (°)
       const cellAoAdeg  = dCell.aoa * R2D;
-      const qShare  = airloadConf(dCell.UT, mu).qShare;      // 0..1 dynamic-pressure share
-      const Q_MIN   = discModel === 'foundation' ? 0.40 : 0.25;    // same airload floor as map
-      const cellReverse = dCell.reverseFlow;
-      const cellStalled = !cellReverse && cellAoAdeg >= stallEffDeg && qShare >= Q_MIN;
-      const cellNear    = !cellReverse && !cellStalled && cellAoAdeg >= stallEffDeg - 2 && qShare >= Q_MIN;
+      const cellReverse = dCell.reverseFlow || dCell.UT<=1e-4;
+      const cellStalled = !cellReverse && cellAoAdeg >= stallEffDeg;
+      const cellNear    = !cellReverse && !cellStalled && cellAoAdeg / stallEffDeg >= .8;
       const pctCrit = stallEffDeg > 0 ? 100 * cellAoAdeg / stallEffDeg : 0;
-      const verdict = cellReverse ? { t: 'MAP: reverse flow (U_T < 0)', c: 'var(--hl-bad)' }
+      const verdict = cellReverse ? { t: 'MAP: reverse / near-zero tangential flow', c: 'var(--hl-bad)' }
         : cellStalled ? { t: 'MAP: model α threshold crossed', c: 'var(--hl-bad)' }
         : cellNear ? { t: 'MAP: near model α threshold', c: 'var(--hl-warn)' }
         : { t: 'MAP: below model thresholds', c: 'var(--hl-good)' };
@@ -4328,9 +4151,9 @@ const HLW = (function () {
         font-weight:700;text-align:center;color:#fff;background:${verdict.c};
         letter-spacing:.02em">${verdict.t}</div>`;
       const modelBadge = discModel === 'foundation'
-        ? '<div class="hl-kv-banner"><b>Foundation model</b> — Purpose: isolate the primary mechanism. Assumptions: untwisted blade, no lateral cyclic, uniform inflow.</div>'
+        ? '<div class="hl-kv-banner"><b>Foundation model</b> — Combined teaching preset. Assumptions: untwisted blade, no lateral cyclic, uniform inflow.</div>'
         : '<div class="hl-kv-banner"><b>Extended model</b> — Purpose: show how the same mechanism changes with added rotor effects. Adds: trim cyclic and lateral inflow, using the currently configured blade-twist state.</div>';
-      const inflowNote = '<p class="hl-note"><b>Map and triangle:</b> the optional Foundation map uses a separate prescribed uniform angle approximation; it is not this local triangle. Extended uses the shared core flow model. Compare the numerical local θ, φ and α below before interpreting any map diagnostic.</p>';
+      const inflowNote = '<p class="hl-note"><b>Map and triangle:</b> the optional Foundation map uses actual tangential speed with uniform normal flow and its own pitch preset; it is a different state from this trimmed local triangle. Extended uses the shared core flow model. Compare the numerical local θ, φ and α below before interpreting any map diagnostic.</p>';
       mapReadout.innerHTML=banner+modelBadge+inflowNote+kv([
         ['Map α / assumed critical',cellReverse?'n/a (reverse)':cellAoAdeg.toFixed(1)+'° / '+stallEffDeg.toFixed(1)+'°','var(--hl-ink)']
       ]);
@@ -4367,7 +4190,7 @@ const HLW = (function () {
 
       // ---- ROTOR-MAP (own top canvas) ---------------------------------------
       // Draw the live, clickable envelope disc on its OWN wide canvas above the
-      // triangle. Uses the SAME model + airload gate as wEnvelope so it matches
+      // triangle. Uses the SAME model angle rule as wEnvelope so it matches
       // the previous page cell-for-cell. Centred; radius scales with the strip.
       drawMap();
     };
@@ -4386,7 +4209,6 @@ const HLW = (function () {
       const c   = flappingCoeffs(stt);
       const psi = psiDeg * D2R;
       const mu  = advanceRatio(stt);
-      const Q_MIN = discModel === 'foundation' ? 0.40 : 0.25;
       // Disc centred vertically; radius from the smaller of (h/2) and a share of
       // width, so it never overflows the strip on any aspect ratio.
       // Nudge the disc centre DOWN a touch so the title above + N label have room,
@@ -4410,13 +4232,10 @@ const HLW = (function () {
           const pmD = (p0 + p1) / 2, rmD = (r0 + r1) / 2;
           const dd = localAoAmodel(stt, c, rmD, pmD, discModel);
           const se = stallEffAt(st, dd.UT);
-          const qs = airloadConf(dd.UT, mu).qShare;
-          if (dd.reverseFlow) { ctx.fillStyle = 'rgba(180,60,200,0.55)'; }
+          if (dd.reverseFlow || dd.UT<=1e-4) { ctx.fillStyle = 'rgba(180,60,200,0.55)'; }
           else {
-            const conf = Math.min(1, qs / Q_MIN);
-            const pct = (dd.aoa * R2D / se) * conf;
-            ctx.globalAlpha = 0.35 + 0.55 * qs;
-            ctx.fillStyle = aoaColor(pct * st.stallAoA, st.stallAoA);
+            const pct = dd.aoa * R2D / se;
+            ctx.fillStyle = ratioColor(pct);
           }
           ctx.beginPath();
           ctx.arc(cxC, cyC, rC * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
@@ -4934,17 +4753,12 @@ const HLW = (function () {
             const rm = (r0 + r1) / 2, pm = (p0 + p1) / 2;
             const d = localAoA(stt, c, rm, pm);
             const stallEff = Math.max(5, stt.stallAoA - 18 * Math.max(0, OmRsb * Math.max(0, d.UT) / sosSb - 0.30));
-            // same airload gate as the Envelope disc: a cell only truly stalls
-            // where high α AND real dynamic pressure (q ∝ U_T²) coincide. Inboard
-            // on the retreating side U_T→0, so α blows up with no airload — fade
-            // that to neutral and never hatch it as a stall.
-            const AL = airloadConf(d.UT, mu);
-            const stallCell = !d.reverseFlow && d.aoa * R2D >= stallEff && AL.qShare >= AL.Q_MIN;
+            // Angle threshold is independent of the tangential loading proxy.
+            const stallCell = !d.reverseFlow && d.UT>1e-4 && d.aoa * R2D >= stallEff;
             if (d.reverseFlow) {
               ctx.fillStyle = 'rgba(180,60,200,0.5)';
             } else {
-              ctx.globalAlpha = 0.30 + 0.70 * Math.sqrt(AL.qShare);
-              ctx.fillStyle = fadeToNeutral(aoaColor(d.aoa * R2D, stallEff), Math.pow(AL.qShare, 0.7));
+              ctx.fillStyle = aoaColor(d.aoa * R2D, stallEff);
             }
             ctx.beginPath();
             ctx.arc(cx, cy, R * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
@@ -5293,7 +5107,7 @@ const HLW = (function () {
        freeflap — natural flapping response, still NO cyclic
                   → flapping-to-equality + blowback (the MECHANISM)
        trimmed  — trim cyclic applied, verified localAoA() path
-                  → disc level, thrust forward (the PILOT'S SOLUTION)
+                  → selected level-disc response, with aircraft velocity separate
        highsp   — same as trimmed, speed pushed → retreating α → stall (the LIMIT)
   */
   function wGuidedBET(host) {
@@ -5357,10 +5171,7 @@ const HLW = (function () {
       };
     }
     // Mach-adjusted critical α (deg), shared rule with the rest of the app
-    const stallEffAt = (st, UT) => {
-      const Mloc = HL.omR(st) * Math.max(0, UT) / sosAtAltFt(st.alt);
-      return Math.max(5, st.stallAoA - 18 * Math.max(0, Mloc - 0.30));
-    };
+    const stallEffAt = (st, UT) => HLMechanisms.diagnostic(st,{UT,aoa:0,reverseFlow:UT<=1e-4}).critical;
 
     const ui = scaffold(host, {
       topStage: 'hl-w-stage hl-w-stage-map',
@@ -5445,11 +5256,11 @@ const HLW = (function () {
           const d = cellAt(layer, st, rm, pm);
           maxUT = Math.max(maxUT, Math.max(0, d.UT));
           const se = stallEffAt(st, d.UTn);
+          // Attached-flow proxy is withheld outside its assumed angle range.
           const Cl = Math.abs(d.aoa) < se * D2R ? st.clAlpha * d.aoa : 0;
           maxLift = Math.max(maxLift, Math.max(0, d.UT) * Math.max(0, d.UT) * Cl);
         }
       }
-      const QFLOOR = 0.25;
       for (let ir = 0; ir < nr; ir++) {
         const r0 = 0.2 + 0.8 * ir / nr, r1 = 0.2 + 0.8 * (ir + 1) / nr;
         for (let ip = 0; ip < np; ip++) {
@@ -5458,20 +5269,18 @@ const HLW = (function () {
           const d = cellAt(layer, st, rm, pm);
           const aoaDeg = d.aoa * R2D;
           const stallEff = stallEffAt(st, d.UTn);
-          const AL = airloadConf(d.UTn, mu);
-          const trulyStalled = !d.reverseFlow && aoaDeg >= stallEff && AL.qShare >= QFLOOR;
+          const trulyStalled = !d.reverseFlow && d.UTn>1e-4 && aoaDeg >= stallEff;
           if (d.reverseFlow) { ctx.fillStyle = 'rgba(180,60,200,0.5)'; }
           else if (envMode === 'ut') {
             ctx.fillStyle = ramp(Math.max(0, d.UT) / maxUT);
           } else if (envMode === 'aoa') {
-            const fade = Math.pow(AL.qShare, 0.7);
-            ctx.globalAlpha = 0.30 + 0.70 * Math.sqrt(AL.qShare);
-            ctx.fillStyle = fadeToNeutral(aoaColor(aoaDeg, stallEff), fade);
+            ctx.fillStyle = aoaColor(aoaDeg, stallEff);
           } else { // lift demand
             const se = stallEffAt(st, d.UTn);
+            // Attached-flow proxy is withheld outside its assumed angle range.
             const Cl = Math.abs(d.aoa) < se * D2R ? st.clAlpha * d.aoa : 0;
             const dL = Math.max(0, d.UT) * Math.max(0, d.UT) * Cl;
-            ctx.fillStyle = trulyStalled ? 'rgb(150,40,110)' : ramp(Math.max(0, dL) / maxLift);
+            ctx.fillStyle = Math.abs(d.aoa)>=se*D2R ? 'rgb(100,110,125)' : ramp(Math.max(0,dL)/maxLift);
           }
           ctx.beginPath();
           ctx.arc(cx, cy, R * r1, HLD.polarToCanvas(p0), HLD.polarToCanvas(p1), true);
@@ -5515,7 +5324,7 @@ const HLW = (function () {
       ctx.beginPath(); ctx.arc(px, py, 7, 0, 2 * Math.PI); ctx.stroke();
       // title strip
       HLD.text(ctx, LAYERS.find(l => l.v === layer).t + ' · ' +
-        ({ ut: 'U_T (in-plane speed)', aoa: 'angle of attack α', lift: 'lift proxy ∝ U_T²·α (small-angle approximation)' }[envMode]),
+        ({ ut: 'U_T (in-plane speed)', aoa: 'angle of attack α', lift: 'attached-flow load proxy · grey = unavailable' }[envMode]),
         12, 16, col.dim, '12px ui-sans-serif', 'left', 'top');
     }
 
@@ -5544,9 +5353,9 @@ const HLW = (function () {
       const side = Vt >= 0;
 
       // ---- verdict chip (top-right) — same model as the disc map ---------------
-      const se2 = stallEffAt(d.st, d.UTn), AL2 = airloadConf(d.UTn, d.mu);
-      const stalled2 = !reverse && aoa * R2D >= se2 && AL2.qShare >= 0.25;
-      const vTxt = reverse ? 'REVERSE FLOW' : stalled2 ? 'STALLED' : (aoa * R2D >= se2 - 3 ? 'NEAR STALL' : 'OK');
+      const se2 = stallEffAt(d.st, d.UTn);
+      const stalled2 = !reverse && d.UTn>1e-4 && aoa * R2D >= se2;
+      const vTxt = reverse ? 'REVERSE FLOW' : stalled2 ? 'α THRESHOLD' : (aoa * R2D >= se2 - 3 ? 'NEAR α LIMIT' : 'BELOW α LIMIT');
       const vCol2 = reverse ? '#b24' : stalled2 ? col.bad : (aoa * R2D >= se2 - 3 ? col.warn : col.good);
 
       // ================= LAYOUT ================================================
@@ -5782,13 +5591,12 @@ const HLW = (function () {
       const d = cellAt(layer, st, rBar, psi);
       const aoaDeg = d.aoa * R2D, thDeg = d.theta * R2D, phDeg = d.phi * R2D;
       const stallEff = stallEffAt(st, d.UTn);
-      const AL = airloadConf(d.UTn, d.mu);
-      const trulyStalled = !d.reverseFlow && aoaDeg >= stallEff && AL.qShare >= 0.25;
+      const trulyStalled = !d.reverseFlow && d.UTn>1e-4 && aoaDeg >= stallEff;
       const L = LAYERS.find(l => l.v === layer);
-      let verdict = 'OK'; let vcol = col_good;
+      let verdict = 'below positive α model threshold'; let vcol = col_good;
       if (d.reverseFlow) { verdict = 'REVERSE FLOW (U_T<0)'; vcol = '#b24'; }
-      else if (trulyStalled) { verdict = 'STALLED — retreating blade stall'; vcol = col_bad; }
-      else if (aoaDeg >= stallEff - 3) { verdict = 'near stall'; vcol = col_warn; }
+      else if (trulyStalled) { verdict = 'POSITIVE α MODEL THRESHOLD CROSSED'; vcol = col_bad; }
+      else if (aoaDeg >= stallEff - 3) { verdict = 'near positive α model threshold'; vcol = col_warn; }
       readout.innerHTML =
         `<div class="hl-kv-banner" style="border-color:${vcol};color:${vcol}">${verdict}</div>` +
         `<div class="hl-lesson-stage">${L.t} — ${L.sub}</div>` +
@@ -5801,7 +5609,7 @@ const HLW = (function () {
           ['inflow φ', phDeg.toFixed(1) + '°', col.dim],
           ['AoA α', aoaDeg.toFixed(1) + '°', trulyStalled ? col_bad : col.ink],
         ]) +
-        `<div class="hl-kv"><span>critical α</span><b>${stallEff.toFixed(1)}°</b></div>`;
+        `<div class="hl-kv"><span>assumed critical α</span><b>${stallEff.toFixed(1)}°</b></div>`;
     }
     // colour handles (theme-safe)
     let col = HLD.COL(); const col_good = col.good, col_bad = col.bad, col_warn = col.warn;
@@ -5859,7 +5667,7 @@ const HLW = (function () {
   }
 
   const registry = {
-    wRotorEnergy, wLearningWorkspace,
+    wRotorEnergy, wLearningWorkspace, wTwistComparison,
     wCBTGroundEffect, wBigPicture, wBladeElement, wM104BladeElement, wSpanwise, wHover, wM2HoverWhy, wM2RotorFlowPower, wM2ChangeDemand, wVertical, wGroundEffect,
     wDissymmetry, wFlapping, wFlappingRoll, wEnvelope, wCoriolis, wDynamicRollover, wLTE,
     wAutorotation, wPerformance, wBetDiagram, wBetVelocity, wBetModel,

@@ -127,7 +127,7 @@
     if (parts[0] === 'module' && parts[1]) return { name: parts[2] === 'result' ? 'module-result' : 'module', moduleId: parts[1] };
     if (parts[0] === 'finish') return { name: 'finish' };
     if (parts[0] === 'activity' && parts[1]) return { name: 'activity', lessonId: decodeURIComponent(parts[1]), returnTo: query.get('return') };
-    if (parts[0] === 'lesson' && parts[1]) return { name: 'lesson', lessonId: decodeURIComponent(parts[1]) };
+    if (parts[0] === 'lesson' && parts[1]) return { name: 'lesson', lessonId: decodeURIComponent(parts[1]), returnTo: query.get('return') };
     if (parts[0] === 'rotor-lab') return { name: 'rotor-lab', preset: query.get('preset'), mode: query.get('mode'), returnTo: query.get('return') };
     if (parts[0] === 'record') return { name: 'record' };
     if (parts[0] === 'lab-tools') return { name: 'lab-tools' };
@@ -160,6 +160,7 @@
     const nav = $('#hlNav'); nav.innerHTML = '';
     nav.setAttribute('role','navigation'); nav.setAttribute('aria-label','HeliLab navigation');
     nav.appendChild(buttonNav('Learning path',route.name==='home','Your next step and all open activities',()=>navigate('#/home')));
+    nav.appendChild(buttonNav('Look up a topic',['legacy-library','lesson'].includes(route.name),'Search explanations and sources',()=>navigate('#/legacy')));
     const journey=el('div','hl-nav-v2-group');
     journey.appendChild(el('div','hl-nav-v2-label','Seven modules in order'));
     for(const m of HL_V2_MODULES){
@@ -272,7 +273,7 @@
   function renderTrainingActivity(main,lesson,a,module){
     main.innerHTML='';const idx=module.activities.findIndex(x=>x.lessonId===a.lessonId);
     const head=el('div','hl-lesson-head',`<div class="hl-lesson-stage">Module ${module.number} of 7 · Activity ${idx+1} of ${module.activities.length}</div><h1>${module.number}.${idx+1} · ${a.title}</h1><div class="hl-lesson-sub">${module.title}</div>`);main.appendChild(head);
-    const context=el('div','cbt-path-context');context.appendChild(navAction('View module path',`#/module/${module.id}`));
+    const context=el('div','cbt-path-context');context.append(navAction('Read the explanation',routeForLesson(a.legacyLessonId,true)+'?return='+encodeURIComponent(a.lessonId)),navAction('View module path',`#/module/${module.id}`));
     const earlier=HLTraining.activities().slice(0,HLTraining.activities().findIndex(x=>x.lessonId===a.lessonId)).filter(x=>!HLTraining.complete(x));
     if(earlier.length){const notice=el('p','cbt-status',`${earlier.length} earlier ${earlier.length===1?'activity remains':'activities remain'} open. You may explore this step; the recommended route starts at the first open activity.`);notice.appendChild(navAction('Go to first open step',routeForLesson(earlier[0].lessonId)));context.appendChild(notice);}
     if(currentRoute.returnTo){const target=MODULE_ACTIVITY_BY_LESSON[currentRoute.returnTo];context.appendChild(navAction('Return to '+target.title,routeForLesson(target.lessonId),true));}
@@ -300,9 +301,10 @@
   function renderHome() {
     const main=$('#hlMain');main.innerHTML='';
     const next=HLTraining.next(),total=HLTraining.activities().length,done=HLTraining.activities().filter(HLTraining.complete).length;
-    const head=el('section','cbt-path-head',`<div class="hl-home-kicker">HELILAB · Competency-oriented training</div><h1>Your learning path</h1><p>Seven modules, ${total} activities. Predict, compare evidence and explain the mechanism.</p><p class="cbt-status">${done} / ${total} activities complete</p>`);
+    const head=el('section','cbt-path-head',`<div class="hl-home-kicker">HELILAB · Competency-oriented training</div><h1>Your learning path</h1><p>Seven modules, ${total} activities. Explore, compare evidence and explain the mechanism.</p><p class="cbt-status">${done} / ${total} activities complete</p>`);
     if(next){const m=HL_V2_MODULES.find(m=>m.activities.includes(next)),i=m.activities.indexOf(next);head.appendChild(el('p','cbt-next-description',`<b>Next recommended step: ${m.number}.${i+1} · ${next.title}</b><br>The first open activity in the route.`));head.appendChild(navAction(HLProgress.get(next.lessonId).viewed?'Continue this step':'Start this step',routeForLesson(next.lessonId),true));}
     else{head.appendChild(el('p',null,'All current activities are complete. Review your evidence and decide which changed cases need more practice.'));head.appendChild(navAction('View course summary','#/finish',true));}
+    head.appendChild(navAction('Look up a topic','#/legacy'));
     main.appendChild(head);
     const last=HLProgress.all().lastActivity;
     if(last&&MODULE_ACTIVITY_BY_LESSON[last]&&last!==next?.lessonId){const resume=el('p','cbt-status','Last visited: '+MODULE_ACTIVITY_BY_LESSON[last].title+' ');resume.appendChild(navAction('Return to last visited step',routeForLesson(last)));main.appendChild(resume);}
@@ -361,7 +363,14 @@
   }
 
   function renderLegacyLesson(lessonId) {
-    renderLessonBody($('#hlMain'), LESSON_BY_ID[lessonId], { legacy: true });
+    const main=$('#hlMain');renderLessonBody(main,LESSON_BY_ID[lessonId],{legacy:true});
+    const grid=main.querySelector('.hl-lesson-grid'),read=grid.querySelector('.hl-lesson-read'),widget=grid.querySelector('.hl-lesson-widget');
+    grid.classList.add('hl-reference-layout');grid.prepend(read);
+    const model=el('details','hl-reference-model');model.append(el('summary',null,'Explore the optional model'),widget);grid.append(model);
+    const actions=el('div','hl-inline-actions');actions.append(navAction('Search topics','#/legacy'));
+    const activity=MODULE_ACTIVITY_BY_LESSON[currentRoute.returnTo]||HLTraining.activities().find(a=>a.legacyLessonId===lessonId&&!a.transfer);
+    if(activity)actions.append(navAction(currentRoute.returnTo?'Return to your activity':'Practise this topic',routeForLesson(activity.lessonId)));
+    main.insertBefore(actions,grid);main.querySelector('.hl-lesson-stage').textContent='REFERENCE · Explanation and sources';main.scrollTop=0;
   }
 
   function renderRotorLab(route) {
@@ -416,24 +425,17 @@
   }
 
   function renderLegacyLibrary() {
-    const main = $('#hlMain');
-    main.innerHTML = '';
-    const head = el('section', 'hl-v2-section');
-    head.innerHTML = '<div class="hl-v2-section-kicker">Lesson library</div><h1>Extra lessons</h1><p>Browse the earlier lesson list by topic whenever you want more detail.</p>';
-    main.appendChild(head);
-    HL_STAGES.forEach((stage) => {
-      const sec = el('section', 'hl-v2-section hl-v2-section--compact');
-      sec.appendChild(el('div', 'hl-v2-section-kicker', stage));
-      const list = el('div', 'hl-legacy-list');
-      HL_LESSONS.filter(lesson => !lesson.id.startsWith('cbt-')).filter((lesson) => lesson.stage === stage).forEach((lesson) => {
-        const item = el('button', 'hl-legacy-item', `<b>${lesson.title}</b><small>${lesson.subtitle}</small>`);
-        item.onclick = () => navigate(routeForLesson(lesson.id, true));
-        list.appendChild(item);
-      });
-      sec.appendChild(list);
-      main.appendChild(sec);
-    });
-    main.scrollTop = 0;
+    const main=$('#hlMain');main.innerHTML='';
+    main.append(el('section','hl-v2-section','<div class="hl-v2-section-kicker">REFERENCE</div><h1>Look up a topic</h1><p>Read an explanation and its sources directly. You can open an optional model or return to the learning path.</p>'));
+    const label=el('label','cbt-field');label.append(el('span',null,'Search topics'));
+    const search=el('input');search.type='search';search.placeholder='Try flapping, twist, stall or inflow';search.setAttribute('aria-label','Search topics');label.append(search);main.append(label);
+    const count=el('p','cbt-status'),results=el('div');count.setAttribute('role','status');main.append(count,results);
+    const aliases={flapping:'flap flap rate bladbeweging',envelope:'retreating blade stall rbs twist washout overtrek',bladeelement:'angle of attack invalshoek pitch lift', 'bet-velocity':'velocity triangle relatieve stroming snelheidsdriehoek inflow',flaproll:'transverse flow inflow rol',spanwise:'radius radiaal twist washout'};
+    const draw=()=>{
+      const term=search.value.trim().toLowerCase(),lessons=HL_LESSONS.filter(l=>!l.id.startsWith('cbt-')).filter(l=>(l.title+' '+l.subtitle+' '+l.body.replace(/<[^>]*>/g,' ')+' '+(aliases[l.id]||'')).toLowerCase().includes(term));results.innerHTML='';count.textContent=lessons.length+' topics'+(term?' matching your search':'');
+      for(const stage of HL_STAGES){const group=lessons.filter(l=>l.stage===stage);if(!group.length)continue;const sec=el('section','hl-v2-section hl-v2-section--compact');sec.append(el('div','hl-v2-section-kicker',stage));const list=el('div','hl-legacy-list');for(const l of group){const item=el('button','hl-legacy-item',`<b>${l.title}</b><small>${l.subtitle}</small>`);item.onclick=()=>navigate(routeForLesson(l.id,true));list.append(item);}sec.append(list);results.append(sec);}
+      if(!lessons.length)results.append(el('p',null,'No matching topic. Try a shorter term or another name for the mechanism.'));
+    };search.oninput=draw;draw();main.scrollTop=0;
   }
 
   function renderLabTools() {

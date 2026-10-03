@@ -192,7 +192,7 @@ body {
   max-width: 1100px; margin: 0 auto;
   display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 22px; align-items: start;
 }
-.hl-lesson-widget { position: sticky; top: 0; }
+.hl-lesson-widget { position: sticky; top: 0; min-width: 0; max-width: 100%; }
 .hl-mode-focus {
   max-width: 1100px;
   margin: 0 auto 16px;
@@ -247,6 +247,8 @@ body {
 .hl-lesson-body li { margin-bottom: 6px; }
 .hl-lesson-body b { color: var(--text); font-weight: 600; }
 .hl-lesson-body i { color: var(--text2); }
+.hl-lesson-body table { width: 100%; table-layout: fixed; border-collapse: collapse; overflow-wrap: anywhere; }
+.hl-lesson-body th,.hl-lesson-body td { padding: 8px 5px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; font-size: .85rem; }
 
 .hl-takeaways {
   margin-top: 16px; background: var(--panel); border: 1px solid var(--border);
@@ -272,6 +274,7 @@ body {
 .hl-lesson-grid--wide .hl-w-stage { aspect-ratio: 16 / 8; }
 .hl-w-stage canvas { width: 100%; height: 100%; display: block; }
 .hl-w-stage-short { aspect-ratio: auto; height: 170px; }
+.hl-w-stage-mechanism { min-height: 380px; }
 .hl-w-stage-mission { aspect-ratio: 16 / 7.5; }
 /* BET rotor-map strip: a square-ish canvas stacked ABOVE the vector triangle.
    The BET lesson uses the STANDARD 2-column template (canvas ~508px in the left
@@ -358,8 +361,8 @@ body {
 
 .hl-kv { display: flex; justify-content: space-between; align-items: baseline;
   font-size: 13px; padding: 2px 0; gap: 10px; }
-.hl-kv span { color: var(--text2); }
-.hl-kv b { font-family: 'Space Mono', monospace; font-weight: 700; }
+.hl-kv span { color: var(--text2); min-width: 0; overflow-wrap: anywhere; }
+.hl-kv b { font-family: 'Space Mono', monospace; font-weight: 700; min-width: 0; overflow-wrap: anywhere; text-align: right; }
 .hl-stage-note { margin: -2px 2px 4px; font-size: 12px; color: var(--text3); text-align: center; }
 .hl-note { margin: 8px 0 0; font-size: 12.5px; color: var(--text2);
   border-top: 1px dashed var(--border); padding-top: 8px; line-height: 1.45; }
@@ -1019,7 +1022,7 @@ body {
 .cbt-criterion p { line-height: 1.65; color: var(--text2); }
 .cbt-phases { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
 .cbt-phases [aria-current=step] { border-color: var(--brand); background: color-mix(in srgb,var(--brand) 14%,var(--panel)); color: var(--text); }
-.cbt-model-grid { display: flex; flex-direction: column; gap: 16px; }
+.cbt-model-grid { display: flex; flex-direction: column; align-items: stretch; gap: 16px; }
 .cbt-model-reference { width: auto; padding: 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 9px; }
 .cbt-model-reference .hl-lesson-body { margin-top: 16px; }
 .cbt-requirements { padding-left: 22px; line-height: 1.8; }
@@ -1069,3 +1072,10 @@ body {
  .cbt-course-table td:last-child { grid-column: 1 / -1; }
  .cbt-course-table th,.cbt-course-table td { border: 0; }
 }
+
+/* Reading has immediate access to the explanation; diagrams are optional. */
+.hl-reference-layout { display: flex; flex-direction: column; align-items: stretch; }
+.hl-reference-model { width: 100%; min-width: 0; }
+.hl-reference-model>summary { cursor: pointer; padding: 14px; border: 1px solid var(--border); border-radius: 10px; }
+.hl-reference-model .hl-lesson-widget { position: static; margin-top: 12px; }
+.cbt-optional-prediction { margin-bottom: 14px; }

@@ -14,9 +14,9 @@ core aerodynamic equations and rotor/azimuth conventions are unchanged.
   blade-element equations (Leishman, *Principles of Helicopter Aerodynamics*,
   forward-flight BET, section 3.5.2); no core equation is changed. Check displayed
   U_T/U_P, their sum and atan2 against the core for hover, opposite azimuts and
-  negative total U_P. Any optional Foundation map uses a prescribed phi based on
-  radius alone: label that different approximation, and do not equate its
-  diagnostic alpha with the actual local triangle.
+  negative total U_P. The optional Foundation map now uses atan2 with actual local U_T and uniform
+  normal flow, instead of a radius-only phi. It still changes twist, cyclic and
+  inflow together; do not equate this preset with a twist-only experiment.
 - Use Extended as the initial optional disc approximation. The early velocity
   task starts at 60 kt; keep advanced map/threshold diagnostics collapsed after
   the local triangle and controls. Foundation remains an explicitly different
@@ -70,9 +70,18 @@ cross-tab audit (§6) and one instructor/student review pass.
 
 - Perpendicular velocity builds from inflow + flapping:
   `U_P = v_i + v_n + v_flap`, with **`v_flap = +(β̇/Ω)·r̄`** (positive Leishman sign).
-- Advancing blade (β̇ > 0) → `U_P` grows → inflow angle φ grows → **α shrinks**.
-- Retreating blade (β̇ < 0) → `U_P` shrinks → **α grows**.
-- This is why the high-α region sits at the **retreating tip (ψ = 270°, r → 1)**.
+- Upward blade motion (β̇ > 0) → `U_P` grows → φ grows → **α shrinks**, at fixed pitch, positive `U_T` and unchanged other flow terms.
+- Downward blade motion (β̇ < 0) → `U_P` shrinks → φ shrinks → **α grows** under the same controlled conditions. Neither direction is tied universally to an azimuth or a displacement extremum.
+- Stall location is a result of local pitch, signed flow and section critical α. Negative twist lowers tip pitch relative to the 0.75R reference and can move maximum α inward; a tip-to-midspan migration is not universal (NACA TN 1666).
+
+### Controlled mechanism comparisons, October 2026
+
+- The flapping comparison prescribes instantaneous β = 0 and β̇. The existing harmonic functions are evaluated with `a0=0`, `a1c=−(β̇/Ω)sinψ`, `a1s=(β̇/Ω)cosψ`. These coefficients invert the existing β and β̇ definitions; they do not solve a rotor response or predict a flight trajectory. Pitch, inflow and tangential speed are held fixed while rate changes. The core equations are unchanged (Leishman, blade-element local velocities; FAA Helicopter Flying Handbook, aerodynamics).
+- The twist comparison prescribes uniform positive normal flow in m/s, no cyclic or flapping, and fixed pitch at 0.75R. It uses the existing `bladePitch`, `inflowAngle` and tangential velocity functions. Twist alone changes θ; φ stays identical between compared blades at each station. This deliberately frozen-flow experiment is not a re-trimmed, equal-thrust comparison.
+- Map colour for α/αcrit is the actual ratio, never multiplied by a dynamic-pressure factor. Positive-α threshold crossings are geometric model diagnostics independent of a low-loading proxy. Reverse/near-zero tangential flow is marked separately. Threshold crossing does not establish actual stalled loads, symptoms or aircraft limits.
+- The assumed Mach/critical-α rule remains an illustrative rule, not validated airfoil data. Display, contours and readout use the same rule. Attached-flow load proxies are withheld beyond either-sign threshold rather than claiming zero post-stall lift.
+
+Sources: [FAA Helicopter Flying Handbook](https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook), [NACA TN 1666](https://ntrs.nasa.gov/citations/19930082289).
 - For **Flapback & Inflow Roll**:
   - `Transverse Flow Effect` is used in-course as the pedagogical label for the
     **inflow-roll** mechanism (fore-aft wake-induced inflow asymmetry), not for flapback.

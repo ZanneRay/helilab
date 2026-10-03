@@ -30,6 +30,7 @@ function load(file, exportConsts) {
 }
 load('flapping.js', ['BET_STATE']);
 load('helilab_core.js', ['HL']);
+load('helilab_mechanisms.js', ['HLMechanisms']);
 
 const {
   BET_STATE, tipSpeed, advanceRatio, omega, inflowRatio, inducedInflowRatio, thrustCoeff,
@@ -636,6 +637,29 @@ section('Transverse Flow Effect — fore-aft inflow asymmetry');
   check('λ_s > 0 with positive lateral wind (separate roll input)',
     mLat.lams > 0,
     `lams=${mLat.lams.toFixed(4)}`);
+}
+
+// Controlled mechanism presets: Leishman BET local velocity signs reused.
+{
+  const M=ctx.HLMechanisms,st={...ctx.HL.defaultState(),V:60*.5144,theta0:10,theta1c:0,theta1s:0,twist:0};
+  for(const psi of [0,Math.PI/2,Math.PI,3*Math.PI/2]){
+    const r=.75,base=M.flap(st,r,psi,0),up=M.flap(st,r,psi,60),down=M.flap(st,r,psi,-60);
+    check(`Prescribed beta=0 and signed rate at psi ${Math.round(psi*180/Math.PI)}`,Math.abs(up.beta)<1e-12&&Math.abs(up.betaDot-Math.PI/3)<1e-12);
+    check(`Only r*betaDot changes local flow at psi ${Math.round(psi*180/Math.PI)}`,Math.abs(up.UT-base.UT)<1e-12&&Math.abs(up.inflowNormal-base.inflowNormal)<1e-12&&Math.abs((up.UP-base.UP)*tipSpeed(st)-r*st.R*Math.PI/3)<1e-10);
+    check(`Upward alpha < stationary < downward at psi ${Math.round(psi*180/Math.PI)}`,up.aoa<base.aoa&&base.aoa<down.aoa&&up.theta===base.theta&&down.theta===base.theta);
+  }
+  for(const r of [.55,.75,1]){
+    const base=M.twist(st,r,3*Math.PI/2,0,6),wash=M.twist(st,r,3*Math.PI/2,-8,6);
+    check(`Twist comparison holds flow at r ${r}`,wash.UT===base.UT&&wash.UP===base.UP&&wash.phi===base.phi);
+    check(`Delta alpha equals pitch twist at r ${r}`,Math.abs((wash.aoa-base.aoa)*180/Math.PI-(-8)*(r-.75))<1e-10);
+  }
+  const low=M.diagnostic(st,{UT:.02,aoa:(st.stallAoA+1)*Math.PI/180,reverseFlow:false});
+  check('Low tangential loading does not suppress an alpha threshold',low.crossed&&Math.abs(low.ratio-(st.stallAoA+1)/st.stallAoA)<1e-10);
+  check('Zero tangential flow is unsupported, not a normal-flow stall verdict',M.diagnostic(st,{UT:0,aoa:1,reverseFlow:false}).unsupported&&!M.diagnostic(st,{UT:0,aoa:1,reverseFlow:false}).crossed);
+  for(const psi of [Math.PI/2,3*Math.PI/2]){
+    const d=M.foundation(st,.75,psi);
+    check(`Foundation angle uses actual local velocity at psi ${Math.round(psi*180/Math.PI)}`,Math.abs(d.phi-Math.atan2(d.UP,d.UT))<1e-12&&Math.abs(d.aoa-(d.theta-d.phi))<1e-12);
+  }
 }
 
 console.log(`\n──────────────────────────────\nRESULT: ${pass} passed, ${fail} failed\n`);
