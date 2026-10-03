@@ -267,7 +267,7 @@
       const row=el('li','cbt-path-row'+(HLTraining.complete(a)?' is-complete':''));
       const open=el('button','cbt-path-open');open.type='button';
       open.innerHTML=`<span class="cbt-step-number">${module.number}.${i+1}</span><span><b>${a.title}</b><small>${a.transfer?'Apply to changed conditions':a.mode==='mission'?'Construct, commit and reveal':'Practise the mechanism'}</small></span><span class="cbt-path-status">${HLTraining.status(a)}</span>`;
-      open.onclick=()=>navigate(routeForLesson(a.lessonId));row.appendChild(open);list.appendChild(row);
+      open.onclick=()=>navigate(routeForLesson(a.lessonId));row.appendChild(open);if(a.purpose){const purpose=el('p','cbt-step-purpose',a.keyIdea);row.appendChild(purpose);}list.appendChild(row);
     });return list;
   }
   function renderTrainingActivity(main,lesson,a,module){
@@ -278,6 +278,7 @@
     if(earlier.length){const notice=el('p','cbt-status',`${earlier.length} earlier ${earlier.length===1?'activity remains':'activities remain'} open. You may explore this step; the recommended route starts at the first open activity.`);notice.appendChild(navAction('Go to first open step',routeForLesson(earlier[0].lessonId)));context.appendChild(notice);}
     if(currentRoute.returnTo){const target=MODULE_ACTIVITY_BY_LESSON[currentRoute.returnTo];context.appendChild(navAction('Return to '+target.title,routeForLesson(target.lessonId),true));}
     main.appendChild(context);
+    if(a.keyIdea)main.appendChild(el('section','cbt-key-idea',`<b>${a.purpose}</b><p>${a.keyIdea}</p>`));
     const grid=el('div','hl-lesson-grid cbt-model-grid');
     const wCol=el('div','hl-lesson-widget'),mount=el('div','hl-widget-mount');mount.setAttribute('role','group');mount.setAttribute('aria-label','Interactive model: '+a.title);wCol.appendChild(mount);grid.appendChild(wCol);
     const reference=el('details','hl-lesson-read cbt-model-reference');reference.appendChild(el('summary',null,'Model reference and key ideas'));reference.appendChild(el('div','hl-lesson-body',a.bodyHtml));
@@ -287,6 +288,7 @@
     let updateActions=()=>{};
     try{setActiveCleanup(HLW[a.widget](mount,a));setActiveCleanup(HLTrainingUI.mount(main,grid,mount,lesson,a,module,()=>{updateProgressBar();updateActions();const status=HLTraining.activities().map(a=>HLTraining.status(a)).join('|');if(status!==sidebarProgress)buildSidebar(currentRoute);}));}
     catch(e){mount.textContent='The model could not load. Reload this page to retry.';console.error(e);}
+    if(a.nextLink)main.appendChild(el('p','cbt-next-link',a.nextLink));
     const foot=el('div','hl-lesson-foot cbt-activity-footer');
     foot.appendChild(navAction(idx>0?'Previous activity':'Module overview',idx>0?routeForLesson(module.activities[idx-1].lessonId):`#/module/${module.id}`));
     const next=el('button','hl-foot-btn primary');next.type='button';foot.appendChild(next);
@@ -323,6 +325,7 @@
     main.appendChild(el('section','hl-v2-module-head',`<div class="hl-v2-section-kicker">Module ${m.number} of 7</div><h1>${m.title}</h1><p>${m.outcome}</p><p class="cbt-status">${done} / ${m.activities.length} complete</p>`));
     if(next)main.appendChild(navAction('Continue: '+next.title,routeForLesson(next.lessonId),true));else main.appendChild(navAction('Review module result',`#/module/${m.id}/result`,true));
     main.appendChild(el('p',null,'Follow the numbered activities in order. You can also revisit a step; open work remains visible.'));
+    if(m.id==='m1')main.appendChild(el('section','cbt-key-idea','<b>From aircraft to section, then back to the rotor</b><p>First explore three relationships: force versus motion, pitch versus airflow, and radius versus speed. Then compare forward-flight flow, construct the force picture and apply it to a changed case. The first four activities build the tools; the final two ask you to use them.</p>'));
     main.appendChild(activityRows(m));main.appendChild(navAction('View module result',`#/module/${m.id}/result`));main.scrollTop=0;
   }
   function renderModuleResult(moduleId){

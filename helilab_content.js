@@ -67,6 +67,7 @@ const HL_LESSONS = [
     body: `
 <p>Build the resultant of the tangential and perpendicular velocity components before placing the chord. Use the resultant direction to construct α, then place lift normal to relative airflow and drag opposite relative motion.</p>
 <p>The final construction resolves the total aerodynamic force into a component normal to the rotor plane and a tangential component. <b>Normal to the rotor plane is not necessarily vertical in the earth frame.</b> The tangential component contributes torque about the shaft.</p>
+<p>In the force views, lift, drag, their sum and the two projections use the same scale and actual directions. Drag points along the air motion relative to the section, opposing the section’s motion through air. The earlier angle views enlarge angles for readability.</p>
 <p>Commit each gate before the reveal, then compare your construction with it. A correction after feedback is useful learning evidence; the committed attempt remains part of the record. One section cannot establish the entire rotor's thrust or torque.</p>
 <details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
     `,
@@ -89,7 +90,8 @@ const HL_LESSONS = [
     body: `
 <p>All stations share angular speed Ω, but their tangential speed is <b>Ωr</b>. At unchanged RPM, a station at 0.8R has twice the rotational speed of a station at 0.4R. If density and other velocity contributions are unchanged or neglected, its dynamic pressure is four times as large.</p>
 <p>That does not guarantee four times the lift. Section lift also depends on chord, α and the lift coefficient. Inflow angle changes with the local velocity triangle. <b>Washout</b> decreases geometric pitch toward the tip and changes the distribution of loading.</p>
-<p>For this activity set twist to zero and compare two radii with RPM fixed. Explain the observed speed change first. Treat any displayed load distribution as a result of the selected assumptions, not a statement that every rotor has the same loading or stall location.</p>
+<table><caption>Same RPM and density; rotational component only</caption><thead><tr><th>Station</th><th>Speed / tip speed</th><th>q_rot / tip q</th></tr></thead><tbody><tr><td>0.4R</td><td>0.4</td><td>0.16</td></tr><tr><td>0.8R</td><td>0.8</td><td>0.64</td></tr></tbody></table>
+<p>For this activity twist starts at zero. Compare two radii with RPM fixed. Explain the observed speed change first. The blue speed fraction r/R and green rotational-pressure fraction (r/R)² share one labelled scale. They exclude induced and translational flow. No lift distribution is calculated here; the optional twist control changes pitch, not rotational speed.</p>
 <details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
     `,
     takeaways: ["RPM is shared; tangential speed increases with radius.", "Dynamic pressure scales with local speed squared.", "Actual loading also depends on geometry and aerodynamic coefficients."],

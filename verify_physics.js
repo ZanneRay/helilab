@@ -662,5 +662,14 @@ section('Transverse Flow Effect — fore-aft inflow asymmetry');
   }
 }
 
+// Module 1 force construction: physical directions and one resolved vector.
+for(const degrees of [-8,0,4,12]){
+  const phi=degrees*Math.PI/180,cl=.6,cd=.025;
+  const f=ctx.HLMechanisms.forces(cl,cd,phi),wind={x:-Math.cos(phi),y:-Math.sin(phi)};
+  check(`Section lift is normal to signed relative wind at ${degrees}°`,Math.abs(f.lift.x*wind.x+f.lift.y*wind.y)<1e-12);
+  check(`Section drag follows air motion at ${degrees}°`,Math.abs(f.drag.x*wind.y-f.drag.y*wind.x)<1e-12&&f.drag.x*wind.x+f.drag.y*wind.y>0);
+  check(`Local force projections preserve magnitude at ${degrees}°`,Math.abs(f.normal*f.normal+f.braking*f.braking-cl*cl-cd*cd)<1e-12);
+}
+
 console.log(`\n──────────────────────────────\nRESULT: ${pass} passed, ${fail} failed\n`);
 process.exit(fail ? 1 : 0);

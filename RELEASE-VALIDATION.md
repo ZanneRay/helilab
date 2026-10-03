@@ -1,5 +1,33 @@
 # Learning-path release validation — 2026-10-02
 
+## Module 1 review and redesign — 2026-10-03
+
+All six activities were reviewed together with their reference text, case checks,
+model assumptions, actual canvas geometry, controls and progress restoration.
+The changes add a connected route and concise tasks; isolate signed angle
+geometry; replace the misleading separately normalised lift plot with explicit
+rotational speed/pressure ratios; locate forward-flight sections in a CCW compass;
+and use one force scale for the native vector sum and its projections. Native
+feedback attempts and support are retained. Revised tasks archive earlier work.
+Core rotor equations are unchanged. Details: [MODULE-ONE-REVIEW.md](MODULE-ONE-REVIEW.md).
+
+Validation:
+
+- `npm test`: **157 physics/mechanism checks; 40 learning checks**, all passed.
+- `npm run test:browser`: **87 activity/viewport, 126 acceptance, 62 content/reference,
+  and 39 Module 1 checks**, all passed. All 29 activities and 19 references remain accessible.
+- The new checks exercise actual comparison controls and saved evidence, signed
+  upflow and negative alpha, radial pressure ratios, twist invariance, vertical
+  thrust projection, CCW orientation including 360° tail, canvas vector addition
+  and projection, feedback history, reload and earlier-task archives.
+- Visually inspected desktop/mobile angle, radius, velocity-compass and force-sum
+  views; maximum-angle mobile geometry and the light theme. Checked all six
+  activities at 1280, 768 and 390 px.
+
+These checks establish software/model consistency. The human learner/instructor
+pilot in `USER-VALIDATION.md` remains prepared and unperformed.
+
+
 ## Flapping/stall and information-access review — 2026-10-03
 
 Implemented controlled instantaneous flap-rate comparisons and a separate frozen-flow twist comparison, with revised theory, decision checks and changed-station transfer. Foundation now calculates inflow angle from actual local tangential velocity. Map ratios are not suppressed by dynamic-pressure weighting; selected values, contours and threshold rules agree. Core BET equations and CCW convention are retained. The attached-flow load proxy is marked unavailable beyond its assumed angle range rather than being presented as zero post-stall lift.

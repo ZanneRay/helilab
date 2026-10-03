@@ -32,5 +32,12 @@ const HLMechanisms=(()=>{
     const theta=bladePitch(base,r,psi),phi=inflowAngle(UT,UP);
     return {UT,UP,theta,phi,aoa:theta-phi,reverseFlow:UT<=1e-4};
   }
-  return {flap,twist,diagnostic,foundation};
+  function forces(cl,cd,phi){
+    // Coordinates: +x along blade motion, +y rotor-normal. Airflow is opposite.
+    const lift={x:-cl*Math.sin(phi),y:cl*Math.cos(phi)};
+    const drag={x:-cd*Math.cos(phi),y:-cd*Math.sin(phi)};
+    const total={x:lift.x+drag.x,y:lift.y+drag.y};
+    return {lift,drag,total,normal:total.y,braking:-total.x};
+  }
+  return {flap,twist,diagnostic,foundation,forces};
 })();

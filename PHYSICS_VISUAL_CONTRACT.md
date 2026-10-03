@@ -1,5 +1,30 @@
 # HeliLab — Physics & Visual Contract
 
+## Module 1 visual clarification — 2026-10-03
+
+- The angle explorer separates geometry from forces. It permits signed inflow and
+  negative alpha without clamping the relative-flow line to the chord. Its ×3 angle
+  enlargement is disclosed; values remain the actual angles.
+- The construction's force stages use actual angles and one common coefficient
+  scale for lift, drag, their sum and both projections. No separate drag or
+  in-plane-force enlargement is allowed in this vector sum. With the illustrated
+  airflow directed toward the element, drag acts along that airflow; it opposes
+  the blade's motion relative to air. These opposite descriptions must not be
+  confused. Resolve using the existing local equations:
+  C_normal = C_l cos(phi) − C_d sin(phi),
+  C_braking = C_l sin(phi) + C_d cos(phi).
+- The radial plot compares U_rot/(Omega R) = r/R and
+  q_rot/q_tip = (r/R)^2 on a labelled common dimensionless scale. q_rot excludes
+  induced and translational flow. It is not actual lift or total dynamic pressure.
+  Twist can change pitch; it cannot change these rotational speed/pressure ratios.
+- The introductory fixed-control state uses T cos(disc tilt) for vertical force
+  and T sin(disc tilt) minus drag for horizontal force. The hover thrust solution
+  is an illustrative imposed rotor force in this picture, not forward-flight trim.
+
+Source: [FAA Helicopter Flying Handbook, Chapter 2](https://www.faa.gov/sites/faa.gov/files/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook/hfh_ch02.pdf),
+relative wind, blade twist, force directions and blade-element terminology;
+Leishman BET conventions and the existing core equations remain unchanged.
+
 ## Content audit clarification — 2026-10-02
 
 This clarification takes precedence over universal teaching claims below. The
