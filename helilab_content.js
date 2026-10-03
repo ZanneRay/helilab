@@ -201,17 +201,18 @@ const HL_LESSONS = [
 },
   },
   {
-    id: 'flapping', stage: 'Forward Flight', title: "Flapping & Rotor Response",
-    subtitle: "Local flap rate and phased disc response",
+    id: 'flapping', stage: 'Forward Flight', title: "Flapping & Angle of Attack",
+    subtitle: "Motion → relative flow → inflow angle → angle of attack",
     widget: 'wFlapping',
     body: `
-<p>Blade flapping is out-of-plane motion. <b>Flapping displacement β and flapping rate are different.</b> At an extremum of displacement the rate can be zero. Upward blade motion adds a positive perpendicular relative-velocity contribution; with pitch fixed and normal chordwise flow, φ tends to rise and α tends to fall. Downward motion gives the opposite tendency.</p>
-<p>A blade responds dynamically to periodic aerodynamic forcing. A near-quarter-revolution phase relation is useful for the ideal articulated model shown here. Hinge offset, stiffness, damping and aerodynamic coupling change the response. A universal 90° rigid-gyroscope rule is not a complete rotor explanation.</p>
-<p>The widget shows an <b>untrimmed, prescribed response</b> on a level fuselage. Natural flapback changes disc orientation; cyclic changes the pitch distribution and the trimmed response. Compensation reduces imbalance but does not guarantee identical lift at every azimuth.</p>
-<p>Coning is the mean upward blade deflection associated with aerodynamic loading and centrifugal restoring effects. A rotor can cone in symmetric hover even when first-harmonic flapping is absent.</p>
-<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://ntrs.nasa.gov/api/citations/19750010111/downloads/19750010111.pdf" target="_blank" rel="noopener noreferrer">NASA TN D-7856 — rotor dynamics and phase</a>. The activity uses the simplified model and conditions described above.</p></details>
+<p><b>Scenario:</b> a retreating blade element moves downward while its geometric pitch stays fixed. Explain why its α can increase before interpreting a rotor stall map.</p>
+<p><b>Read the two arrows first.</b> The orange chord stays at pitch θ. The blue arrow shows air relative to the moving blade. The angle between them is α. A vertical velocity contribution changes the direction of this relative air flow; it does not automatically raise α.</p>
+<table><thead><tr><th>Blade motion</th><th>Normal component U_P</th><th>Inflow φ</th><th>α at fixed θ</th></tr></thead><tbody><tr><td>Upward, β̇ &gt; 0</td><td>Increases</td><td>Increases</td><td>Decreases</td></tr><tr><td>Downward, β̇ &lt; 0</td><td>Decreases</td><td>Decreases</td><td>Increases</td></tr></tbody></table>
+<p>This comparison holds <b>positive U_T, pitch and the other flow terms fixed</b>. Displacement β tells you where the blade is; rate β̇ tells you how fast it moves. At a smooth maximum or minimum of β, β̇ is zero.</p>
+<details><summary>ATPL relation and sign convention</summary><p>In this rotor-plane convention, U_P = air-flow normal term + rβ̇ + other motion terms; φ = atan2(U_P,U_T), and α = θ − φ. Positive β̇ denotes upward blade motion. The new comparison sets β = 0 and prescribes the rate, so only rβ̇ changes. It does not solve rotor dynamics. Actual azimuths and phase depend on trim, hinge offset, stiffness and damping.</p></details>
+<details class="hl-content-sources"><summary>Sources</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — aerodynamics</a>; <a href="https://ntrs.nasa.gov/api/citations/19750010111/downloads/19750010111.pdf" target="_blank" rel="noopener noreferrer">NASA TN D-7856 — rotor response and phase</a>.</p></details>
     `,
-    takeaways: ["Flap rate changes the local velocity triangle; flap displacement locates the blade.", "The phase relation depends on rotor dynamics and configuration.", "Coning can be present in symmetric hover."],
+    takeaways: ["Downward rate raises α; upward rate lowers α under the stated controlled conditions.", "Use α = θ − φ; flapping is not a pitch increase.", "Rate and displacement are different."],
     check: {
   "q": "A blade is at its maximum upward flapping displacement. What can you infer about its instantaneous flap rate?",
   "options": [
@@ -224,15 +225,17 @@ const HL_LESSONS = [
 },
   },
   {
-    id: 'envelope', stage: 'Forward Flight', title: "Aerodynamic Speed Constraints",
-    subtitle: "Local stall and compressibility diagnostics",
+    id: 'envelope', stage: 'Forward Flight', title: "Retreating Blade Stall & Twist",
+    subtitle: "Local angle of attack, washout and advancing-side Mach",
     widget: 'wEnvelope',
     body: `
-<p>With forward speed increasing at fixed RPM, the advancing side encounters higher local speed and Mach. On the retreating side, reduced local speed can require higher lift coefficient and α to sustain loading. These are different aerodynamic constraints.</p>
-<p>Stall depends on section aerodynamics, local Mach, loading and unsteady effects. Compressibility can increase drag and alter forces before the local speed reaches Mach 1. Weight, manoeuvre load, density, RPM, blade twist and trim all matter. Neither constraint alone defines an aircraft's approved <b>V_NE</b>.</p>
-<p>The disc colours and hatching are <b>model diagnostics</b>, using assumed critical α and a Mach comparison line. Reverse-flow cells are shown separately because the normal-flow section model does not establish their true airloads.</p>
-<p>The Foundation and Extended settings change modelling assumptions, including twist and trim treatment. Compare locations within each model; do not memorise a universal tip-first stall azimuth or radius. The map does not predict aircraft vibration, roll, recoverability or an approved speed limit.</p>
-<details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
+<p><b>Scenario:</b> forward-flight loading must be maintained while the retreating side has less local speed. Explain the α demand and why a twisted blade need not have its highest α at the tip.</p>
+<p><b>1. Lower speed changes the loading requirement.</b> For the same section lift, less dynamic pressure requires a higher lift coefficient. In the normal pre-stall range this usually requires higher α. Flapping and cyclic help redistribute rotor loading. At high forward speed the required retreating α may approach the section stall limit. Lower U_T alone is not proof that actual α increases at fixed pitch and normal flow.</p>
+<p><b>2. An untwisted, uniform-flow example can peak outboard.</b> With θ constant and positive U_P fixed, U_T increases with radius. Therefore φ decreases and α = θ − φ increases. The outer region can reach a common critical α first. This explains a tip-first teaching example under explicit assumptions.</p>
+<p><b>3. Negative twist changes pitch along the span.</b> With pitch fixed at 0.75R, washout lowers tip pitch and raises inboard pitch. At unchanged flow, tip α falls and inboard α rises. The maximum may move inward. There is no universal “stall begins at midspan” rule: real location depends on pitch, flow, flapping, trim, section critical α and unsteady effects.</p>
+<p>First use <b>Twist in isolation</b>; compare the two curves at one radius. Then use <b>Rotor diagnostics</b> to inspect the combined model. Advancing-side Mach is a separate constraint. A positive-α threshold crossing is a teaching diagnostic, not an approved aircraft envelope.</p>
+<details><summary>ATPL relations and model assumptions</summary><p>U_T ≈ Ωr + V sinψ; φ = atan2(U_P,U_T); α = θ − φ. Pitch with linear twist is θ(r) = θ(0.75R) + twist × (r/R − 0.75). In the first view, uniform normal flow is prescribed and there is no flapping, cyclic or re-trim. The Foundation map uses actual U_T with uniform inflow and restricted cyclic; Extended uses the core BET flow and trim. Switching map presets changes several assumptions together and cannot isolate twist.</p><p>Map colours and contours use the unweighted α/assumed-critical-α ratio. Loading is a separate proxy. Reverse/near-zero tangential flow lies outside the normal-flow diagnostic. The assumed Mach/critical-α rule does not provide validated airfoil stall loads, aircraft symptoms, V_NE or recovery instructions.</p></details>
+<details class="hl-content-sources"><summary>Sources and the twist qualification</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — aerodynamics and hazards</a>. <a href="https://ntrs.nasa.gov/citations/19930082289" target="_blank" rel="noopener noreferrer">NACA TN 1666</a> reported that approximately 8° negative twist reduced tip α in its tested rotor but the maximum still occurred at the tip. That historical case supports the qualification; its location is not universal either.</p></details>
     `,
     takeaways: ["Distinguish high advancing Mach from retreating loading/α demand.", "Stall location depends on the selected rotor and flow assumptions.", "A teaching diagnostic is not an approved operating envelope."],
     check: {
@@ -255,7 +258,7 @@ const HL_LESSONS = [
 <p>Read each layer as a different controlled model, not a complete simulated flight transition. At <b>Hover</b>, rotational speed is independent of azimuth at a fixed radius but still varies with radius. Uniform inflow is an assumption; mean coning can remain.</p>
 <p><b>Rigid forward flight</b> suppresses flapping and cyclic to expose the local speed asymmetry. <b>Flapping</b> introduces a prescribed untrimmed response; its rate changes U_P and therefore α. Negative α in this layer is a result of the selected untrimmed state, not proof of a typical trimmed aircraft state.</p>
 <p><b>Cyclic</b> changes the pitch distribution to achieve the selected level-disc teaching trim. Level disc does not mean forward thrust: under the disc-normal approximation, thrust is then rotor-normal. Aircraft velocity is separate. Compare θ, φ and α at 90° and 270° rather than assuming pitch equals α.</p>
-<p>The <b>Lift proxy</b> map uses a simplified local loading measure; it is not required thrust or a full integrated load solution. High-speed hatching uses model thresholds, and reverse flow is outside the normal section interpretation.</p>
+<p>The <b>Lift proxy</b> map uses a simplified local loading measure; it is not required thrust or a full integrated load solution. Grey cells have no attached-flow proxy beyond the assumed positive or negative α range; grey does not mean zero post-stall lift. Hatching marks positive-α model threshold crossings, and reverse flow is outside the normal section interpretation.</p>
 <details class="hl-content-sources"><summary>Source and model scope</summary><p><a href="https://www.faa.gov/regulations_policies/handbooks_manuals/aviation/helicopter_flying_handbook" target="_blank" rel="noopener noreferrer">FAA Helicopter Flying Handbook — source chapters</a>. The activity uses the simplified model and conditions described above.</p></details>
     `,
     takeaways: ["Compare layers at the same speed, station and azimuth.", "Separate imposed pitch from local inflow and flap velocity.", "Level-disc trim does not establish a forward thrust component."],

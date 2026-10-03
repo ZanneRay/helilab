@@ -1,5 +1,7 @@
 # HeliLab — inhoudelijke en didactische review
 
+Vervolg 3 oktober 2026: de volledige keten flapping → lokale stroming → α → retreating blade stall → twist is opnieuw onderzocht en herontworpen. Zie [FLAPPING-STALL-REVIEW.md](FLAPPING-STALL-REVIEW.md) voor de negen gevonden problemen, brongebonden theorie, gecontroleerde oefeningen en modelgrenzen. De verplichte generieke schrijfvoorspelling bij gewone oefeningen is vervallen; uitleg en bronnen zijn rechtstreeks doorzoekbaar. Zie [PREDICT-ACCESS-REVIEW.md](PREDICT-ACCESS-REVIEW.md). Technische resultaten staan in [RELEASE-VALIDATION.md](RELEASE-VALIDATION.md).
+
 Datum: 2 oktober 2026. Scope: het volledige zelfstandige leerpad met 29 activiteiten, de 19 naslaglessen, de modeluitleg en de toetsvragen. Deze review volgt op de navigatie- en bewijsverbeteringen in PR #86.
 
 De belangrijkste tekortkoming was inconsistentie tussen uitleg, modeltoestand en de conclusie die een opdracht vroeg. Sommige teksten gebruikten een vergelijking bij vaste pitch om een conclusie over gelijke lift te trekken. Andere teksten presenteerden vereenvoudigde modelgrenzen als echte vlieglimieten. Deze problemen zijn in de app aangepast; dit document beschrijft de wijzigingen en de resterende evaluatie.

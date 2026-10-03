@@ -2,6 +2,8 @@
 
 Datum: 2 oktober 2026. Status: klaar om uit te voeren; er zijn nog geen deelnemers getest met dit protocol.
 
+Aanvulling 3 oktober: toets ook de informatiezoekroute en de gerichte inzet van voorspellen. Geef als afzonderlijke taak: “Zoek uit wat neerwaartse flapping met de invalshoek doet, zonder een oefening te willen afronden.” Observeer of de deelnemer de themalijst, uitleg, voorwaarden en bronnen vindt en daarna naar dezelfde activiteit kan terugkeren. Laat vervolgens de flapping- en twistvergelijkingen uitvoeren zonder verplichte schrijfvoorspelling. Noteer of een mentale voorspelling of optionele notitie gebruikt wordt, wat de cursist uit het model afleidt, en of hij rate/verplaatsing en lokale α/liftvraag/kritische α zelfstandig onderscheidt. Vergelijk dit met de eerste analyse in een transfercasus. Alleen een ingevuld tekstveld telt niet als waargenomen begrip.
+
 Doel: vaststellen of de beoogde cursist het zelfstandige leerpad begrijpt, werk betrouwbaar hervat en aerodynamische redeneringen in een gewijzigde situatie kan onderbouwen. Technische tests controleren de software. Deze evaluatie onderzoekt de ervaring en de waargenomen leerprestatie. De onderstaande aantallen, termijnen en beslisregels zijn lokale ontwerpkeuzes, geen norm voor opleidingsgoedkeuring.
 
 ## 1. Voorbereiding en doelgroep

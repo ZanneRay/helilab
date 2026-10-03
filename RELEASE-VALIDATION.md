@@ -1,5 +1,21 @@
 # Learning-path release validation — 2026-10-02
 
+## Flapping/stall and information-access review — 2026-10-03
+
+Implemented controlled instantaneous flap-rate comparisons and a separate frozen-flow twist comparison, with revised theory, decision checks and changed-station transfer. Foundation now calculates inflow angle from actual local tangential velocity. Map ratios are not suppressed by dynamic-pressure weighting; selected values, contours and threshold rules agree. Core BET equations and CCW convention are retained. The attached-flow load proxy is marked unavailable beyond its assumed angle range rather than being presented as zero post-stall lift.
+
+Ordinary exercises now open without a written prediction. The optional note, native model-specific commitments and first analysis in transfer cases have separate purposes. The fixed navigation and home page expose topic search. Every activity offers an explanation-first reference and returns to the source activity. Reading does not confer task completion. Existing saved work is retained; the two materially redesigned model tasks archive earlier evidence as activity version 3.
+
+Validation on the final runtime changes:
+
+- `npm test`: **145 physics/mechanism checks and 40 learning/progress checks** passed.
+- Browser smoke: **87 activity/viewport checks**, including scroll width of the actual main panel, passed at 1280, 768 and 390 px.
+- Browser acceptance: **126 checks** passed through actual controls, evidence capture, all 29 completions, changed cases, checkpoint restoration, backups, observations and model disposal. The optional reference model is explicitly opened before testing its animation lifecycle.
+- Content/reference/browser checks: **62 checks** passed, including signed rates, unchanged flow, twist-only angle changes, raw map ratios, direct explanation access, search, return navigation, optional note, retained transfer analysis, mobile model bounds and all 19 reference routes.
+- Visually inspected phone and desktop previews of the flow comparison, radial twist plot, rotor diagnostics, direct reading and topic search. Fixed an actual mobile clipping issue that document-level overflow checks had missed; 0.75R is now displayed with two decimals.
+
+These are software and explanatory-model checks, not a student learning-effect study, formal ATPL syllabus approval or validated aircraft envelope. The follow-up human protocol now includes finding information without practising and testing whether the optional/targeted prediction approach works for learners. Detailed findings: [FLAPPING-STALL-REVIEW.md](FLAPPING-STALL-REVIEW.md) and [PREDICT-ACCESS-REVIEW.md](PREDICT-ACCESS-REVIEW.md).
+
 ## Case-specific instructor observations
 
 Local observations now select an activity and bind to the current case, task version, question IDs and saved reasoning/model evidence. Case or evidence changes invalidate the current-observation label while preserving the earlier note and ratings. Re-observation retains up to twelve earlier entries per module. Navigation and unsaved model exploration do not invalidate observed work. Imported earlier observations remain visible without being labelled current; schema 4 backups retain the new binding and history.
