@@ -73,6 +73,11 @@ const HLW = (function () {
     };
   }
 
+  function foundationLayout(host,ui){
+    host.querySelector('.hl-w').classList.add('hl-w-foundation');
+    ui.canvas.parentElement.classList.add('hl-w-stage-foundation');
+  }
+
   /* slider control. opts:{label,min,max,step,val,unit,fmt,on} → returns {get,set} */
   function slider(parent, o) {
     const row = el('div', 'hl-ctl');
@@ -219,54 +224,32 @@ const HLW = (function () {
     }
 
     if ((opts.showForces || opts.showResultant || opts.showResolve) && !opts.stall) {
-      const fL = Math.max(0, opts.cl || 0) * (len * 0.84);
-      const fD = Math.max(0, opts.cd || 0) * (len * 8.0);
-      const Lx = -fL * Math.sin(phV), Ly = -fL * Math.cos(phV);
-      const Dx = -fD * Math.cos(phV), Dy = fD * Math.sin(phV);
-      if (opts.showForces) {
-        const lmag = Math.hypot(Lx, Ly) || 1;
-        HLD.arrow(ctx, ox, oy, ox + Lx, oy + Ly, col.lift, 2.4, 9);
-        HLD.chipLabel(ctx, opts.liftLabel || 'L', ox + Lx - (Ly / lmag) * 16, oy + Ly + (Lx / lmag) * 16, col.lift, 'bold 11px IBM Plex Sans', 'center');
-        HLD.arrow(ctx, ox, oy, ox + Dx, oy + Dy, col.drag, 2.0, 8);
-        HLD.chipLabel(ctx, opts.dragLabel || 'D', ox + Dx - 10, oy + Dy + 8, col.drag, '10px IBM Plex Sans', 'center');
+      const f = HLMechanisms.forces(opts.cl || 0, opts.cd || 0, ph);
+      // Actual angles and one common scale, including the projections.
+      const scale = Math.min(len * 0.78, oy - 38) / Math.max(0.5, Math.hypot(opts.cl || 0, opts.cd || 0));
+      const Lx=f.lift.x*scale,Ly=-f.lift.y*scale,Dx=f.drag.x*scale,Dy=-f.drag.y*scale;
+      const tx=f.total.x*scale,ty=-f.total.y*scale,tafCol='#c084fc';
+      if(opts.showForces){
+        HLD.arrow(ctx,ox,oy,ox+Lx,oy+Ly,col.lift,2.4,8);
+        HLD.chipLabel(ctx,opts.liftLabel||'L',ox+Lx+20,oy+Ly-10,col.lift,'bold 11px IBM Plex Sans','left');
+        HLD.arrow(ctx,ox,oy,ox+Dx,oy+Dy,col.drag,2,Math.min(6,Math.hypot(Dx,Dy)*.5));
+        HLD.chipLabel(ctx,opts.dragLabel||'D',ox+Dx-12,oy+Dy+24,col.drag,'11px IBM Plex Sans','right');
       }
-      const tafX = Lx + Dx, tafY = Ly + Dy;
-      const tafMag = Math.hypot(tafX, tafY) || 1;
-      const tafCol = '#c084fc';
-      if (opts.showParallelogram) {
-        HLD.dline(ctx, ox + Lx, oy + Ly, ox + tafX, oy + tafY, col.dim, 1, [5, 4]);
-        HLD.dline(ctx, ox + Dx, oy + Dy, ox + tafX, oy + tafY, col.dim, 1, [5, 4]);
-        HLD.chipLabel(ctx, opts.resultantSumLabel || 'TAF = F_L + F_D',
-          ox + tafX - (tafY / tafMag) * 28,
-          oy + tafY + (tafX / tafMag) * 28,
-          tafCol, '10px IBM Plex Sans', 'center');
+      if(opts.showParallelogram){
+        HLD.dline(ctx,ox+Lx,oy+Ly,ox+tx,oy+ty,col.dim,1,[4,3]);
+        HLD.dline(ctx,ox+Dx,oy+Dy,ox+tx,oy+ty,col.dim,1,[4,3]);
       }
-      if (opts.showResultant) {
-        HLD.arrow(ctx, ox, oy, ox + tafX, oy + tafY, tafCol, 2.6, 10);
-        HLD.chipLabel(ctx, opts.resultantLabel || 'TAF',
-          ox + tafX + (tafY / tafMag) * 16,
-          oy + tafY - (tafX / tafMag) * 16,
-          tafCol, 'bold 11px IBM Plex Sans', 'center');
+      if(opts.showResultant||opts.showResolve){
+        HLD.arrow(ctx,ox,oy,ox+tx,oy+ty,tafCol,2.5,8);
+        HLD.chipLabel(ctx,'TAF = L + D',ox+tx-10,oy+ty-12,tafCol,'bold 11px IBM Plex Sans','right');
       }
-      if (opts.showResolve) {
-        const S = len * 0.75, FH_X = 6;
-        const fHtrue = (opts.cl || 0) * Math.sin(ph) + (opts.cd || 0) * Math.cos(ph);
-        const fTtrue = (opts.cl || 0) * Math.cos(ph) - (opts.cd || 0) * Math.sin(ph);
-        const Tx = -fHtrue * S * FH_X;
-        const Ty = -fTtrue * S;
-        HLD.dline(ctx, ox + Tx, oy + Ty, ox + Tx, oy, col.dim, 1, [3, 3]);
-        HLD.dline(ctx, ox + Tx, oy + Ty, ox, oy + Ty, col.dim, 1, [3, 3]);
-        const tmag = Math.hypot(Tx, Ty) || 1;
-        const tpx = Ty / tmag, tpy = -Tx / tmag;
-        HLD.arrow(ctx, ox, oy, ox, oy + Ty, col.good, 2.4, 9);
-        HLD.chipLabel(ctx, opts.resolveLabel || 'Thrust',
-          ox - 20, oy + Ty + (Ty < 0 ? -12 : 16), col.good, 'bold 10px IBM Plex Sans', 'right');
-        const fhCol = Tx > 0 ? col.good : col.warn;
-        HLD.arrow(ctx, ox, oy, ox + Tx, oy, fhCol, 2.4, 9);
-        HLD.chipLabel(ctx, opts.fhLabel || 'F_H ×6',
-          ox + Tx + (Tx < 0 ? -20 : 20), oy + 28, fhCol, 'bold 10px IBM Plex Sans', Tx < 0 ? 'right' : 'left');
-        HLD.arrow(ctx, ox, oy, ox + Tx, oy + Ty, tafCol, 2.6, 10);
-        HLD.chipLabel(ctx, 'TAF', ox + Tx + tpx * 18, oy + Ty + tpy * 18, tafCol, 'bold 11px IBM Plex Sans', 'center');
+      if(opts.showResolve){
+        HLD.dline(ctx,ox+tx,oy+ty,ox+tx,oy,col.dim,1,[4,3]);
+        HLD.dline(ctx,ox+tx,oy+ty,ox,oy+ty,col.dim,1,[4,3]);
+        HLD.arrow(ctx,ox,oy,ox,oy+ty,col.good,2.2,8);
+        HLD.chipLabel(ctx,'Normal',ox+12,oy+ty+18,col.good,'bold 11px IBM Plex Sans','left');
+        HLD.arrow(ctx,ox,oy,ox+tx,oy,col.warn,2.2,Math.min(6,Math.abs(tx)*.4));
+        HLD.chipLabel(ctx,'F_H',ox+tx-14,oy+30,col.warn,'bold 11px IBM Plex Sans','right');
       }
     }
 
@@ -616,6 +599,7 @@ const HLW = (function () {
   /* 1 — Big picture: side-view helicopter — collective (real T/W), cyclic, pedals */
   function wBigPicture(host) {
     const ui = scaffold(host);
+    foundationLayout(host,ui);
     let coll = 52, cyc = 0, pedal = 0, spd = 0;   // collective %, cyclic ±, pedal ±, airspeed m/s
     const draw = () => {
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
@@ -742,29 +726,28 @@ const HLW = (function () {
         // label fixed to the RIGHT of the hub, below the tilted disc: stays clear of
         // the disc line above and the drag/weight labels on the left (which collide
         // with a leftward net arrow in the decelerate case)
-        HLD.text(ctx, steady ? 'steady — T·sinθ = Drag' : (netN > 0 ? 'accelerate →' : '← decelerate'),
+        HLD.text(ctx, steady ? 'horizontal balance' : (netN > 0 ? 'accelerate →' : '← decelerate'),
           cx + 56, mastTop + 30, col.warn, '11px IBM Plex Sans');
       }
-      const vert = tw > 1.05 ? 'upward acceleration tendency' : tw < 0.95 ? 'downward acceleration tendency' : 'approximately vertical balance';
-      const horizTxt = steady ? 'steady cruise' : (netN > 0 ? 'accel forward' : 'decel');
+      const verticalRatio = tw * Math.cos(tilt);
+      const vert = verticalRatio > 1.05 ? 'upward acceleration tendency' : verticalRatio < 0.95 ? 'downward acceleration tendency' : 'approximately vertical balance';
+      const horizTxt = steady ? 'horizontal force balance' : (netN > 0 ? 'accel forward' : 'decel');
+      const velocityY=Math.max(28,H*.16);
+      if(spd>0)HLD.arrow(ctx,W*.48,velocityY,W*.48+Math.min(W*.28,spd*2),velocityY,col.accent,3,9);
+      HLD.chipLabel(ctx,spd>0?'Velocity V →':'Velocity V = 0',W*.60,velocityY-16,col.accent,'bold 12px IBM Plex Sans','center');
       const result = (Math.abs(cyc) < 3 && spd < 1) ? vert : vert + ' + ' + horizTxt;
       const yawTxt = Math.abs(netYaw) < 0.06 ? 'balanced — heading held'
         : (netYaw > 0 ? 'nose yaws right →' : '← nose yaws left');
       ui.readout.innerHTML = kv([
         ['Collective', coll.toFixed(0) + ' %  ·  T/W ' + tw.toFixed(2), tw >= 1 ? 'var(--hl-good)' : 'var(--hl-bad)'],
+        ['Vertical thrust / weight', verticalRatio.toFixed(3), 'var(--hl-lift)'],
         ['Cyclic / disc tilt', (cyc / 100 * 14).toFixed(1) + '°', 'var(--hl-accent)'],
         ['Airspeed', spd.toFixed(0) + ' m/s  (' + (spd * 1.944).toFixed(0) + ' kt)', 'var(--hl-accent)'],
         ['Drag / T_h', DN.toFixed(0) + ' N  ·  ' + ThN.toFixed(0) + ' N', DN > ThN ? 'var(--hl-bad)' : 'var(--hl-drag)'],
         ['Pedals / yaw', yawTxt, Math.abs(netYaw) < 0.06 ? 'var(--hl-good)' : 'var(--hl-warn)'],
         ['Result', result, 'var(--hl-warn)'],
-      ]) + `<p class="hl-note">Collective changes pitch and produced thrust in this model: <b>vertical thrust greater than weight accelerates upward; less accelerates downward</b>. Cyclic <b>tilts the thrust</b> — its forward component T·sinθ
-        accelerates the helicopter, but as speed builds <b>parasite drag</b> (½ρV²f)
-        grows until T·sinθ = Drag and you cruise at steady speed. The main rotor's
-        <b>torque</b> spins the fuselage the other way — the <b>tail rotor</b> cancels it.
-        <b>Right pedal commands right yaw in the illustrated arrangement.</b> Actual response also depends on available authority and other moments. The EC135/H145 rotor turns
-        <b>counter-clockwise</b> (from above), so its torque yaws the nose right and
-        you hold <b>left pedal</b> against it — right pedal then <i>reduces</i>
-        tail-rotor thrust.</p>`;
+      ]) + '<p class="hl-note"><b>Separate force from velocity.</b> Net horizontal force is T sin(tilt) − D; vertical force is T cos(tilt) − W. The arrows use illustrative scales; the model does not simulate a trajectory.</p><details><summary>Control coupling and model assumptions</summary><p class="hl-note">Collective maps to a hover thrust solution, imposed here at every speed; this is not forward-flight trim. Cyclic prescribes disc tilt. In this CCW arrangement right pedal reduces the illustrated anti-torque moment. RPM and weight stay fixed; available power and actual yaw response are not solved.</p></details>';
+
     };
     slider(ui.controls, { label: 'Collective (total thrust)', min: 0, max: 100, step: 1, val: coll, unit: ' %', on: v => { coll = v; draw(); } });
     slider(ui.controls, { label: 'Cyclic — aft ◀ ▶ forward', min: -100, max: 100, step: 1, val: cyc, unit: '', fmt: v => v.toFixed(0), on: v => { cyc = v; draw(); } });
@@ -775,160 +758,56 @@ const HLW = (function () {
 
   /* 2 — Blade element: θ, φ → α, lift/drag */
   function wBladeElement(host) {
-    const ui = scaffold(host);
-    addStageNote(host, 'Angles visually exaggerated ×4 — not to scale');
-    const st = HL.defaultState();
-    let theta = 8, phi = 3, linked = false, step = 1;
-    let phiCtl = null, linkToggle = null;
-
-    // step bar: counter + nav buttons + caption, injected ABOVE the hl-w wrapper
-    const stepBar = el('div', 'hl-step-bar');
-    const stepNav = el('div', 'hl-step-nav');
-    const btnBack = el('button', 'hl-step-btn', '← Back');
-    btnBack.setAttribute('aria-label', 'Previous step');
-    const stepCounter = el('span', 'hl-step-counter', 'Step 1 of 4');
-    const btnNext = el('button', 'hl-step-btn', 'Next →');
-    btnNext.setAttribute('aria-label', 'Next step');
-    stepNav.appendChild(btnBack);
-    stepNav.appendChild(stepCounter);
-    stepNav.appendChild(btnNext);
-    const stepCaption = el('div', 'hl-step-caption');
-    stepBar.appendChild(stepNav);
-    stepBar.appendChild(stepCaption);
-    host.insertBefore(stepBar, host.firstChild);
-
-    const CAPTIONS = [
-      'Rotor plane + blade chord. v_rot = \u03A9\u00B7r is the tangential velocity — how fast the blade moves through the air.',
-      'Now add v_i — the axial / induced inflow that pushes air downward through the rotor disc.',
-      'v_rot and v_i combine to give the resultant relative airflow V_rel. Its angle to the rotor plane is \u03C6.',
-      'Full picture: \u03B8 is the blade pitch, \u03C6 the inflow angle, and \u03B1 = \u03B8 \u2212 \u03C6 is the angle of attack.',
+    const ui=scaffold(host);foundationLayout(host,ui);
+    addStageNote(host,'Angles enlarged ×3; values are actual. Fixed station 0.75R and RPM.');
+    ui.canvas.setAttribute('aria-label','Blade section: orange chord, blue relative airflow and signed angle of attack');
+    const st=HL.defaultState();let theta=8,phi=3,linked=false,step=1,phiCtl=null;
+    const bar=el('div','hl-step-bar'),strip=el('div','hl-angle-steps');
+    const names=['Rotation','Normal flow','Relative airflow','Angle of attack'];
+    const captions=[
+      'The blade moves right. In its frame, rotational relative wind points left: U_rot = Ωr.',
+      'Downward air motion adds a normal component. These arrows show air motion relative to this section.',
+      'Add the components tip to tail. φ is the signed angle from the rotor-plane reference to relative airflow.',
+      'θ is plane to chord. φ is plane to airflow. α is airflow to chord: α = θ − φ.'
     ];
-
-    const updateStepUI = () => {
-      stepCounter.textContent = 'Step ' + step + ' of 4';
-      stepCaption.textContent = CAPTIONS[step - 1];
-      btnBack.disabled = step === 1;
-      btnNext.disabled = step === 4;
-      // show "Link φ to θ" toggle only in step 4
-      if (linkToggle) linkToggle.style.display = step === 4 ? '' : 'none';
-    };
-
-    btnBack.addEventListener('click', () => { if (step > 1) { step--; updateStepUI(); draw(); } });
-    btnNext.addEventListener('click', () => { if (step < 4) { step++; updateStepUI(); draw(); } });
-
-    // physical inflow angle at 0.75R for a given collective (hover momentum solve)
-    const phiFromTheta = (th) => {
-      const s = { ...st, theta0: th, V: 0, Vc: 0 };
-      const lam = HL.axialSolve(s, 0).lam;
-      return Math.atan2(lam, 0.75) * R2D;
-    };
-    const draw = () => {
-      if (linked) { phi = phiFromTheta(theta); if (phiCtl) phiCtl.set(+phi.toFixed(1)); }
-      const { ctx, W, H, col } = HLD.setup(ui.canvas);
-      HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
-      const aoa = (theta - phi) * D2R;
-      const stall = aoa >= st.stallAoA * D2R;
-      const cl = HL.clOf(st, aoa);
-      const cd = HL.cdOf(st, cl);
-      const OmR = HL.omR(st);
-      const vrot = 0.75 * OmR;
-      const vi = vrot * Math.tan(phi * D2R);
-      const ox = W * 0.16, oy = H * 0.6, len = Math.min(W * 0.62, 300);
-
-      // geometry mirroring bladeSection internals (for manual overlays in steps 1–3)
-      const A = 4.0;
-      const thV = theta * D2R * A;
-      const phVraw = phi * D2R * A;
-      const phV = phVraw;
-      const wlen = len * 0.92;
-      const wtx = ox + wlen * Math.cos(phV);
-      const wty = oy - wlen * Math.sin(phV);
-      const fX = wtx, fY = oy;   // right-angle corner of the velocity triangle
-
-      drawBladeElementScene(ctx, ox, oy, len, {
-        theta: theta * D2R, phi: phi * D2R, ampl: A,
-        showForces: step === 4,
-        showVelocity: step === 4,
-        showVrel: step >= 3,
-        showAngles: step === 4,
-        stall: stall && step === 4,
-        cl, cd, aoa,
-      }, col);
-
-      // ── step-specific overlays ────────────────────────────────────────────
-      // U_T is visible in steps 1, 2, and 3 (as a leg of the triangle)
-      if (step >= 1 && step <= 2) {
-        HLD.arrow(ctx, fX, fY, ox, fY, col.accent, 2.5, 9);
-        HLD.chipLabel(ctx, 'v_rot  tangential velocity (= \u03A9\u00B7r)', (fX + ox) / 2, fY + 15, col.accent, 'bold 10px IBM Plex Sans', 'center');
+    const buttons=names.map((name,i)=>{const b=el('button','hl-step-btn',`${i+1} · ${name}`);b.type='button';b.onclick=()=>{step=i+1;update();draw();};strip.append(b);return b;});
+    const nav=el('div','hl-step-nav'),back=el('button','hl-step-btn','← Back'),counter=el('span','hl-step-counter'),next=el('button','hl-step-btn','Next →'),caption=el('p','hl-step-caption');
+    back.setAttribute('aria-label','Previous step');next.setAttribute('aria-label','Next step');nav.append(back,counter,next);bar.append(strip,nav,caption);host.prepend(bar);
+    const update=()=>{counter.textContent=`View ${step} of 4`;caption.textContent=captions[step-1];back.disabled=step===1;next.disabled=step===4;buttons.forEach((b,i)=>b.setAttribute('aria-current',i+1===step?'step':'false'));};
+    back.onclick=()=>{if(step>1){step--;update();draw();}};next.onclick=()=>{if(step<4){step++;update();draw();}};
+    const phiFromTheta=th=>Math.atan2(HL.axialSolve({...st,theta0:th,V:0,Vc:0},0).lam,.75)*R2D;
+    const draw=()=>{
+      if(linked){phi=phiFromTheta(theta);phiCtl?.set(+phi.toFixed(1));}
+      const {ctx,W,H,col}=HLD.setup(ui.canvas);HLD.clear(ctx,W,H,col);
+      const A=3,th=theta*D2R*A,ph=phi*D2R*A,ox=W*.18,oy=H*.60,len=Math.min(W*.68,340),ac=len*.52;
+      const x=ox+len*Math.cos(ph),y=oy-len*Math.sin(ph);
+      HLD.dline(ctx,12,oy,W-16,oy,col.dim,1,[5,4]);
+      HLD.chipLabel(ctx,'rotor plane',W-18,oy+22,col.dim,'11px IBM Plex Sans','right');
+      ctx.save();ctx.translate(ox,oy);ctx.rotate(-th);ctx.strokeStyle=col.chord;ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(ac,0);ctx.stroke();ctx.fillStyle=col.chord;ctx.globalAlpha=.14;ctx.beginPath();BLADE_AIRFOIL.forEach((p,i)=>{const X=(1-p.x)*ac,Y=-p.y*ac;i?ctx.lineTo(X,Y):ctx.moveTo(X,Y);});ctx.closePath();ctx.fill();ctx.globalAlpha=1;ctx.stroke();ctx.restore();HLD.dot(ctx,ox,oy,4,col.chord);
+      HLD.chipLabel(ctx,'chord',ox+ac*Math.cos(th)+8,oy-ac*Math.sin(th)-18,col.chord,'bold 12px IBM Plex Sans','left');
+      if(step<4){
+        HLD.arrow(ctx,x,oy,ox,oy,col.accent,2.5,8);HLD.chipLabel(ctx,'U_rot = Ωr',(ox+x)/2,oy+42,col.accent,'12px IBM Plex Sans','center');
+        if(step>=2&&Math.abs(phi)>.01){HLD.arrow(ctx,x,y,x,oy,col.wind,2.5,Math.min(8,Math.abs(y-oy)*.5));HLD.chipLabel(ctx,phi>=0?'downflow':'upflow',x-8,(y+oy)/2,col.wind,'11px IBM Plex Sans','right');}
       }
-      if (step === 2) {
-        // U_P leg: induced inflow, perpendicular downward (only if nonzero)
-        if (phi > 0.05) {
-          HLD.arrow(ctx, wtx, wty, fX, fY, col.wind, 2.5, 9);
-          const sq = 5;
-          HLD.dline(ctx, fX - sq, fY - sq, fX, fY - sq, col.dim, 1);
-          HLD.dline(ctx, fX - sq, fY - sq, fX - sq, fY, col.dim, 1);
-          HLD.chipLabel(ctx, 'v_i  induced inflow', fX - 12, (wty + fY) / 2, col.wind, 'bold 10px IBM Plex Sans', 'right');
-        }
-      }
-      if (step === 3) {
-        // vector triangle: V_rel (drawn by bladeSection) + labelled U_T and U_P legs
-        HLD.arrow(ctx, fX, fY, ox, fY, col.accent, 2.0, 8);
-        if (phi > 0.05) {
-          HLD.arrow(ctx, wtx, wty, fX, fY, col.wind, 2.0, 8);
-          const sq = 5;
-          HLD.dline(ctx, fX - sq, fY - sq, fX, fY - sq, col.dim, 1);
-          HLD.dline(ctx, fX - sq, fY - sq, fX - sq, fY, col.dim, 1);
-          HLD.chipLabel(ctx, 'v_i', fX - 7, (wty + fY) / 2, col.wind, 'bold 10px IBM Plex Sans', 'right');
-        }
-        HLD.chipLabel(ctx, 'v_rot', (fX + ox) / 2, fY + 12, col.accent, 'bold 10px IBM Plex Sans', 'center');
-        // re-stamp rotor-plane label so it is not overwritten by U_P leg
-        HLD.chipLabel(ctx, 'rotor plane', ox + len * 1.12, oy - 9, col.dim, '10px IBM Plex Sans', 'right');
-      }
-
-      // ── readout ───────────────────────────────────────────────────────────
-      const aoaDeg = theta - phi;
-      if (step === 4) {
-        ui.readout.innerHTML = kv([
-          ['Pitch θ', theta.toFixed(1) + '°', 'var(--hl-chord)'],
-          ['Inflow φ', phi.toFixed(1) + '°' + (linked ? ' (from θ)' : ''), 'var(--hl-wind)'],
-          ['AoA α = θ − φ', aoaDeg.toFixed(1) + '°', stall ? 'var(--hl-bad)' : 'var(--hl-good)'],
-          ['Lift coeff C_l', cl.toFixed(2), stall ? 'var(--hl-bad)' : 'var(--hl-ink)'],
-          ['v_rot', vrot.toFixed(0) + ' m/s', 'var(--hl-wind)'],
-          ['v_i', vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
-        ]) + `<p class="hl-note">${stall
-          ? 'The assumed section stall threshold is crossed. The simple coefficient law does not resolve unsteady separation or actual aircraft stall limits.'
-          : linked
-            ? 'Linked mode couples pitch and inflow in this hover illustration. Its final angle change is a coupled state comparison, not a transient flow solution.'
-            : 'Below the assumed stall threshold, the selected coefficient rises with α. Compare pitch and inflow independently first; linked mode adds a simplified hover coupling.'}</p>`;
-      } else if (step === 3) {
-        ui.readout.innerHTML = kv([
-          ['Pitch θ', theta.toFixed(1) + '°', 'var(--hl-chord)'],
-          ['Inflow φ', phi.toFixed(1) + '°', 'var(--hl-wind)'],
-          ['v_rot', vrot.toFixed(0) + ' m/s', 'var(--hl-accent)'],
-          ['v_i', vi.toFixed(1) + ' m/s', 'var(--hl-wind)'],
-        ]) + '<p class="hl-note">tan φ = v_i / v_rot — drag the sliders to see the triangle change.</p>';
-      } else {
-        ui.readout.innerHTML = kv([
-          ['Pitch θ', theta.toFixed(1) + '°', 'var(--hl-chord)'],
-          ['Inflow φ', phi.toFixed(1) + '°', 'var(--hl-wind)'],
-        ]) + '<p class="hl-note">Adjust the sliders to reshape the diagram.</p>';
-      }
+      if(step>=3){HLD.arrow(ctx,x,y,ox,oy,col.wind,3,10);HLD.chipLabel(ctx,'relative airflow',W-20,34,col.wind,'bold 12px IBM Plex Sans','right');}
+      const arc=(r,a,b,color)=>{ctx.strokeStyle=color;ctx.lineWidth=2;ctx.beginPath();ctx.arc(ox,oy,r,a,b,b<a);ctx.stroke();};
+      if(step===3){arc(55,0,-ph,col.wind);HLD.chipLabel(ctx,'φ',ox+65,oy+14,col.wind,'bold 13px IBM Plex Sans','center');}
+      if(step===4){arc(35,0,-th,col.chord);arc(61,0,-ph,col.wind);arc(88,-ph,-th,col.lift);const mid=(th+ph)/2;HLD.chipLabel(ctx,'α',ox+80*Math.cos(mid),oy-80*Math.sin(mid)-18,col.lift,'bold 16px IBM Plex Sans','center');HLD.chipLabel(ctx,'θ',ox+35,oy-30,col.chord,'bold 13px IBM Plex Sans','center');HLD.chipLabel(ctx,'φ',ox+64,oy+17,col.wind,'bold 13px IBM Plex Sans','center');}
+      const vrot=.75*HL.omR(st),normal=vrot*Math.tan(phi*D2R);
+      ui.readout.innerHTML=kv([
+        ['Pitch θ',theta.toFixed(1)+'°','var(--hl-chord)'],['Inflow φ',phi.toFixed(1)+'°','var(--hl-wind)'],
+        ...(step===4?[['AoA α = θ − φ',(theta-phi).toFixed(1)+'°','var(--hl-lift)']]:[]),
+        ...(step>=2?[['v_rot',vrot.toFixed(0)+' m/s','var(--hl-accent)'],['Signed normal velocity',normal.toFixed(1)+' m/s','var(--hl-wind)']]:[])
+      ])+`<p class="hl-note">${linked?'Coupled hover illustration: pitch changes the solved inflow too. Turn coupling off to isolate one angle.':step===4?'Pitch +2° at fixed inflow → α +2°. Inflow +2° at fixed pitch → α −2°. Negative α is permitted; this view does not calculate forces or stall.':'Follow the four views, or select Angle of attack for the complete geometry.'}</p>`;
     };
-    slider(ui.controls, { label: 'Pitch θ (collective)', min: 0, max: 18, step: 0.5, val: theta, unit: '°', on: v => { theta = v; draw(); } });
-    phiCtl = slider(ui.controls, { label: 'Inflow angle φ', min: 0, max: 12, step: 0.5, val: phi, unit: '°', on: v => { if (!linked) { phi = v; draw(); } } });
-    const toggleRow = el('div');
-    ui.controls.appendChild(toggleRow);
-    linkToggle = toggleRow;
-    toggle(toggleRow, { label: 'Link φ to θ (realistic)', val: false, on: v => { linked = v; draw(); } });
-    updateStepUI();
-    ui.onDraw(draw);
-    const savedControls = HLModelState.controls(host);
-    host._hlModel = {
-      get: () => ({...savedControls.get(), step}),
-      set: x => { step = Math.max(1,Math.min(4,Number(x.step)||1)); savedControls.set(x); updateStepUI(); draw(); },
-      evidence: () => ({})
-    };
+    const thetaCtl=slider(ui.controls,{label:'Pitch θ (collective)',min:0,max:18,step:.5,val:theta,unit:'°',on:v=>{theta=v;draw();}});
+    phiCtl=slider(ui.controls,{label:'Inflow angle φ',min:-6,max:12,step:.5,val:phi,unit:'°',on:v=>{if(!linked){phi=v;draw();}}});
+    const examples=el('div','hl-inline-actions');
+    for(const [name,t,p] of [['Reference: 8° / 3°',8,3],['Pitch only: 10° / 3°',10,3],['Inflow only: 8° / 5°',8,5]]){const b=el('button','hl-step-btn',name);b.type='button';b.onclick=()=>{linked=false;link.set(false);theta=t;phi=p;thetaCtl.set(t);phiCtl.set(p);step=4;update();draw();};examples.append(b);}ui.controls.append(examples);
+    const coupling=el('details','hl-model-extra');coupling.append(el('summary',null,'Optional: coupled hover inflow'));ui.controls.append(coupling);
+    const link=toggle(coupling,{label:'Link φ to θ (hover model)',val:false,on:v=>{linked=v;draw();}});
+    update();ui.onDraw(draw);const controls=HLModelState.controls(host);
+    host._hlModel={get:()=>({...controls.get(),step}),set:x=>{step=Math.max(1,Math.min(4,Number(x.step)||1));controls.set(x);update();draw();},evidence:()=>({})};
   }
 
   function wM104BladeElement(host) {
@@ -945,7 +824,8 @@ const HLW = (function () {
     const cl = HL.clOf(st, aoa);
     const cd = HL.cdOf(st, cl);
     let step = 1;
-    let gate1 = null, gate2 = null, gate3 = null;
+    let gate1 = null, gate2 = null, gate3 = null, supported=false, attempts=[];
+    const recordGate=(gate,choice,correct)=>{attempts.push({gate,choice,correct,afterSupport:supported});attempts=attempts.slice(-50);if(!correct)supported=true;};
     let gate1Draft = null, gate1Dragging = false, gate1Geom = null;
 
     const STEP_NAMES = ['Reference', 'Velocities', 'Angles', 'Forces', 'Resolve', 'Connect'];
@@ -1044,7 +924,7 @@ const HLW = (function () {
           'Drag from the top of v_i and aim V_rel into the blade-element point, then commit the construction.'));
         const commitBtn = el('button', 'hl-link-btn', 'Commit V_rel construction');
         commitBtn.disabled = !gate1Draft;
-        commitBtn.addEventListener('click', () => { gate1 = gate1State(); updateStepUI(); draw(); });
+        commitBtn.addEventListener('click', () => { gate1 = gate1State(); recordGate('Relative-flow vector',gate1,gate1==='correct'); updateStepUI(); draw(); });
         ui.controls.appendChild(commitBtn);
         const keyboard = el('fieldset', 'cbt-case');
         keyboard.appendChild(el('legend', null, 'Keyboard construction: choose vector endpoints'));
@@ -1072,7 +952,7 @@ const HLW = (function () {
             { v: '6', t: 'α = 6°' },
             { v: '14', t: 'α = 14°' },
           ],
-          on: v => { gate2 = v; updateStepUI(); draw(); },
+          on: v => { gate2 = v; recordGate('Angle of attack',v+'°',v==='6'); updateStepUI(); draw(); },
         });
         const fb2 = gateFeedback(gate2 ? (gate2 === '6' ? 'correct' : 'wrong') : null,
           'Correct — once the geometry is revealed, the relation α = θ − φ confirms the 6° result.',
@@ -1089,7 +969,7 @@ const HLW = (function () {
             { v: 'correct', t: 'The local normal component contributes to rotor thrust, while F_H is an in-plane braking load' },
             { v: 'wrong-span', t: 'TAF acts along the blade span, so this element mainly changes radial flow' },
           ],
-          on: v => { gate3 = v; updateStepUI(); draw(); },
+          on: v => { gate3 = v; recordGate('Force resolution',v,v==='correct'); updateStepUI(); draw(); },
         });
         const fb3 = gateFeedback(gate3,
           'Correct — keep the local normal component separate from total rotor thrust, and treat F_H as an in-plane resisting force.',
@@ -1193,7 +1073,8 @@ const HLW = (function () {
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
       HLD.clear(ctx, W, H, col);
       HLD.grid(ctx, W, H, col, 30);
-      const forceStep = step >= 5;
+      host.querySelector('.hl-stage-note').textContent=step>=4?'Force vectors use actual angles and one common scale; no component is enlarged.':'Angles visually exaggerated ×4 — not to scale';
+      const forceStep = step >= 4;
       const ox = W * (forceStep ? 0.40 : 0.24);
       const oy = H * 0.66, len = Math.min(W * (forceStep ? 0.43 : 0.50), 300);
       if (step === 1) {
@@ -1230,10 +1111,10 @@ const HLW = (function () {
         drawBladeElementScene(ctx, ox, oy, len, {
           theta: scenario.theta * D2R,
           phi: scenario.phi * D2R,
-          ampl: 4.0,
-          showVelocity: true,
+          ampl: 1,
+          showVelocity: false,
           showVrel: true,
-          showAngles: true,
+          showAngles: false,
           showForces: true,
           showParallelogram: true,
           showResultant: true,
@@ -1244,29 +1125,29 @@ const HLW = (function () {
         ui.readout.innerHTML = kv([
           ['AoA α', (scenario.theta - scenario.phi).toFixed(1) + '°', 'var(--hl-good)'],
           ['F_L direction', 'Perpendicular to V_rel', 'var(--hl-lift)'],
-          ['F_D direction', 'Parallel / opposing the local airflow', 'var(--hl-drag)'],
+          ['F_D direction', 'Along airflow; opposes blade motion', 'var(--hl-drag)'],
           ['Combined result', 'TAF', '#c084fc'],
         ]) + '<p class="hl-note">Use the dashed parallelogram to see the vector sum directly: F_L + F_D = TAF.</p>';
       } else if (step === 5) {
         drawBladeElementScene(ctx, ox, oy, len, {
           theta: scenario.theta * D2R,
           phi: scenario.phi * D2R,
-          ampl: 4.0,
-          showVelocity: true,
+          ampl: 1,
+          showVelocity: false,
           showVrel: true,
-          showAngles: true,
-          showForces: true,
+          showAngles: false,
+          showForces: false,
           showResolve: true,
           liftLabel: 'F_L',
           dragLabel: 'F_D',
           resolveLabel: 'Normal',
-          fhLabel: 'F_H ×6',
+          fhLabel: 'F_H',
           cl, cd, aoa,
         }, col);
         ui.readout.innerHTML = kv([
           ['TAF', 'Resolved locally', '#c084fc'],
-          ['Normal component', 'Local thrust-producing part', 'var(--hl-good)'],
-          ['F_H', 'In-plane / braking component', 'var(--hl-warn)'],
+          ['Normal component', HLMechanisms.forces(cl,cd,scenario.phi*D2R).normal.toFixed(3)+' × q × area', 'var(--hl-good)'],
+          ['F_H', HLMechanisms.forces(cl,cd,scenario.phi*D2R).braking.toFixed(3)+' × q × area (braking)', 'var(--hl-warn)'],
         ]) + `<p class="hl-note">${gate3 === 'correct'
           ? 'Gate 3 unlocked: you have identified the local causal consequence and can now move to the final reveal.'
           : 'The dashed helper lines show TAF being decomposed into the local normal component and F_H before you name the rotor effect.'}</p>`;
@@ -1274,16 +1155,16 @@ const HLW = (function () {
         drawBladeElementScene(ctx, ox, oy, len, {
           theta: scenario.theta * D2R,
           phi: scenario.phi * D2R,
-          ampl: 4.0,
-          showVelocity: true,
+          ampl: 1,
+          showVelocity: false,
           showVrel: true,
-          showAngles: true,
-          showForces: true,
+          showAngles: false,
+          showForces: false,
           showResolve: true,
           liftLabel: 'F_L',
           dragLabel: 'F_D',
           resolveLabel: 'Normal',
-          fhLabel: 'F_H ×6',
+          fhLabel: 'F_H',
           cl, cd, aoa,
         }, col);
         ui.readout.innerHTML = kv([
@@ -1297,75 +1178,41 @@ const HLW = (function () {
     updateStepUI();
     ui.onDraw(draw);
     host._hlModel = {
-      get: () => { const r=ui.canvas.getBoundingClientRect();return {step,gate1,gate2,gate3,draft:gate1Draft&&{x1:gate1Draft.x1/(r.width||1),y1:gate1Draft.y1/(r.height||1),x2:gate1Draft.x2/(r.width||1),y2:gate1Draft.y2/(r.height||1)}}; },
-      set: x => { step=Math.max(1,Math.min(6,Number(x.step)||1));gate1=['correct','wrong'].includes(x.gate1)?x.gate1:null;gate2=['2','6','14'].includes(x.gate2)?x.gate2:null;gate3=['correct','wrong-whole','wrong-span'].includes(x.gate3)?x.gate3:null;const r=ui.canvas.getBoundingClientRect();gate1Draft=x.draft?{x1:x.draft.x1*r.width,y1:x.draft.y1*r.height,x2:x.draft.x2*r.width,y2:x.draft.y2*r.height}:null;updateStepUI();draw(); },
-      evidence: () => ({gates:{construction:gate1==='correct'&&gate2==='6'&&gate3==='correct'}})
+      get: () => { const r=ui.canvas.getBoundingClientRect();return {step,gate1,gate2,gate3,supported,attempts,draft:gate1Draft&&{x1:gate1Draft.x1/(r.width||1),y1:gate1Draft.y1/(r.height||1),x2:gate1Draft.x2/(r.width||1),y2:gate1Draft.y2/(r.height||1)}}; },
+      set: x => { supported=!!x.supported;attempts=Array.isArray(x.attempts)?x.attempts.slice(-50):[];step=Math.max(1,Math.min(6,Number(x.step)||1));gate1=['correct','wrong'].includes(x.gate1)?x.gate1:null;gate2=['2','6','14'].includes(x.gate2)?x.gate2:null;gate3=['correct','wrong-whole','wrong-span'].includes(x.gate3)?x.gate3:null;const r=ui.canvas.getBoundingClientRect();gate1Draft=x.draft?{x1:x.draft.x1*r.width,y1:x.draft.y1*r.height,x2:x.draft.x2*r.width,y2:x.draft.y2*r.height}:null;updateStepUI();draw(); },
+      evidence: () => ({gates:{construction:gate1==='correct'&&gate2==='6'&&gate3==='correct'},support:supported,attempts})
     };
   }
 
-  /* 3 — Spanwise speed & lift distribution */
+  /* 3 — Rotational speed and dynamic pressure at a blade station */
   function wSpanwise(host) {
-    const ui = scaffold(host);
-    const st = HL.defaultState();
-    let rMark = 0.75, twist = -8;
-    const draw = () => {
-      const { ctx, W, H, col } = HLD.setup(ui.canvas);
-      HLD.clear(ctx, W, H, col);
-      const padL = 48, padR = 16, padT = 18, padB = 34;
-      const x0 = padL, x1 = W - padR, y0 = H - padB, y1 = padT;
-      const sx = r => x0 + r * (x1 - x0);
-      // build curves
-      const OmR = HL.omR(st);
-      const lam = 0.05;
-      let maxLift = 0; const lift = [];
-      const B = 0.97;                                    // Prandtl tip-loss factor
-      for (let i = 0; i <= 60; i++) {
-        const r = i / 60;
-        const ut = r;                                   // U_T/ΩR
-        const th = (st.theta0 + twist * (r - 0.75)) * D2R;
-        const phi = r > 0.02 ? Math.atan2(lam, r) : Math.PI / 2;
-        const a = Math.max(0, th - phi);
-        const cl = HL.clOf(st, a);
-        const tipLoss = r <= B ? 1 : Math.max(0, (1 - r) / (1 - B));  // → 0 at the tip
-        const dL = ut * ut * cl * tipLoss;              // ∝ lift per span
-        lift.push({ r, ut, dL });
-        if (dL > maxLift) maxLift = dL;
-      }
-      // grid
-      HLD.grid(ctx, W, H, col, 30);
-      // speed line (linear)
-      ctx.strokeStyle = col.accent; ctx.lineWidth = 2;
-      ctx.beginPath();
-      lift.forEach((p, i) => { const X = sx(p.r), Y = y0 - p.ut * (y0 - y1) * 0.92; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
-      ctx.stroke();
-      HLD.text(ctx, 'speed U_T = Ω·r', sx(0.05), y1 + 4, col.accent, '11px IBM Plex Sans', 'left', 'top');
-      // lift fill
-      ctx.fillStyle = 'rgba(52,211,153,0.20)'; ctx.strokeStyle = col.lift; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(sx(0), y0);
-      lift.forEach(p => ctx.lineTo(sx(p.r), y0 - (p.dL / maxLift) * (y0 - y1) * 0.92));
-      ctx.lineTo(sx(1), y0); ctx.closePath(); ctx.fill(); ctx.stroke();
-      HLD.text(ctx, 'lift per metre  ∝ U_T²·C_l', sx(0.4), y1 + 4, col.lift, '11px IBM Plex Sans', 'left', 'top');
-      // axes
-      HLD.text(ctx, 'root', sx(0) + 2, y0 + 6, col.dim, '10px IBM Plex Sans', 'left', 'top');
-      HLD.text(ctx, 'r/R', (x0 + x1) / 2, H - 4, col.dim, '10px IBM Plex Sans', 'center', 'bottom');
-      HLD.text(ctx, 'tip', sx(1) - 2, y0 + 6, col.dim, '10px IBM Plex Sans', 'right', 'top');
-      // marker
-      const mp = lift[Math.round(rMark * 60)];
-      HLD.dline(ctx, sx(rMark), y0, sx(rMark), y1, col.warn, 1.5, [4, 3]);
-      HLD.dot(ctx, sx(rMark), y0 - (mp.dL / maxLift) * (y0 - y1) * 0.92, 4, col.warn);
-      const localSpeed = rMark * OmR;
-      ui.readout.innerHTML = kv([
-        ['Station r/R', rMark.toFixed(2), 'var(--hl-warn)'],
-        ['Local speed', localSpeed.toFixed(0) + ' m/s', 'var(--hl-accent)'],
-        ['Tip speed Ω·R', OmR.toFixed(0) + ' m/s', 'var(--hl-accent)'],
-        ['Rel. lift here', (mp.dL / maxLift * 100).toFixed(0) + ' %', 'var(--hl-lift)'],
-      ]) + `<p class="hl-note">Speed grows linearly to the tip; lift grows with its
-        square, so the outer blade does most of the work. Washout twist (slider)
-        pulls some load back inboard.</p>`;
+    const ui=scaffold(host);foundationLayout(host,ui);
+    ui.canvas.setAttribute('aria-label','Blade station and common-scale curves: rotational speed fraction r/R and rotational dynamic-pressure fraction (r/R) squared');
+    const st=HL.defaultState();let rMark=.75,twist=0;
+    addStageNote(host,'Fixed RPM and density. Rotational component only; no lift distribution is calculated.');
+    const draw=()=>{
+      const {ctx,W,H,col}=HLD.setup(ui.canvas);HLD.clear(ctx,W,H,col);
+      const x0=42,x1=W-20,top=94,bottom=H-38,sx=r=>x0+r*(x1-x0),sy=f=>bottom-f*(bottom-top);
+      HLD.text(ctx,'BLADE STATION',x0,19,col.dim,'10px IBM Plex Sans');
+      ctx.fillStyle=col.dim;ctx.globalAlpha=.2;ctx.fillRect(x0,36,x1-x0,12);ctx.globalAlpha=1;
+      HLD.dot(ctx,sx(rMark),42,6,col.warn);HLD.chipLabel(ctx,rMark.toFixed(2)+'R',sx(rMark),68,col.warn,'bold 12px IBM Plex Sans','center');
+      for(const f of [0,.25,.5,.75,1]){HLD.dline(ctx,x0,sy(f),x1,sy(f),col.grid,1);HLD.text(ctx,String(f),x0-8,sy(f),col.dim,'10px IBM Plex Sans','right','middle');}
+      for(const r of [0,.25,.5,.75,1])HLD.text(ctx,String(r),sx(r),bottom+17,col.dim,'10px IBM Plex Sans','center');
+      const curve=(fn,color)=>{ctx.strokeStyle=color;ctx.lineWidth=2.5;ctx.beginPath();for(let i=0;i<=80;i++){const r=i/80;i?ctx.lineTo(sx(r),sy(fn(r))):ctx.moveTo(sx(r),sy(fn(r)));}ctx.stroke();};curve(r=>r,col.accent);curve(r=>r*r,col.lift);
+      HLD.dline(ctx,sx(rMark),top,sx(rMark),bottom,col.warn,1,[4,3]);HLD.dot(ctx,sx(rMark),sy(rMark),4,col.accent);HLD.dot(ctx,sx(rMark),sy(rMark*rMark),4,col.lift);
+      HLD.text(ctx,'fraction of tip value',x0,top-14,col.dim,'10px IBM Plex Sans');HLD.text(ctx,'r / R',W/2,H-5,col.dim,'11px IBM Plex Sans','center');
+      const speed=rMark*HL.omR(st),qrot=.5*HL.rho(st)*speed*speed;
+      ui.readout.innerHTML=kv([
+        ['Station r/R',rMark.toFixed(2),'var(--hl-warn)'],['Local speed',speed.toFixed(1)+' m/s','var(--hl-accent)'],
+        ['Speed / tip speed',rMark.toFixed(3),'var(--hl-accent)'],['Rotational q / tip q',(rMark*rMark).toFixed(3),'var(--hl-lift)'],
+        ['Rotational dynamic pressure',(qrot/1000).toFixed(2)+' kPa','var(--hl-lift)'],['Fixed rotor RPM',st.RPM.toFixed(0)+' rpm','var(--hl-dim)'],
+        ['Tip speed Ω·R',HL.omR(st).toFixed(1)+' m/s','var(--hl-accent)'],['Geometric pitch here',(st.theta0+twist*(rMark-.75)).toFixed(2)+'°','var(--hl-chord)']
+      ])+'<p class="hl-note"><span class="hl-speed-key">Blue: U_rot / U_tip = r/R.</span><br><span class="hl-pressure-key">Green: q_rot / q_tip = (r/R)².</span><br>At 0.4R → 0.8R, speed doubles and rotational dynamic pressure quadruples. Actual lift also needs local flow, area and C_l.</p>';
     };
-    slider(ui.controls, { label: 'Blade station r/R', min: 0.1, max: 1.0, step: 0.01, val: rMark, unit: '', fmt: v => v.toFixed(2), on: v => { rMark = v; draw(); } });
-    slider(ui.controls, { label: 'Blade twist (washout)', min: -16, max: 0, step: 1, val: twist, unit: '°', on: v => { twist = v; draw(); } });
-    ui.onDraw(draw);
+    slider(ui.controls,{label:'Blade station r/R',min:.1,max:1,step:.01,val:rMark,fmt:v=>v.toFixed(2),on:v=>{rMark=v;draw();}});
+    const comparisons=el('div','hl-inline-actions');for(const r of [.4,.8]){const b=el('button','hl-step-btn',`Compare ${r.toFixed(1)}R`);b.type='button';b.onclick=()=>{const input=ui.controls.querySelector('input');input.value=r;input.dispatchEvent(new Event('input',{bubbles:true}));};comparisons.append(b);}ui.controls.append(comparisons);
+    const extra=el('details','hl-model-extra');extra.append(el('summary',null,'Optional: twist changes pitch'),el('p','hl-note','Negative twist reduces pitch outboard of 0.75R and raises it inboard. Rotational speed and q stay unchanged. The isolated α comparison follows in Module 4.'));ui.controls.append(extra);
+    slider(extra,{label:'Blade twist (washout)',min:-16,max:0,step:1,val:twist,unit:'°',on:v=>{twist=v;draw();}});ui.onDraw(draw);
   }
 
   /* 4 — Hover: collective → thrust, v_i, power */
@@ -3670,7 +3517,11 @@ const HLW = (function () {
       topStage: 'hl-w-stage hl-w-stage-map',
       mainStage: 'hl-w-stage hl-w-stage-vec',
     });
+    addStageNote(host,'Section view: relative airflow points toward the blade on the right. Normal velocity enlarged ×2; numerical angles are actual.');
     let Vkt = 60, psiDeg = 270, rBar = 0.75, twistOn = true, discModel = 'extended';
+    const orientation=el('section','hl-flow-orientation',`<svg viewBox="0 0 180 150" role="img" aria-label="Top view: counter-clockwise rotor, advancing right and retreating left"><circle cx="90" cy="76" r="42" fill="none" stroke="currentColor" opacity=".25"/><path d="M118 42 A42 42 0 0 0 48 76 M48 76 l-5 -9 M48 76 l9 -5" fill="none" stroke="var(--hl-accent)" stroke-width="2"/><line class="hl-flow-blade" x1="90" y1="76" x2="90" y2="118" stroke="var(--hl-chord)" stroke-width="3"/><circle class="hl-flow-station" cx="90" cy="108" r="4" fill="var(--hl-chord)"/><text x="90" y="15" text-anchor="middle">NOSE 180°</text><text x="4" y="135">RET 270°</text><text x="176" y="135" text-anchor="end">ADV 90°</text><text x="90" y="148" text-anchor="middle">TAIL 0°</text><text x="90" y="29" text-anchor="middle">CCW ↺</text></svg><div><b>Locate the section first</b><p>Viewed from above. Forward motion is toward the nose; the right side advances.</p><p class="hl-flow-equation"></p></div>`);
+    ui.canvas.parentElement.before(orientation);
+
     // The early learning task is the local triangle. Keep advanced disc/stall
     // diagnostics optional, after the controls and numerical evidence.
     const mapDetails=el('details','hl-optional-map');
@@ -3737,6 +3588,11 @@ const HLW = (function () {
       const VrotMS = Vrot * OmR, VtMS = Vt * OmR, UTMS = UT * OmR, UPMS = UP * OmR;
       const ViMS = v_i * OmR, VnMS = v_n * OmR, VflapMS = v_flap * OmR;
       const VrelMS = Math.hypot(UTMS, UPMS);
+      const station=orientation.querySelector('.hl-flow-station'),blade=orientation.querySelector('.hl-flow-blade');
+      blade.setAttribute('x2',90+42*Math.sin(psi));blade.setAttribute('y2',76+42*Math.cos(psi));
+      station.setAttribute('cx',90+42*rBar*Math.sin(psi));station.setAttribute('cy',76+42*rBar*Math.cos(psi));
+      orientation.querySelector('.hl-flow-equation').textContent=`U_T = Ωr + V sinψ = ${VrotMS.toFixed(1)} ${VtMS<0?'−':'+'} ${Math.abs(VtMS).toFixed(1)} = ${UTMS.toFixed(1)} m/s`;
+
 
       const { ctx, W, H, col } = HLD.setup(ui.canvas);
       HLD.clear(ctx, W, H, col); HLD.grid(ctx, W, H, col, 30);
@@ -4144,7 +4000,7 @@ const HLW = (function () {
       // and both stay readable on mobile. The map is still live + clickable.
 
       // ---- readout -----------------------------------------------------------
-      const side = psiDeg > 180 && psiDeg < 360 ? 'retreating' : (psiDeg > 0 && psiDeg < 180 ? 'advancing' : (psiDeg === 0 ? 'over tail' : 'over nose'));
+      const side = psiDeg > 180 && psiDeg < 360 ? 'retreating' : (psiDeg > 0 && psiDeg < 180 ? 'advancing' : (psiDeg % 360 === 0 ? 'over tail' : 'over nose'));
       // envelope verdict banner — the headline the student reads first, driven by
       // the SAME model as the disc map so it matches the previous page cell-for-cell.
       const banner = `<div style="margin:0 0 8px;padding:7px 10px;border-radius:6px;
@@ -4187,6 +4043,10 @@ const HLW = (function () {
         <p class="hl-note">The optional disc diagnostics below use additional
         section-threshold assumptions. They are explored later in Module 4.</p>`;
 
+      const extra=el('details','hl-model-extra');extra.append(el('summary',null,'Optional: normal-flow contributions and trim'));
+      const basic=new Set(['Azimuth ψ','V_rot = Ω·r','Translational tangential velocity','U_T (net in-plane)','U_P = signed induced + throughflow + blade motion','θ pitch','φ inflow angle','α = θ − φ']);
+      [...ui.readout.querySelectorAll('.hl-kv')].filter(row=>!basic.has(row.querySelector('span').textContent.trim())).forEach(row=>extra.append(row));
+      [...ui.readout.querySelectorAll('p.hl-note')].slice(1).forEach(p=>extra.append(p));ui.readout.append(extra);
 
       // ---- ROTOR-MAP (own top canvas) ---------------------------------------
       // Draw the live, clickable envelope disc on its OWN wide canvas above the

@@ -114,3 +114,22 @@ Rapporteer na de ronde aantallen en voorbeelden per proef, niet alleen een gemid
 - [Nielsen Norman Group — Usability Testing 101](https://www.nngroup.com/articles/usability-testing-101/): een facilitator observeert een deelnemer tijdens concrete taken. Dit protocol past die methode toe op de leerroute.
 
 De app is technisch gecontroleerd. Dit protocol is voorbereid, nog niet uitgevoerd. Deelnemersresultaten en formele inhoudelijke adoptie blijven open.
+
+## Gerichte proef voor de herziene module 1
+
+Laat de deelnemer eerst het moduleoverzicht bekijken en in eigen woorden zeggen
+waarom de zes activiteiten op elkaar volgen. Geef daarna vier observatietaken:
+
+1. Wijs θ, φ en α aan zonder de definitie voor te lezen. Voorspel een pitch- en
+   inflowverandering; gebruik daarna de vergelijkingsknoppen om de verklaring te toetsen.
+2. Vergelijk 0,4R en 0,8R. Benoem wat speed en rotational pressure veranderen,
+   en welke gegevens ontbreken om actual lift vast te stellen.
+3. Zoek een retreating station in het CCW-bovenaanzicht. Leg de signed
+   translational bijdrage uit vóór het bekijken van de geavanceerde details.
+4. Construeer het krachtbeeld en leg een nieuwe angle/radiuscase uit. Noteer
+   spontane correcties, feedbackgebruik en het onderscheid tussen local force
+   en total rotor thrust. Een correctie is leren, niet automatisch zelfstandig bewijs.
+
+Test zowel mobiel als desktop. Noteer zoektijd voor informatie, navigatiefouten,
+onbegrepen labels en verbale redeneringen. De app registreert modelkeuzes;
+de kwaliteit van de verklaring beoordeelt de menselijke observator.
